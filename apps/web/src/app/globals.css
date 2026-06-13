@@ -1,0 +1,172 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── GOOGLE FONTS ─────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+/* ─── CSS VARIABLES (Design Tokens) ────────────────────────────── */
+:root {
+  --background: #0B0A12;
+  --primary: #630BF1;
+  --accent: #8B5CF6;
+  --card: #161522;
+  --surface: #0F0E1A;
+  --border: rgba(139, 92, 246, 0.2);
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --radius-card: 16px;
+  --radius-button: 12px;
+  --radius-input: 10px;
+}
+
+/* ─── BASE LAYER ───────────────────────────────────────────────── */
+@layer base {
+  body {
+    @apply bg-background text-slate-100 antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    @apply text-white;
+  }
+
+  h1 { @apply text-h1; }
+  h2 { @apply text-h2; }
+  h3 { @apply text-h3; }
+  h4 { @apply text-h4; }
+
+  /* Scrollbar personalizada */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.3);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(139, 92, 246, 0.5);
+  }
+}
+
+/* ─── COMPONENT LAYER ──────────────────────────────────────────── */
+@layer components {
+  /* Cards de datos */
+  .vspro-card {
+    @apply rounded-card bg-card border border-card-border shadow-card
+           transition-all duration-200;
+  }
+  .vspro-card:hover {
+    @apply shadow-card-hover border-accent/30;
+  }
+
+  /* Botones primarios (gradiente) */
+  .vspro-btn-primary {
+    @apply px-5 py-2.5 rounded-button font-medium text-sm text-white
+           bg-gradient-to-r from-primary to-accent
+           hover:opacity-90 active:scale-[0.98]
+           transition-all duration-150 shadow-glow-sm;
+  }
+
+  /* Botones secundarios */
+  .vspro-btn-secondary {
+    @apply px-5 py-2.5 rounded-button font-medium text-sm
+           text-accent border border-accent/30 bg-transparent
+           hover:bg-accent/10 active:scale-[0.98]
+           transition-all duration-150;
+  }
+
+  /* Inputs */
+  .vspro-input {
+    @apply w-full rounded-input border border-card-border bg-card
+           px-4 py-2.5 text-sm text-white placeholder-muted
+           focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary
+           transition-all duration-150;
+  }
+
+  /* Modales glassmorphic */
+  .vspro-modal {
+    @apply rounded-card bg-card/80 backdrop-blur-glass border border-card-border
+           shadow-glow-md;
+  }
+
+  /* Badges */
+  .vspro-badge {
+    @apply inline-flex items-center rounded-badge px-2.5 py-0.5
+           text-xs font-medium;
+  }
+
+  /* Grid de ingeniería (fondo) */
+  .vspro-grid-bg {
+    @apply bg-grid-pattern bg-grid;
+  }
+
+  /* Glow de IA (esquinas) */
+  .vspro-glow-bottom {
+    position: relative;
+  }
+  .vspro-glow-bottom::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 200px;
+    background: radial-gradient(ellipse at center, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Stat cards con glow sutil */
+  .vspro-stat-card {
+    @apply vspro-card p-5 relative overflow-hidden;
+  }
+  .vspro-stat-card::before {
+    content: '';
+    position: absolute;
+    top: -20px;
+    right: -20px;
+    width: 80px;
+    height: 80px;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* Sidebar */
+  .vspro-sidebar {
+    @apply bg-surface border-r border-card-border;
+  }
+
+  /* Table rows */
+  .vspro-table-row {
+    @apply border-b border-card-border hover:bg-card/50 transition-colors;
+  }
+}
+
+/* ─── UTILITY LAYER ────────────────────────────────────────────── */
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
+  }
+
+  .border-glow {
+    @apply border border-accent/20 shadow-glow-sm;
+  }
+}
+
+/* ─── FORM INPUT UTILITIES ─────────────────────────────────────── */
+@layer components {
+  .input-field {
+    @apply w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent;
+  }
+  .input-field-sm {
+    @apply rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500;
+  }
+}

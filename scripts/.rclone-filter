@@ -1,0 +1,33 @@
+# ─────────────────────────────────────────────────────────────
+# Filtros de rclone para VSPRO
+# Excluye archivos pesados, sensibles y generados
+# ─────────────────────────────────────────────────────────────
+
+# Dependencias y builds — NUNCA sincronizar
+- node_modules/**
+- .git/**
+- dist/**
+- .next/**
+- .turbo/**
+- coverage/**
+- .prisma/**
+
+# Archivos sensibles — NUNCA sincronizar
+- .env
+- .env.local
+- .env.production
+- .env.staging
+- .env.*.local
+
+# Archivos de sistema
+- .DS_Store
+- Thumbs.db
+- *.swp
+- *.swo
+
+# Locks y caches
+- package-lock.json
+- *.tsbuildinfo
+
+# Incluir todo lo demás
++ **

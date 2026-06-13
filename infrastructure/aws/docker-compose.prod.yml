@@ -1,0 +1,67 @@
+# ─────────────────────────────────────────────────────────────
+# VSPRO — Production Docker Compose (AWS ECS compatible)
+# Used for: local production simulation & ECS task definitions
+# ─────────────────────────────────────────────────────────────
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: production
+    container_name: vspro_api_prod
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      TRUST_PROXY: "true"
+    env_file:
+      - ../../.env.production
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: apps/worker/Dockerfile
+      target: production
+    container_name: vspro_worker_prod
+    environment:
+      NODE_ENV: production
+    env_file:
+      - ../../.env.production
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      target: production
+    container_name: vspro_web_prod
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: https://api.vspro.mx
+    ports:
+      - "3000:3000"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    restart: unless-stopped

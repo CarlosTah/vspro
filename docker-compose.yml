@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: vspro_postgres
+    environment:
+      POSTGRES_DB: vspro_db
+      POSTGRES_USER: vspro
+      POSTGRES_PASSWORD: vspro_dev_pass
+    ports:
+      - "5433:5432"   # 5433 en host → 5432 en contenedor (evita conflicto con otros proyectos)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vspro -d vspro_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: vspro_redis
+    ports:
+      - "6380:6379"   # 6380 en host → 6379 en contenedor (evita conflicto con otros proyectos)
+    command: redis-server --appendonly yes --requirepass vspro_redis_dev
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "vspro_redis_dev", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: development
+    container_name: vspro_api
+    environment:
+      DATABASE_URL: postgresql://vspro:vspro_dev_pass@postgres:5432/vspro_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    env_file:
+      - .env.local
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/api/src:/app/apps/api/src  # hot reload en desarrollo
+      - ./packages:/app/packages
+    command: npm run dev --workspace=@vspro/api
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+      target: development
+    container_name: vspro_worker
+    environment:
+      DATABASE_URL: postgresql://vspro:vspro_dev_pass@postgres:5432/vspro_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: vspro_redis_dev
+      NODE_ENV: development
+    env_file:
+      - .env.local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/worker/src:/app/apps/worker/src
+      - ./packages:/app/packages
+
+volumes:
+  postgres_data:
+  redis_data:

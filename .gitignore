@@ -1,0 +1,51 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+dist
+.next
+out
+build
+*.tsbuildinfo
+
+# Environment files — NUNCA commitear
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+
+# Keep examples
+!.env.example
+
+# Testing
+coverage
+.nyc_output
+
+# Turbo
+.turbo
+.turbo/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea
+*.swp
+*.swo
+
+# Docker
+docker-compose.override.yml
+
+# Prisma
+prisma/migrations/*/migration_lock.toml

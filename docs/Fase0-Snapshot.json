@@ -1,0 +1,215 @@
+{
+  "metadata": {
+    "timestamp": "2026-05-23T16:00:05.265Z",
+    "environment": "development",
+    "target": "production-ready",
+    "component": "worker"
+  },
+  "infrastructure": {
+    "postgresql": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "vspro_db",
+      "status": "connected",
+      "version": "16 (pgvector)"
+    },
+    "redis": {
+      "host": "localhost",
+      "port": 6380,
+      "status": "connected",
+      "memoryUsed": "2.09M"
+    }
+  },
+  "worker": {
+    "status": "running",
+    "pid": 31356,
+    "entryPoint": "apps/worker/src/main.ts",
+    "runtime": "node --require @swc-node/register",
+    "processors": [
+      "MessageProcessor",
+      "ProductionFlowProcessor",
+      "InventoryEventsProcessor",
+      "ProactiveOutreachProcessor"
+    ],
+    "crons": [
+      {
+        "name": "proactivity-scan",
+        "schedule": "every 60s",
+        "status": "active"
+      },
+      {
+        "name": "inventory-scan",
+        "schedule": "0 */6 * * *",
+        "status": "scheduled"
+      },
+      {
+        "name": "finance-reconciliation",
+        "schedule": "0 6 * * *",
+        "status": "scheduled"
+      }
+    ]
+  },
+  "queues": {
+    "messages": {
+      "waiting": 0,
+      "active": 0,
+      "completed": 1,
+      "failed": 2,
+      "delayed": 0,
+      "paused": 0,
+      "workers": 2
+    },
+    "production-queue": {
+      "waiting": 0,
+      "active": 0,
+      "completed": 0,
+      "failed": 0,
+      "delayed": 0,
+      "paused": 0,
+      "workers": 1
+    },
+    "inventory-events": {
+      "waiting": 0,
+      "active": 0,
+      "completed": 0,
+      "failed": 0,
+      "delayed": 0,
+      "paused": 0,
+      "workers": 1
+    },
+    "proactive-outreach": {
+      "waiting": 0,
+      "active": 0,
+      "completed": 0,
+      "failed": 0,
+      "delayed": 0,
+      "paused": 0,
+      "workers": 2
+    }
+  },
+  "tenants": {
+    "summary": {
+      "total": 10,
+      "active": 4,
+      "trial": 3,
+      "suspended": 1,
+      "cancelled": 2
+    },
+    "list": [
+      {
+        "slug": "panaderia-la-esperanza",
+        "status": "SUSPENDED"
+      },
+      {
+        "slug": "tortilleria-don-jose",
+        "status": "TRIAL"
+      },
+      {
+        "slug": "paleteria-reyes",
+        "status": "TRIAL"
+      },
+      {
+        "slug": "demo-tortilleria",
+        "status": "ACTIVE"
+      },
+      {
+        "slug": "demo-panaderia",
+        "status": "ACTIVE"
+      },
+      {
+        "slug": "demo-taqueria",
+        "status": "TRIAL"
+      },
+      {
+        "slug": "vikids",
+        "status": "ACTIVE"
+      },
+      {
+        "slug": "room359",
+        "status": "ACTIVE"
+      },
+      {
+        "slug": "muebleria-hernandez",
+        "status": "CANCELLED"
+      },
+      {
+        "slug": "ferreteria-lopez",
+        "status": "CANCELLED"
+      }
+    ]
+  },
+  "api": {
+    "status": "running",
+    "port": 3001,
+    "modules": [
+      "Auth",
+      "Tenants",
+      "Products",
+      "Orders",
+      "Customers",
+      "Conversations",
+      "Payments",
+      "Production",
+      "Billing",
+      "Messaging",
+      "Shipments",
+      "Storage",
+      "Channels",
+      "Events",
+      "SuperAdmin",
+      "Invoicing",
+      "Logistics",
+      "Rental",
+      "Proactivity",
+      "AI",
+      "AdminBot",
+      "ClientIntelligence",
+      "Reports"
+    ],
+    "agents": [
+      "SalesAgent",
+      "InventoryAgent",
+      "FinanceAgent",
+      "GeneralAgent"
+    ],
+    "router": {
+      "type": "heuristic+llm",
+      "cacheBackend": "redis",
+      "confidenceThreshold": 0.7
+    }
+  },
+  "readiness": {
+    "workerConnected": true,
+    "queuesRegistered": true,
+    "cronsActive": true,
+    "tenantIsolation": "schema-per-tenant (validated)",
+    "authGuardCoverage": "89%",
+    "tenantDecoratorCoverage": "81%",
+    "smokeTestPassed": true,
+    "dryRunPassed": true,
+    "unitTestsPassed": "47/49",
+    "orphanTenantsFixed": true
+  },
+  "blockers": [
+    {
+      "severity": "medium",
+      "item": "AWS CLI not installed",
+      "fix": "brew install awscli"
+    },
+    {
+      "severity": "medium",
+      "item": ".env.production has 16 CHANGE_ME placeholders",
+      "fix": "Fill real credentials"
+    },
+    {
+      "severity": "low",
+      "item": "WhatsApp outbound requires Meta Business API config",
+      "fix": "Configure channel access_token per tenant"
+    },
+    {
+      "severity": "low",
+      "item": "ECR repositories not created",
+      "fix": "aws ecr create-repository"
+    }
+  ]
+}

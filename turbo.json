@@ -1,0 +1,50 @@
+{
+  "ui": "tui",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env.test*"]
+    },
+    "test:unit": {
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "test:integration": {
+      "inputs": ["$TURBO_DEFAULT$", ".env.test*"]
+    },
+    "test:isolation": {
+      "inputs": ["$TURBO_DEFAULT$", ".env.test*"]
+    },
+    "test:smoke": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "db:generate": {
+      "cache": false
+    },
+    "db:migrate:dev": {
+      "cache": false
+    },
+    "db:migrate:deploy": {
+      "cache": false
+    },
+    "db:studio": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

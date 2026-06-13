@@ -1,0 +1,26 @@
+graph TD
+    subgraph "Cliente"
+        A[Mensaje WhatsApp/Insta]
+    end
+
+    subgraph "Adaptador de Mensajería"
+        B{Recepción Webhook}
+    end
+
+    subgraph "Backend VSPRO"
+        C[Worker: Process Message]
+        D[AiEngine: GPT-4o]
+        E[(Base de Datos: Tenant Schema)]
+    end
+
+    subgraph "Admin / Pyme"
+        F[Panel Dashboard]
+    end
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F -- "Gestión Manual" --> E
+    

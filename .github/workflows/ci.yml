@@ -1,0 +1,436 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches: [main, staging]
+  push:
+    branches: [main, staging]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true  # cancela runs anteriores del mismo branch
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # JOB 1: Calidad de código (sin dependencias externas, < 2 min)
+  # ─────────────────────────────────────────────────────────────
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Format check
+        run: npm run format:check
+
+  # ─────────────────────────────────────────────────────────────
+  # JOB 2: Unit Tests (sin BD, rápidos)
+  # ─────────────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Run unit tests with coverage
+        run: npm run test:unit
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  # ─────────────────────────────────────────────────────────────
+  # JOB 3: Integration Tests (con PostgreSQL + Redis reales)
+  # ─────────────────────────────────────────────────────────────
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: vspro_test
+          POSTGRES_USER: vspro
+          POSTGRES_PASSWORD: test_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://vspro:test_pass@localhost:5432/vspro_test
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      JWT_SECRET: test-jwt-secret-for-ci-only-min-32-chars
+      META_APP_SECRET: test-meta-secret
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY_TEST }}
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Enable pgvector extension
+        run: |
+          PGPASSWORD=test_pass psql -h localhost -U vspro -d vspro_test \
+            -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+      - name: Run DB migrations
+        run: npm run db:migrate:deploy
+        working-directory: packages/database
+        env:
+          DATABASE_URL: postgresql://vspro:test_pass@localhost:5432/vspro_test
+
+      - name: Run integration tests
+        run: npm run test:integration
+
+  # ─────────────────────────────────────────────────────────────
+  # JOB 4: Tenant Isolation Tests (CRÍTICO para SaaS)
+  # ─────────────────────────────────────────────────────────────
+  tenant-isolation-tests:
+    name: Tenant Isolation Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: vspro_test
+          POSTGRES_USER: vspro
+          POSTGRES_PASSWORD: test_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://vspro:test_pass@localhost:5432/vspro_test
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      JWT_SECRET: test-jwt-secret-for-ci-only-min-32-chars
+      META_APP_SECRET: test-meta-secret
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Enable pgvector extension
+        run: |
+          PGPASSWORD=test_pass psql -h localhost -U vspro -d vspro_test \
+            -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+      - name: Run DB migrations
+        run: npm run db:migrate:deploy
+        working-directory: packages/database
+        env:
+          DATABASE_URL: postgresql://vspro:test_pass@localhost:5432/vspro_test
+
+      - name: Run tenant isolation tests
+        run: npm run test:isolation
+
+  # ─────────────────────────────────────────────────────────────
+  # JOB 5: Deploy a Staging
+  # Solo en push a staging o main — después de que todos los tests pasen
+  # ─────────────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, tenant-isolation-tests]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main')
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push API image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/vspro-api:$IMAGE_TAG \
+            -t $ECR_REGISTRY/vspro-api:staging \
+            -f apps/api/Dockerfile \
+            --target production \
+            .
+          docker push $ECR_REGISTRY/vspro-api:$IMAGE_TAG
+          docker push $ECR_REGISTRY/vspro-api:staging
+
+      - name: Run DB migrations on staging
+        run: |
+          aws ecs run-task \
+            --cluster vspro-staging \
+            --task-definition vspro-migrations-staging \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={
+              subnets=[\"${{ secrets.STAGING_SUBNET }}\"],
+              securityGroups=[\"${{ secrets.STAGING_SG }}\"],
+              assignPublicIp=DISABLED
+            }" \
+            --overrides '{
+              "containerOverrides": [{
+                "name": "migrations",
+                "command": ["npx", "prisma", "migrate", "deploy"]
+              }]
+            }'
+
+      - name: Deploy API to staging (zero-downtime rolling)
+        run: |
+          aws ecs update-service \
+            --cluster vspro-staging \
+            --service vspro-api-staging \
+            --force-new-deployment \
+            --deployment-configuration \
+              "minimumHealthyPercent=100,maximumPercent=200"
+
+      - name: Wait for deployment to stabilize
+        run: |
+          aws ecs wait services-stable \
+            --cluster vspro-staging \
+            --services vspro-api-staging
+
+      - name: Run smoke tests against staging
+        run: npm run test:smoke
+        env:
+          SMOKE_BASE_URL: ${{ secrets.STAGING_URL }}
+          SMOKE_TENANT_TOKEN: ${{ secrets.STAGING_TENANT_TOKEN }}
+          SMOKE_TENANT_HOST: ${{ secrets.STAGING_TENANT_HOST }}
+          SMOKE_TENANT_SLUG: vspro-demo
+          SMOKE_VERIFY_TOKEN: ${{ secrets.STAGING_VERIFY_TOKEN }}
+
+      - name: Notify Slack — staging OK
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "✅ Deploy a *staging* exitoso — `${{ github.sha }}`\nBranch: `${{ github.ref_name }}`",
+              "channel": "#deployments"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Slack — staging FALLÓ
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "❌ Deploy a *staging* FALLÓ — `${{ github.sha }}`\nBranch: `${{ github.ref_name }}`\nRevisar: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "channel": "#deployments"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ─────────────────────────────────────────────────────────────
+  # JOB 6: Deploy a Producción
+  # Solo en push a main — requiere aprobación manual en GitHub
+  # ─────────────────────────────────────────────────────────────
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production  # requiere aprobación manual configurada en GitHub
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (producción)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+          aws-region: us-east-1
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Reutilizar imagen de staging (no reconstruir)
+        # Lo que se probó en staging es EXACTAMENTE lo que va a producción
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          MANIFEST=$(aws ecr batch-get-image \
+            --repository-name vspro-api \
+            --image-ids imageTag=$IMAGE_TAG \
+            --query 'images[0].imageManifest' \
+            --output text)
+
+          aws ecr put-image \
+            --repository-name vspro-api \
+            --image-tag production \
+            --image-manifest "$MANIFEST"
+
+      - name: Guardar task definition actual (para rollback)
+        id: current-task
+        run: |
+          CURRENT=$(aws ecs describe-services \
+            --cluster vspro-production \
+            --services vspro-api-production \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          echo "task_def=$CURRENT" >> $GITHUB_OUTPUT
+
+      - name: Run DB migrations on production
+        run: |
+          aws ecs run-task \
+            --cluster vspro-production \
+            --task-definition vspro-migrations-prod \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={
+              subnets=[\"${{ secrets.PROD_SUBNET }}\"],
+              securityGroups=[\"${{ secrets.PROD_SG }}\"],
+              assignPublicIp=DISABLED
+            }"
+
+      - name: Deploy to production (zero-downtime)
+        run: |
+          aws ecs update-service \
+            --cluster vspro-production \
+            --service vspro-api-production \
+            --force-new-deployment \
+            --deployment-configuration \
+              "minimumHealthyPercent=100,maximumPercent=200"
+
+      - name: Wait for stable deployment
+        run: |
+          aws ecs wait services-stable \
+            --cluster vspro-production \
+            --services vspro-api-production
+
+      - name: Post-deploy smoke test en producción
+        id: smoke
+        run: npm run test:smoke
+        env:
+          SMOKE_BASE_URL: ${{ secrets.PROD_URL }}
+          SMOKE_TENANT_TOKEN: ${{ secrets.PROD_SMOKE_TOKEN }}
+          SMOKE_TENANT_HOST: ${{ secrets.PROD_SMOKE_HOST }}
+          SMOKE_TENANT_SLUG: ${{ secrets.PROD_SMOKE_SLUG }}
+          SMOKE_VERIFY_TOKEN: ${{ secrets.PROD_SMOKE_VERIFY_TOKEN }}
+
+      - name: Rollback automático si smoke test falla
+        if: failure() && steps.smoke.outcome == 'failure'
+        run: |
+          echo "⚠️ Smoke test falló. Iniciando rollback a ${{ steps.current-task.outputs.task_def }}..."
+          aws ecs update-service \
+            --cluster vspro-production \
+            --service vspro-api-production \
+            --task-definition "${{ steps.current-task.outputs.task_def }}"
+          aws ecs wait services-stable \
+            --cluster vspro-production \
+            --services vspro-api-production
+          echo "✅ Rollback completado"
+
+      - name: Notify Slack — producción OK
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "🚀 Deploy a *producción* exitoso — `${{ github.sha }}`",
+              "channel": "#deployments"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Slack — producción FALLÓ + rollback
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "🔴 Deploy a *producción* FALLÓ — rollback ejecutado\nCommit: `${{ github.sha }}`\nRevisar: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "channel": "#deployments"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

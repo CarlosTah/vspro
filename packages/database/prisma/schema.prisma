@@ -1,0 +1,144 @@
+// Prisma Schema — VSPRO SaaS
+// Schema público: tablas globales compartidas entre todos los tenants
+// Cada tenant tiene su propio schema PostgreSQL (gestionado por código)
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema", "postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  schemas    = ["public"]
+  extensions = [pgvector(map: "vector", schema: "public")]
+}
+
+// ─────────────────────────────────────────────────────────────
+// SCHEMA PÚBLICO — Tablas globales
+// ─────────────────────────────────────────────────────────────
+
+model Plan {
+  id           String   @id @default(uuid())
+  name         String   // "Básico", "Profesional", "Empresarial"
+  slug         String   @unique // "basic", "pro", "enterprise"
+  priceMonthly Decimal  @db.Decimal(10, 2)
+  priceYearly  Decimal  @db.Decimal(10, 2)
+  features     Json     // límites y features habilitadas
+  stripePriceIdMonthly String?
+  stripePriceIdYearly  String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  tenants       Tenant[]
+  subscriptions Subscription[]
+
+  @@map("plans")
+  @@schema("public")
+}
+
+model Tenant {
+  id           String       @id @default(uuid())
+  slug         String       @unique // subdominio: "tortilleria-don-jose"
+  schemaName   String       @unique // schema PostgreSQL: "tenant_abc123"
+  businessName String
+  ownerEmail   String
+  ownerName    String?
+  logoUrl      String?
+  planId       String
+  status       TenantStatus @default(TRIAL)
+  trialEndsAt  DateTime?
+  stripeCustomerId String?  @unique
+  settings     Json         @default("{}")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  plan          Plan           @relation(fields: [planId], references: [id])
+  subscription  Subscription?
+  usageRecords  UsageRecord[]
+
+  @@map("tenants")
+  @@schema("public")
+}
+
+model Subscription {
+  id                 String             @id @default(uuid())
+  tenantId           String             @unique
+  planId             String
+  stripeSubId        String?            @unique
+  status             SubscriptionStatus @default(TRIALING)
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  @@map("subscriptions")
+  @@schema("public")
+}
+
+model UsageRecord {
+  id           String   @id @default(uuid())
+  tenantId     String
+  period       DateTime @db.Date // primer día del mes
+  ordersCount  Int      @default(0)
+  messagesSent Int      @default(0)
+  aiCalls      Int      @default(0)
+  ocrCalls     Int      @default(0)
+  storageBytes BigInt   @default(0)
+  updatedAt    DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, period])
+  @@map("usage_records")
+  @@schema("public")
+}
+
+model SuperAdmin {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  passwordHash String
+  name         String
+  role         SuperAdminRole @default(SUPPORT)
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  lastLoginAt  DateTime?
+
+  @@map("super_admins")
+  @@schema("public")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+
+  @@schema("public")
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  UNPAID
+
+  @@schema("public")
+}
+
+enum SuperAdminRole {
+  OWNER
+  SUPPORT
+  BILLING
+
+  @@schema("public")
+}

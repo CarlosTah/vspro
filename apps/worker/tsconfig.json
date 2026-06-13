@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "useDefineForClassFields": false,
+    "paths": {
+      "@vspro/database": ["../../packages/database/src"],
+      "@vspro/database/*": ["../../packages/database/src/*"],
+      "@vspro/shared": ["../../packages/shared/src"],
+      "@vspro/shared/*": ["../../packages/shared/src/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

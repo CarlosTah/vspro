@@ -1,0 +1,37 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "5215500001000",
+              "phone_number_id": "PHONE_NUMBER_ID"
+            },
+            "contacts": [
+              {
+                "profile": { "name": "María García" },
+                "wa_id": "5215587001001"
+              }
+            ],
+            "messages": [
+              {
+                "from": "5215587001001",
+                "id": "wamid.dry-run-test-001",
+                "timestamp": "1716451200",
+                "type": "text",
+                "text": {
+                  "body": "Hola, quiero comprar un vestido talla 6 para mi hija. ¿Cuánto cuesta el de mariposas?"
+                }
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}

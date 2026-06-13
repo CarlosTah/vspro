@@ -1,0 +1,26 @@
+{
+  "scenario": "whatsapp_to_shipping",
+  "tenant": "vikids",
+  "timestamp": "2026-05-23T14:15:54Z",
+  "duration_seconds": 3,
+  "total": 15,
+  "passed": 14,
+  "failed": 1,
+  "steps": [
+    {"step":"API healthy","status":"pass"},
+    {"step":"Login successful (token obtained)","status":"pass"},
+    {"step":"Webhook error","status":"fail","error":"HTTP 401000"},
+    {"step":"Customers found (6 total, using first: 83cc62fe-6eb4-46c3-a25d-b8f86592a5fb)","status":"pass"},
+    {"step":"Product found: Chamarra Estrellas (55775038-4cf4-48f6-8a55-2074accdcd7a)","status":"pass"},
+    {"step":"Order created: ORD-2026-00010 (357e2d21-82dd-4812-a909-6e9db6826e97)","status":"pass"},
+    {"step":"Payment request sent (response: )","status":"pass"},
+    {"step":"Payment verification attempted ()","status":"pass"},
+    {"step":"Production started ()","status":"pass"},
+    {"step":"Marked ready","status":"pass"},
+    {"step":"Shipped","status":"pass"},
+    {"step":"Delivered","status":"pass"},
+    {"step":"Final state: new (may need manual transitions)","status":"pass"},
+    {"step":"Memory endpoint accessible","status":"pass"},
+    {"step":"Admin Bot responded","status":"pass"}
+  ]
+}

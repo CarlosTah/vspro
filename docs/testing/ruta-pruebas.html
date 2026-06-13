@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VSPRO — Ruta de Pruebas Integral</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: #0f0f14; color: #e2e2e8; padding: 2rem; line-height: 1.6; }
+  h1 { color: #a78bfa; font-size: 1.8rem; margin-bottom: 0.5rem; }
+  h2 { color: #818cf8; font-size: 1.3rem; margin: 2rem 0 1rem; border-bottom: 1px solid #2d2d3a; padding-bottom: 0.5rem; }
+  h3 { color: #c084fc; font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+  .subtitle { color: #6b6b80; font-size: 0.9rem; margin-bottom: 2rem; }
+  .creds { background: #1a1a24; border: 1px solid #2d2d3a; border-radius: 12px; padding: 1.5rem; margin: 1rem 0; }
+  .creds table { width: 100%; border-collapse: collapse; }
+  .creds th { text-align: left; color: #a78bfa; padding: 0.5rem; font-size: 0.8rem; text-transform: uppercase; }
+  .creds td { padding: 0.5rem; font-size: 0.9rem; border-top: 1px solid #2d2d3a; }
+  .creds code { background: #2d2d3a; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; color: #7dd3fc; }
+  .phase { background: #1a1a24; border: 1px solid #2d2d3a; border-radius: 12px; padding: 1.5rem; margin: 1rem 0; }
+  .step { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid #1f1f2e; }
+  .step:last-child { border-bottom: none; }
+  .step input[type="checkbox"] { margin-top: 4px; width: 18px; height: 18px; accent-color: #7c3aed; cursor: pointer; }
+  .step-num { color: #6b6b80; font-size: 0.8rem; min-width: 2.5rem; }
+  .step-action { flex: 1; }
+  .step-action strong { color: #e2e2e8; }
+  .step-action .expected { color: #6b6b80; font-size: 0.85rem; display: block; margin-top: 2px; }
+  .notes-input { width: 100%; margin-top: 4px; background: #0f0f14; border: 1px solid #2d2d3a; border-radius: 6px; padding: 4px 8px; color: #e2e2e8; font-size: 0.8rem; }
+  .progress { position: fixed; top: 0; left: 0; right: 0; background: #1a1a24; border-bottom: 1px solid #2d2d3a; padding: 0.75rem 2rem; display: flex; justify-content: space-between; align-items: center; z-index: 100; }
+  .progress-bar { height: 6px; background: #2d2d3a; border-radius: 3px; flex: 1; margin: 0 1rem; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #7c3aed, #a78bfa); border-radius: 3px; transition: width 0.3s; }
+  .progress-text { color: #a78bfa; font-size: 0.85rem; font-weight: 600; }
+  .content { margin-top: 3.5rem; max-width: 900px; margin-left: auto; margin-right: auto; }
+  .badge { display: inline-block; background: #7c3aed22; color: #a78bfa; border: 1px solid #7c3aed44; border-radius: 20px; padding: 2px 10px; font-size: 0.75rem; margin-left: 0.5rem; }
+</style>
+</head>
+<body>
+<div class="progress">
+  <span class="progress-text" id="progressText">0 / 0</span>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+  <button onclick="saveProgress()" style="background:#7c3aed;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.8rem;">💾 Guardar</button>
+</div>
+<div class="content">
+<h1>🧪 VSPRO — Ruta de Pruebas Integral</h1>
+<p class="subtitle">Frontend E2E Testing · Marca cada paso completado · Progreso se guarda en localStorage</p>
+
+<div class="creds">
+<h3>🔑 Credenciales</h3>
+<table>
+<tr><th>Tenant</th><th>Slug</th><th>Email</th><th>Password</th><th>Giro</th></tr>
+<tr><td>Vikids</td><td><code>vikids</code></td><td><code>admin@vikids.mx</code></td><td><code>Vikids2026!</code></td><td>Ropa infantil</td></tr>
+<tr><td>Room 359</td><td><code>room359</code></td><td><code>admin@room359.mx</code></td><td><code>Room359!2026</code></td><td>Deptos en renta</td></tr>
+</table>
+<p style="margin-top:0.75rem;font-size:0.85rem;color:#6b6b80;">Frontend: <a href="http://localhost:3000" style="color:#7dd3fc;">localhost:3000</a> · API: <a href="http://localhost:3001/docs" style="color:#7dd3fc;">localhost:3001/docs</a></p>
+</div>
+
+<div id="phases"></div>
+</div>
+
+<script>
+const phases = [
+  { title: "Fase 0: Preparación", steps: [
+    { id: "0.1", action: "Abrir http://localhost:3000", expected: "Página de login con logo VSPRO" },
+    { id: "0.2", action: "Verificar logo + slogan visible", expected: "\"Inteligencia en movimiento. Escala sin límites.\"" },
+    { id: "0.3", action: "Abrir http://localhost:3001/health", expected: "{\"status\":\"ok\"}" },
+    { id: "0.4", action: "Abrir http://localhost:3001/docs", expected: "Swagger UI carga" },
+  ]},
+  { title: "Fase 1: Login", badge: "Auth", steps: [
+    { id: "1.1", action: "Login vikids: slug=vikids, admin@vikids.mx / Vikids2026!", expected: "Redirect a Dashboard" },
+    { id: "1.2", action: "Verificar sidebar con logo + menú completo", expected: "Navegación visible" },
+    { id: "1.3", action: "Verificar rol: admin", expected: "\"Rol: admin\" en sidebar" },
+    { id: "1.4", action: "Logout → Login room359: admin@room359.mx / Room359!2026", expected: "Dashboard Room 359" },
+    { id: "1.5", action: "Login con password incorrecto", expected: "Error mostrado" },
+    { id: "1.6", action: "Login con tenant inexistente", expected: "Error mostrado" },
+  ]},
+  { title: "Fase 2: Dashboard", badge: "vikids", steps: [
+    { id: "2.1", action: "Navegar a / (Dashboard)", expected: "Stats del negocio visibles" },
+    { id: "2.2", action: "Verificar métricas: pedidos, ingresos", expected: "Números > 0" },
+  ]},
+  { title: "Fase 3: Productos", badge: "vikids", steps: [
+    { id: "3.1", action: "Click Productos en sidebar", expected: "Lista de 10 productos" },
+    { id: "3.2", action: "Verificar categorías: Vestidos, Conjuntos, Chamarras", expected: "Categorías visibles" },
+    { id: "3.3", action: "Verificar precios en MXN y stock", expected: "Formato correcto" },
+    { id: "3.4", action: "Buscar \"vestido\"", expected: "Filtrado funciona" },
+    { id: "3.5", action: "Click en producto → ver detalle + variantes", expected: "Tallas/colores visibles" },
+    { id: "3.6", action: "Crear producto: \"Blusa Test\", SKU TEST-BL-001, $199", expected: "Producto creado" },
+    { id: "3.7", action: "Editar precio a $249", expected: "Actualizado" },
+    { id: "3.8", action: "Eliminar producto test", expected: "Removido de lista" },
+  ]},
+  { title: "Fase 4: Clientes", badge: "vikids", steps: [
+    { id: "4.1", action: "Click Clientes → ver lista", expected: "5 clientes" },
+    { id: "4.2", action: "Click en Valentina Herrera → detalle", expected: "Perfil + historial" },
+    { id: "4.3", action: "Ver pedidos del cliente", expected: "Lista de pedidos" },
+    { id: "4.4", action: "Crear cliente: María Test, 5215500009999, whatsapp", expected: "Cliente creado" },
+  ]},
+  { title: "Fase 5: Pedidos (flujo completo)", badge: "vikids", steps: [
+    { id: "5.1", action: "Click Pedidos → ver lista", expected: "8 pedidos" },
+    { id: "5.2", action: "Click en pedido → ver detalle", expected: "Items, cliente, total" },
+    { id: "5.3", action: "Crear pedido nuevo para Valentina", expected: "ORD-2026-XXXXX creado" },
+    { id: "5.4", action: "Solicitar pago", expected: "Estado → payment_pending" },
+    { id: "5.5", action: "Verificar pago (simular)", expected: "Estado → paid" },
+    { id: "5.6", action: "Iniciar producción", expected: "Estado → in_production" },
+    { id: "5.7", action: "Marcar listo", expected: "Estado → ready" },
+    { id: "5.8", action: "Registrar envío", expected: "Estado → shipped" },
+    { id: "5.9", action: "Confirmar entrega", expected: "Estado → delivered" },
+  ]},
+  { title: "Fase 6: Pagos", badge: "vikids", steps: [
+    { id: "6.1", action: "Click Pagos → ver lista", expected: "Pagos visibles" },
+    { id: "6.2", action: "Verificar pago manual (transferencia)", expected: "Pago verificado" },
+  ]},
+  { title: "Fase 7: Producción", badge: "vikids", steps: [
+    { id: "7.1", action: "Click Producción → cola", expected: "Pedidos en producción" },
+    { id: "7.2", action: "Ver estadísticas", expected: "Métricas visibles" },
+  ]},
+  { title: "Fase 8: Conversaciones", badge: "vikids", steps: [
+    { id: "8.1", action: "Click Conversaciones → lista", expected: "3 conversaciones" },
+    { id: "8.2", action: "Abrir conversación → ver mensajes", expected: "Historial de chat" },
+    { id: "8.3", action: "Resolver conversación", expected: "Estado → resolved" },
+  ]},
+  { title: "Fase 9: Configuración IA", badge: "vikids", steps: [
+    { id: "9.1", action: "Click Configuración → ver IA", expected: "assistantName: Viki" },
+    { id: "9.2", action: "Ver herramientas de IA", expected: "7+ tools listados" },
+    { id: "9.3", action: "Editar nombre asistente → revertir", expected: "Guardado OK" },
+  ]},
+  { title: "Fase 10: Rental", badge: "room359", steps: [
+    { id: "10.1", action: "Login room359 → Productos", expected: "6 propiedades" },
+    { id: "10.2", action: "Ver categorías: 1 Rec, 2 Rec, Estudios, Casas", expected: "Correctas" },
+    { id: "10.3", action: "Detalle propiedad → tarifas noche/semana/mes", expected: "Tarifas JSONB" },
+    { id: "10.4", action: "POST /rental/check-availability (Swagger)", expected: "available: true + precio" },
+    { id: "10.5", action: "Verificar precio 7 noches (tarifa semanal)", expected: "Descuento aplicado" },
+  ]},
+  { title: "Fase 11: Memoria de Cliente", badge: "IA", steps: [
+    { id: "11.1", action: "GET /customers/{id}/memory (Swagger)", expected: "profile + episodes" },
+    { id: "11.2", action: "PATCH profile → preferences: {color: rosa}", expected: "Guardado" },
+    { id: "11.3", action: "PATCH profile → sizes: {vestido: 6}", expected: "Merge correcto" },
+    { id: "11.4", action: "GET memory → ambos keys presentes", expected: "preferences + sizes" },
+    { id: "11.5", action: "DELETE /customers/{id}/memory", expected: "Todo borrado" },
+  ]},
+  { title: "Fase 12: Proactividad", badge: "IA", steps: [
+    { id: "12.1", action: "GET /proactivity/follow-ups", expected: "Array (vacío o con datos)" },
+    { id: "12.2", action: "Programar follow-up via API", expected: "scheduledAt retornado" },
+    { id: "12.3", action: "Cancelar follow-up", expected: "Eliminado" },
+  ]},
+  { title: "Fase 13: Onboarding", badge: "nuevo tenant", steps: [
+    { id: "13.1", action: "Ir a /onboarding → verificar logo", expected: "Wizard con logo VSPRO" },
+    { id: "13.2", action: "Paso 1: slug test-empresa, datos completos", expected: "Validación OK" },
+    { id: "13.3", action: "Paso 2: agregar producto demo", expected: "Producto en lista" },
+    { id: "13.4", action: "Completar registro", expected: "Tenant creado" },
+    { id: "13.5", action: "Login con nuevo tenant", expected: "Dashboard vacío" },
+  ]},
+  { title: "Fase 14: Super Admin", badge: "global", steps: [
+    { id: "14.1", action: "Ir a /super-admin", expected: "Panel con logo + stats" },
+    { id: "14.2", action: "Ver MRR, tenants activos, en trial", expected: "Números coherentes" },
+    { id: "14.3", action: "Ver tabla de tenants", expected: "vikids, room359, etc." },
+    { id: "14.4", action: "Impersonar vikids", expected: "Nueva pestaña con token" },
+    { id: "14.5", action: "Suspender tenant de prueba", expected: "SUSPENDED" },
+    { id: "14.6", action: "Reactivar", expected: "ACTIVE" },
+  ]},
+  { title: "Fase 15: Aislamiento de Tenant ⚠️", badge: "CRÍTICO", steps: [
+    { id: "15.1", action: "Token vikids + header room359 → GET /products", expected: "401 Unauthorized" },
+    { id: "15.2", action: "Vikids ve 10 productos, room359 ve 6", expected: "Datos separados" },
+    { id: "15.3", action: "Vikids ve 5 clientes, room359 ve 4", expected: "Sin mezcla" },
+    { id: "15.4", action: "Memoria vikids no visible desde room359", expected: "Aislamiento OK" },
+  ]},
+  { title: "Fase 16-18: Logística, Facturación, Billing", badge: "vikids", steps: [
+    { id: "16.1", action: "GET /logistics/zones → 3 zonas", expected: "local, regional, nacional" },
+    { id: "16.2", action: "POST /logistics/calculate", expected: "Costo calculado" },
+    { id: "17.1", action: "GET /invoicing/summary", expected: "Totales" },
+    { id: "18.1", action: "GET /billing/subscription", expected: "Plan pro activo" },
+    { id: "18.2", action: "GET /billing/usage", expected: "Métricas de consumo" },
+  ]},
+];
+
+function render() {
+  const saved = JSON.parse(localStorage.getItem('vspro-tests') || '{}');
+  const container = document.getElementById('phases');
+  let html = '';
+  let total = 0, checked = 0;
+
+  phases.forEach(phase => {
+    html += `<h2>${phase.title}${phase.badge ? `<span class="badge">${phase.badge}</span>` : ''}</h2><div class="phase">`;
+    phase.steps.forEach(step => {
+      total++;
+      const isChecked = saved[step.id] || false;
+      if (isChecked) checked++;
+      const notes = saved[step.id + '_notes'] || '';
+      html += `<div class="step">
+        <input type="checkbox" id="chk_${step.id}" ${isChecked ? 'checked' : ''} onchange="toggle('${step.id}')">
+        <span class="step-num">${step.id}</span>
+        <div class="step-action">
+          <strong>${step.action}</strong>
+          <span class="expected">→ ${step.expected}</span>
+          <input class="notes-input" placeholder="Notas..." value="${notes}" onchange="saveNote('${step.id}', this.value)">
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  });
+
+  container.innerHTML = html;
+  document.getElementById('progressText').textContent = `${checked} / ${total}`;
+  document.getElementById('progressFill').style.width = `${(checked/total*100).toFixed(1)}%`;
+}
+
+function toggle(id) {
+  const saved = JSON.parse(localStorage.getItem('vspro-tests') || '{}');
+  saved[id] = !saved[id];
+  localStorage.setItem('vspro-tests', JSON.stringify(saved));
+  render();
+}
+
+function saveNote(id, value) {
+  const saved = JSON.parse(localStorage.getItem('vspro-tests') || '{}');
+  saved[id + '_notes'] = value;
+  localStorage.setItem('vspro-tests', JSON.stringify(saved));
+}
+
+function saveProgress() {
+  alert('✅ Progreso guardado en localStorage. Se mantiene entre recargas.');
+}
+
+render();
+</script>
+</body>
+</html>
