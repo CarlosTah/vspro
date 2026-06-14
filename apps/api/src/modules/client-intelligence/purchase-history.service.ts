@@ -97,7 +97,7 @@ interface PurchaseFrequency {
   segment: CustomerSegment;
 }
 
-interface PurchaseAnalysis {
+export interface PurchaseAnalysis {
   customerId: string;
   totalOrders: number;
   lifetimeValue: number;

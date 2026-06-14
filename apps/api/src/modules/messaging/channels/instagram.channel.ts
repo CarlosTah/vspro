@@ -127,7 +127,7 @@ export class InstagramChannel implements MessagingChannel {
       recipientId,
       mediaType: 'image',
       mediaUrl: imageUrl,
-      caption: null,
+      caption: undefined,
       channelConfig,
     });
 

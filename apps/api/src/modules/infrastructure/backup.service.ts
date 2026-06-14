@@ -159,7 +159,7 @@ export class BackupService {
   }
 }
 
-interface BackupStatus {
+export interface BackupStatus {
   lastBackup: string | null;
   nextScheduled: string;
   retentionDays: number;

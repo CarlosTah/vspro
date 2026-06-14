@@ -36,7 +36,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     // Configuración global desde variables de entorno
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env.local', '.env'],
+      envFilePath: ['.env.local', '.env', '../../.env.local', '../../.env'],
     }),
 
     // Rate limiting: protege contra abuso por tenant

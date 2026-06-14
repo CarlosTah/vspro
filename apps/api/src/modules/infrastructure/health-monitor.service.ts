@@ -163,7 +163,7 @@ interface HealthAlert {
   timestamp: string;
 }
 
-interface DetailedHealth {
+export interface DetailedHealth {
   status: 'healthy' | 'degraded' | 'unhealthy';
   timestamp: string;
   uptime: number;

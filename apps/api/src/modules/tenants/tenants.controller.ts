@@ -24,13 +24,13 @@ export class TenantsController {
   /** Onboarding completo — crea tenant + productos en un solo paso */
   @Post('onboarding')
   completeOnboarding(@Body() dto: OnboardingCompleteDto) {
-    return this.onboarding.complete(dto);
+    return this.onboarding.completeOnboarding(dto);
   }
 
   /** Verificar disponibilidad de slug (para validación en tiempo real) */
   @Get('check-slug')
-  checkSlug(@Query('slug') slug: string) {
-    return this.onboarding.checkSlugAvailability(slug);
+  async checkSlug(@Query('slug') slug: string) {
+    return this.provisioning.checkSlugAvailability(slug);
   }
 
   /** Info del tenant actual (resuelto por subdominio) */

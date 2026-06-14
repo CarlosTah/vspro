@@ -26,7 +26,7 @@ export class ShipmentTrackingService {
     private readonly localCarrier: LocalCarrierAdapter,
     private readonly nationalCarrier: NationalCarrierAdapter,
   ) {
-    this.carriers = new Map([
+    this.carriers = new Map<string, CarrierAdapter>([
       ['local', this.localCarrier],
       ['national', this.nationalCarrier],
     ]);

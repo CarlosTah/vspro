@@ -76,10 +76,10 @@ export interface UpdateCustomerMemoryArgs {
 
 export class UpdateProfileDto {
   @IsString()
-  category: string;
+  category!: string;
 
   @IsObject()
-  data: Record<string, any>;
+  data!: Record<string, any>;
 }
 
 // ─── Memory Response ────────────────────────────────────────────

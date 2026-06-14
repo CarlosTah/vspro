@@ -131,6 +131,13 @@ export class TenantProvisioningService {
     );
   }
 
+  async checkSlugAvailability(slug: string): Promise<{ available: boolean; slug: string }> {
+    const existing = await this.prisma.tenant.findUnique({
+      where: { slug },
+    });
+    return { available: !existing, slug };
+  }
+
   async deprovision(tenantId: string): Promise<void> {
     const tenant = await this.prisma.tenant.findUniqueOrThrow({
       where: { id: tenantId },

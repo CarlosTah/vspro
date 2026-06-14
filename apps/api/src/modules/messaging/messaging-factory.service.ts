@@ -28,7 +28,7 @@ export class MessagingFactory {
     private readonly messengerChannel: MessengerChannel,
     private readonly instagramChannel: InstagramChannel,
   ) {
-    this.channels = new Map([
+    this.channels = new Map<ChannelType, MessagingChannel>([
       ['whatsapp', this.whatsappChannel],
       ['messenger', this.messengerChannel],
       ['instagram', this.instagramChannel],
