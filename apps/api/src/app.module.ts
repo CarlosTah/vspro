@@ -30,6 +30,9 @@ import { ProactivityModule } from './modules/proactivity/proactivity.module';
 import { AdminBotModule } from './modules/admin-bot/admin-bot.module';
 import { ClientIntelligenceModule } from './modules/client-intelligence/client-intelligence.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { WorkflowOrchestratorModule } from './modules/workflow-orchestrator/workflow-orchestrator.module';
+import { HumanAuditModule } from './modules/human-audit/human-audit.module';
+import { AgentOrchestratorModule } from './modules/agent-orchestrator/agent-orchestrator.module';
 
 @Module({
   imports: [
@@ -91,6 +94,9 @@ import { ReportsModule } from './modules/reports/reports.module';
     AdminBotModule,
     ClientIntelligenceModule,
     ReportsModule,
+    WorkflowOrchestratorModule,
+    HumanAuditModule,
+    AgentOrchestratorModule,
   ],
 })
 export class AppModule implements NestModule {
