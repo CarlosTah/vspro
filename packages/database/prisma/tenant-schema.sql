@@ -232,3 +232,252 @@ CREATE TABLE IF NOT EXISTS "{{schema}}".product_variants (
 );
 
 CREATE INDEX IF NOT EXISTS idx_variants_product ON "{{schema}}".product_variants(product_id);
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- MÓDULO: Agendamiento Inteligente (intelligent-scheduling)
+-- ═══════════════════════════════════════════════════════════════
+
+-- Configuración de agendamiento por tenant
+CREATE TABLE IF NOT EXISTS "{{schema}}".scheduling_config (
+  id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slot_duration_minutes     INTEGER NOT NULL DEFAULT 30,
+  min_advance_notice_hours  INTEGER NOT NULL DEFAULT 2,
+  max_booking_horizon_days  INTEGER NOT NULL DEFAULT 30,
+  cancellation_window_hours INTEGER NOT NULL DEFAULT 2,
+  reminder_intervals_hours  JSONB NOT NULL DEFAULT '[24, 1]',
+  timezone                  VARCHAR(50) NOT NULL DEFAULT 'America/Mexico_City',
+  updated_at                TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Insertar config por defecto
+INSERT INTO "{{schema}}".scheduling_config (slot_duration_minutes, min_advance_notice_hours, max_booking_horizon_days, cancellation_window_hours, reminder_intervals_hours, timezone)
+VALUES (30, 2, 30, 2, '[24, 1]', 'America/Mexico_City')
+ON CONFLICT DO NOTHING;
+
+-- Horarios de staff (disponibilidad semanal recurrente)
+CREATE TABLE IF NOT EXISTS "{{schema}}".staff_schedules (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  staff_id    UUID NOT NULL REFERENCES "{{schema}}".users(id) ON DELETE CASCADE,
+  day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+  start_time  TIME NOT NULL,
+  end_time    TIME NOT NULL,
+  break_start TIME,
+  break_end   TIME,
+  is_active   BOOLEAN NOT NULL DEFAULT true,
+  CHECK (end_time > start_time),
+  CHECK ((break_start IS NULL AND break_end IS NULL) OR (break_start IS NOT NULL AND break_end IS NOT NULL)),
+  UNIQUE(staff_id, day_of_week)
+);
+
+-- Citas/Appointments
+CREATE TABLE IF NOT EXISTS "{{schema}}".appointments (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id     UUID NOT NULL REFERENCES "{{schema}}".customers(id) ON DELETE CASCADE,
+  staff_id        UUID NOT NULL REFERENCES "{{schema}}".users(id) ON DELETE CASCADE,
+  start_time      TIMESTAMPTZ NOT NULL,
+  end_time        TIMESTAMPTZ NOT NULL,
+  status          VARCHAR(50) NOT NULL DEFAULT 'scheduled'
+                  CHECK (status IN ('scheduled', 'confirmed', 'cancelled', 'completed', 'no_show', 'late_cancellation')),
+  google_event_id VARCHAR(255),
+  service_name    VARCHAR(255) NOT NULL,
+  notes           TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (end_time > start_time)
+);
+
+-- Índices para appointments
+CREATE INDEX IF NOT EXISTS idx_appointments_staff_time
+  ON "{{schema}}".appointments(staff_id, start_time, end_time);
+CREATE INDEX IF NOT EXISTS idx_appointments_customer
+  ON "{{schema}}".appointments(customer_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_active
+  ON "{{schema}}".appointments(status)
+  WHERE status IN ('scheduled', 'confirmed');
+
+-- Google Calendar subscriptions por staff
+CREATE TABLE IF NOT EXISTS "{{schema}}".calendar_subscriptions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  staff_id        UUID NOT NULL REFERENCES "{{schema}}".users(id) ON DELETE CASCADE,
+  channel_id      VARCHAR(255) NOT NULL UNIQUE,
+  resource_id     VARCHAR(255),
+  calendar_id     VARCHAR(255) NOT NULL,
+  refresh_token   TEXT,  -- encriptado en app
+  expires_at      TIMESTAMPTZ,
+  status          VARCHAR(50) NOT NULL DEFAULT 'active',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(staff_id)
+);
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- MÓDULO: Win-Back Automation (retention)
+-- ═══════════════════════════════════════════════════════════════
+
+-- Campañas de retención
+CREATE TABLE IF NOT EXISTS "{{schema}}".retention_campaigns (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name             VARCHAR(255) NOT NULL,
+  target_segment   VARCHAR(100) NOT NULL,
+  trigger_threshold JSONB NOT NULL,
+  status           VARCHAR(50) NOT NULL DEFAULT 'draft'
+                   CHECK (status IN ('draft', 'active', 'paused', 'completed')),
+  schedule_cron    VARCHAR(100),
+  message_variants JSONB NOT NULL DEFAULT '[]',
+  metrics          JSONB NOT NULL DEFAULT '{}',
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_run         TIMESTAMPTZ
+);
+
+-- Force index en target_segment
+CREATE INDEX IF NOT EXISTS idx_retention_campaigns_segment
+  ON "{{schema}}".retention_campaigns(target_segment);
+
+-- Log de contactos por campaña (para tracking y frequency limiting)
+CREATE TABLE IF NOT EXISTS "{{schema}}".campaign_contact_logs (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id    UUID NOT NULL REFERENCES "{{schema}}".retention_campaigns(id) ON DELETE CASCADE,
+  customer_id    UUID NOT NULL REFERENCES "{{schema}}".customers(id) ON DELETE CASCADE,
+  variant_used   VARCHAR(100),
+  channel        VARCHAR(50) NOT NULL,
+  status         VARCHAR(50) NOT NULL DEFAULT 'sent'
+                 CHECK (status IN ('sent', 'opened', 'converted', 'failed')),
+  sent_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  opened_at      TIMESTAMPTZ,
+  converted_at   TIMESTAMPTZ,
+  revenue_amount DECIMAL(10,2)
+);
+
+-- Índices para campaign_contact_logs
+CREATE INDEX IF NOT EXISTS idx_campaign_contacts_campaign
+  ON "{{schema}}".campaign_contact_logs(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_contacts_customer_sent
+  ON "{{schema}}".campaign_contact_logs(customer_id, sent_at DESC);
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- MÓDULO: Human Audit Layer
+-- ═══════════════════════════════════════════════════════════════
+
+-- Configuración de reglas de aprobación
+CREATE TABLE IF NOT EXISTS "{{schema}}".audit_config (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  approval_rules JSONB NOT NULL DEFAULT '[]',
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Insertar config por defecto
+INSERT INTO "{{schema}}".audit_config (approval_rules)
+VALUES ('[
+  {"type":"campaign.activate","enabled":true,"requiredRole":"admin","autoExpireHours":48,"escalateAfterHours":24,"escalateTo":"owner"},
+  {"type":"campaign.bulk_send","enabled":true,"requiredRole":"admin","autoExpireHours":24,"escalateAfterHours":12,"escalateTo":"admin","conditions":[{"field":"targetCount","operator":"gt","value":50}]},
+  {"type":"discount.high_value","enabled":true,"requiredRole":"manager","autoExpireHours":4,"escalateAfterHours":2,"escalateTo":"admin","conditions":[{"field":"discountPercent","operator":"gt","value":20}]},
+  {"type":"tenant.deprovision","enabled":true,"requiredRole":"admin","autoExpireHours":72,"escalateAfterHours":48,"escalateTo":"owner"},
+  {"type":"schedule.bulk_change","enabled":true,"requiredRole":"admin","autoExpireHours":24,"escalateAfterHours":12,"escalateTo":"admin","conditions":[{"field":"affectedStaff","operator":"gt","value":3}]},
+  {"type":"order.bulk_cancel","enabled":true,"requiredRole":"admin","autoExpireHours":12,"escalateAfterHours":6,"escalateTo":"admin","conditions":[{"field":"orderCount","operator":"gt","value":5}]},
+  {"type":"staff.role_change","enabled":true,"requiredRole":"admin","autoExpireHours":48,"escalateAfterHours":24,"escalateTo":"owner"}
+]')
+ON CONFLICT DO NOTHING;
+
+-- Solicitudes de aprobación
+CREATE TABLE IF NOT EXISTS "{{schema}}".approval_requests (
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type                 VARCHAR(100) NOT NULL,
+  status               VARCHAR(50) NOT NULL DEFAULT 'pending'
+                       CHECK (status IN ('pending', 'approved', 'rejected', 'expired', 'escalated')),
+  payload              JSONB NOT NULL DEFAULT '{}',
+  requested_by         VARCHAR(255),
+  approved_by          UUID REFERENCES "{{schema}}".users(id),
+  decided_at           TIMESTAMPTZ,
+  decision_metadata    JSONB,
+  expires_at           TIMESTAMPTZ,
+  escalated_to         VARCHAR(50),
+  related_entity_id    VARCHAR(255),
+  related_entity_type  VARCHAR(100),
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_approval_requests_status
+  ON "{{schema}}".approval_requests(status)
+  WHERE status IN ('pending', 'escalated');
+
+-- Audit trail (log inmutable de acciones)
+CREATE TABLE IF NOT EXISTS "{{schema}}".audit_trail (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  action       VARCHAR(255) NOT NULL,
+  module       VARCHAR(100) NOT NULL,
+  entity_type  VARCHAR(100) NOT NULL,
+  entity_id    VARCHAR(255) NOT NULL,
+  user_id      UUID,
+  user_name    VARCHAR(255),
+  before_state JSONB,
+  after_state  JSONB,
+  metadata     JSONB NOT NULL DEFAULT '{}',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_trail_entity
+  ON "{{schema}}".audit_trail(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_trail_user
+  ON "{{schema}}".audit_trail(user_id)
+  WHERE user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_audit_trail_created
+  ON "{{schema}}".audit_trail(created_at DESC);
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- MÓDULO: Workflow Orchestrator
+-- ═══════════════════════════════════════════════════════════════
+
+-- Instancias de workflow (state machine JSONB)
+CREATE TABLE IF NOT EXISTS "{{schema}}".workflow_instances (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type         VARCHAR(100) NOT NULL,
+  status       VARCHAR(50) NOT NULL DEFAULT 'pending'
+               CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
+  current_step VARCHAR(100) NOT NULL DEFAULT 'init',
+  context      JSONB NOT NULL DEFAULT '{}',
+  events       JSONB NOT NULL DEFAULT '[]',
+  started_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_instances_status
+  ON "{{schema}}".workflow_instances(status)
+  WHERE status IN ('pending', 'running');
+
+-- Eventos de workflow (log para activity feed)
+CREATE TABLE IF NOT EXISTS "{{schema}}".workflow_events (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type         VARCHAR(100) NOT NULL,
+  payload      JSONB NOT NULL DEFAULT '{}',
+  metadata     JSONB NOT NULL DEFAULT '{}',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_events_created
+  ON "{{schema}}".workflow_events(created_at DESC);
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- MÓDULO: Agent Orchestrator (Multi-Agent Supervisor)
+-- ═══════════════════════════════════════════════════════════════
+
+-- Sesiones del orquestador multi-agente (JSONB persistence)
+CREATE TABLE IF NOT EXISTS "{{schema}}".orchestrator_sessions (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID REFERENCES "{{schema}}".users(id),
+  status       VARCHAR(50) NOT NULL DEFAULT 'active'
+               CHECK (status IN ('active', 'completed', 'failed')),
+  session_data JSONB NOT NULL DEFAULT '{}',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_orchestrator_sessions_user
+  ON "{{schema}}".orchestrator_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_orchestrator_sessions_updated
+  ON "{{schema}}".orchestrator_sessions(updated_at DESC);
