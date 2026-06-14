@@ -6,6 +6,7 @@ import { LeadManagerAgent } from './agents/lead-manager.agent';
 import { ItInfrastructureAgent } from './agents/it-infrastructure.agent';
 import { RealEstateAnalyticsAgent } from './agents/real-estate-analytics.agent';
 import { AgentRegistryService } from './agent-registry.service';
+import { HumanAuditModule } from '../human-audit/human-audit.module';
 
 /**
  * Agent Orchestrator Module — Multi-Agent System with Supervisor Pattern.
@@ -32,6 +33,7 @@ import { AgentRegistryService } from './agent-registry.service';
  */
 @Module({
   imports: [
+    HumanAuditModule,
     BullModule.registerQueue({
       name: 'agent-tasks',
       defaultJobOptions: {
