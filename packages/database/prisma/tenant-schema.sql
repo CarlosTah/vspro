@@ -523,3 +523,131 @@ CREATE INDEX IF NOT EXISTS idx_delivery_assignments_order
 CREATE INDEX IF NOT EXISTS idx_delivery_assignments_active
   ON "{{schema}}".delivery_assignments(status)
   WHERE status IN ('offered', 'accepted', 'picked_up');
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- MÓDULO: Returns & Exchanges
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS "{{schema}}".returns (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id          UUID NOT NULL REFERENCES "{{schema}}".orders(id),
+  customer_id       UUID NOT NULL REFERENCES "{{schema}}".customers(id),
+  type              VARCHAR(50) NOT NULL CHECK (type IN ('refund', 'exchange', 'store_credit')),
+  status            VARCHAR(50) NOT NULL DEFAULT 'requested'
+                    CHECK (status IN ('requested', 'approved', 'shipped_back', 'received', 'processed', 'rejected')),
+  items             JSONB NOT NULL DEFAULT '[]',
+  refund_amount     DECIMAL(10,2) NOT NULL DEFAULT 0,
+  tracking_number   VARCHAR(255),
+  customer_notes    TEXT,
+  staff_notes       TEXT,
+  return_window_days INTEGER NOT NULL DEFAULT 30,
+  received_at       TIMESTAMPTZ,
+  processed_at      TIMESTAMPTZ,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_returns_order ON "{{schema}}".returns(order_id);
+CREATE INDEX IF NOT EXISTS idx_returns_status ON "{{schema}}".returns(status) WHERE status NOT IN ('processed', 'rejected');
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- MÓDULO: Asset Registry (Vehicles, Pets, Appliances)
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS "{{schema}}".asset_registry (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id UUID NOT NULL REFERENCES "{{schema}}".customers(id) ON DELETE CASCADE,
+  type        VARCHAR(50) NOT NULL CHECK (type IN ('vehicle', 'pet', 'appliance', 'property', 'other')),
+  name        VARCHAR(255) NOT NULL,
+  details     JSONB NOT NULL DEFAULT '{}',
+  notes       TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_asset_registry_customer ON "{{schema}}".asset_registry(customer_id);
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- MÓDULO: Service Reminders (km/tiempo/recurrente)
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS "{{schema}}".service_reminders (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id      UUID NOT NULL REFERENCES "{{schema}}".customers(id) ON DELETE CASCADE,
+  asset_id         VARCHAR(255),
+  service_name     VARCHAR(255) NOT NULL,
+  interval_value   INTEGER NOT NULL,
+  interval_unit    VARCHAR(20) NOT NULL CHECK (interval_unit IN ('days', 'weeks', 'months', 'km')),
+  next_due_date    DATE NOT NULL,
+  last_completed_at TIMESTAMPTZ,
+  last_notified_at TIMESTAMPTZ,
+  notes            TEXT,
+  is_active        BOOLEAN NOT NULL DEFAULT true,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_service_reminders_due
+  ON "{{schema}}".service_reminders(next_due_date)
+  WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_service_reminders_customer
+  ON "{{schema}}".service_reminders(customer_id);
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- MÓDULO: Maintenance Tickets
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS "{{schema}}".service_providers (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        VARCHAR(255) NOT NULL,
+  phone       VARCHAR(50) NOT NULL,
+  category    VARCHAR(100) NOT NULL,
+  is_active   BOOLEAN NOT NULL DEFAULT true,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "{{schema}}".maintenance_tickets (
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ticket_number        VARCHAR(50) UNIQUE NOT NULL,
+  customer_id          UUID NOT NULL REFERENCES "{{schema}}".customers(id),
+  property_id          VARCHAR(255),
+  category             VARCHAR(100) NOT NULL,
+  description          TEXT NOT NULL,
+  media_urls           JSONB NOT NULL DEFAULT '[]',
+  priority             VARCHAR(20) NOT NULL DEFAULT 'medium'
+                       CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
+  status               VARCHAR(50) NOT NULL DEFAULT 'open'
+                       CHECK (status IN ('open', 'assigned', 'quoted', 'authorized', 'in_progress', 'completed', 'cancelled')),
+  assigned_provider_id UUID REFERENCES "{{schema}}".service_providers(id),
+  assigned_at          TIMESTAMPTZ,
+  quote_amount         DECIMAL(10,2),
+  quote_description    TEXT,
+  quoted_at            TIMESTAMPTZ,
+  authorized_at        TIMESTAMPTZ,
+  completed_at         TIMESTAMPTZ,
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_maintenance_tickets_status
+  ON "{{schema}}".maintenance_tickets(status) WHERE status NOT IN ('completed', 'cancelled');
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- MÓDULO: Product Collections / Lookbooks
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS "{{schema}}".product_collections (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name             VARCHAR(255) NOT NULL,
+  description      TEXT,
+  product_ids      JSONB NOT NULL DEFAULT '[]',
+  discount_percent INTEGER NOT NULL DEFAULT 0,
+  image_url        TEXT,
+  is_active        BOOLEAN NOT NULL DEFAULT true,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

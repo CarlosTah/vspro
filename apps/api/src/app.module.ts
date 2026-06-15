@@ -38,6 +38,13 @@ import { KitchenModule } from './modules/kitchen/kitchen.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
 import { AudioModule } from './modules/audio/audio.module';
 import { StaffNotificationsModule } from './modules/staff-notifications/staff-notifications.module';
+import { ReturnsModule } from './modules/returns/returns.module';
+import { ServiceRemindersModule } from './modules/service-reminders/service-reminders.module';
+import { AssetRegistryModule } from './modules/asset-registry/asset-registry.module';
+import { MaintenanceTicketsModule } from './modules/maintenance-tickets/maintenance-tickets.module';
+import { IssueClassifierModule } from './modules/issue-classifier/issue-classifier.module';
+import { UrgencyDetectionModule } from './modules/urgency-detection/urgency-detection.module';
+import { ProductCollectionsModule } from './modules/product-collections/product-collections.module';
 
 @Module({
   imports: [
@@ -107,6 +114,13 @@ import { StaffNotificationsModule } from './modules/staff-notifications/staff-no
     DeliveryModule,
     AudioModule,
     StaffNotificationsModule,
+    ReturnsModule,
+    ServiceRemindersModule,
+    AssetRegistryModule,
+    MaintenanceTicketsModule,
+    IssueClassifierModule,
+    UrgencyDetectionModule,
+    ProductCollectionsModule,
   ],
 })
 export class AppModule implements NestModule {
