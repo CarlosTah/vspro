@@ -7,10 +7,14 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { isValidTransition, OrderStatus } from '@vspro/shared';
+import { OrderNotificationsService } from './order-notifications.service';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: OrderNotificationsService,
+  ) {}
 
   // ─── Consultas ────────────────────────────────────────────────
 
@@ -146,6 +150,9 @@ export class OrdersService {
         : order.items;
       await this.releaseStock(items, schemaName);
     }
+
+    // Notificar al cliente automáticamente (non-blocking)
+    this.notifications.notify(id, newStatus, schemaName).catch(() => {});
 
     return this.findById(id, schemaName);
   }
