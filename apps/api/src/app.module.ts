@@ -33,6 +33,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { WorkflowOrchestratorModule } from './modules/workflow-orchestrator/workflow-orchestrator.module';
 import { HumanAuditModule } from './modules/human-audit/human-audit.module';
 import { AgentOrchestratorModule } from './modules/agent-orchestrator/agent-orchestrator.module';
+import { MenuVisionModule } from './modules/menu-vision/menu-vision.module';
 
 @Module({
   imports: [
@@ -97,6 +98,7 @@ import { AgentOrchestratorModule } from './modules/agent-orchestrator/agent-orch
     WorkflowOrchestratorModule,
     HumanAuditModule,
     AgentOrchestratorModule,
+    MenuVisionModule,
   ],
 })
 export class AppModule implements NestModule {
