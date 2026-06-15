@@ -36,6 +36,8 @@ import { AgentOrchestratorModule } from './modules/agent-orchestrator/agent-orch
 import { MenuVisionModule } from './modules/menu-vision/menu-vision.module';
 import { KitchenModule } from './modules/kitchen/kitchen.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
+import { AudioModule } from './modules/audio/audio.module';
+import { StaffNotificationsModule } from './modules/staff-notifications/staff-notifications.module';
 
 @Module({
   imports: [
@@ -103,6 +105,8 @@ import { DeliveryModule } from './modules/delivery/delivery.module';
     MenuVisionModule,
     KitchenModule,
     DeliveryModule,
+    AudioModule,
+    StaffNotificationsModule,
   ],
 })
 export class AppModule implements NestModule {
