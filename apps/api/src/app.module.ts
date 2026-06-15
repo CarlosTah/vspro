@@ -35,6 +35,7 @@ import { HumanAuditModule } from './modules/human-audit/human-audit.module';
 import { AgentOrchestratorModule } from './modules/agent-orchestrator/agent-orchestrator.module';
 import { MenuVisionModule } from './modules/menu-vision/menu-vision.module';
 import { KitchenModule } from './modules/kitchen/kitchen.module';
+import { DeliveryModule } from './modules/delivery/delivery.module';
 
 @Module({
   imports: [
@@ -101,6 +102,7 @@ import { KitchenModule } from './modules/kitchen/kitchen.module';
     AgentOrchestratorModule,
     MenuVisionModule,
     KitchenModule,
+    DeliveryModule,
   ],
 })
 export class AppModule implements NestModule {

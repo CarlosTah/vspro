@@ -481,3 +481,45 @@ CREATE INDEX IF NOT EXISTS idx_orchestrator_sessions_user
   ON "{{schema}}".orchestrator_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_orchestrator_sessions_updated
   ON "{{schema}}".orchestrator_sessions(updated_at DESC);
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- MÓDULO: Delivery / Repartidores
+-- ═══════════════════════════════════════════════════════════════
+
+-- Motorepartidores registrados
+CREATE TABLE IF NOT EXISTS "{{schema}}".delivery_drivers (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name            VARCHAR(255) NOT NULL,
+  phone           VARCHAR(50) NOT NULL,
+  vehicle_type    VARCHAR(50) NOT NULL DEFAULT 'moto',
+  status          VARCHAR(50) NOT NULL DEFAULT 'available'
+                  CHECK (status IN ('available', 'busy', 'offline')),
+  max_deliveries  INTEGER NOT NULL DEFAULT 3,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_delivery_drivers_status
+  ON "{{schema}}".delivery_drivers(status)
+  WHERE status = 'available';
+
+-- Asignaciones de entrega
+CREATE TABLE IF NOT EXISTS "{{schema}}".delivery_assignments (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id     UUID NOT NULL REFERENCES "{{schema}}".orders(id) ON DELETE CASCADE,
+  driver_id    UUID NOT NULL REFERENCES "{{schema}}".delivery_drivers(id) ON DELETE CASCADE,
+  status       VARCHAR(50) NOT NULL DEFAULT 'offered'
+               CHECK (status IN ('offered', 'accepted', 'picked_up', 'delivered', 'rejected', 'cancelled')),
+  offered_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  accepted_at  TIMESTAMPTZ,
+  picked_up_at TIMESTAMPTZ,
+  delivered_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_delivery_assignments_driver
+  ON "{{schema}}".delivery_assignments(driver_id, status);
+CREATE INDEX IF NOT EXISTS idx_delivery_assignments_order
+  ON "{{schema}}".delivery_assignments(order_id);
+CREATE INDEX IF NOT EXISTS idx_delivery_assignments_active
+  ON "{{schema}}".delivery_assignments(status)
+  WHERE status IN ('offered', 'accepted', 'picked_up');
