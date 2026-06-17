@@ -6,14 +6,15 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat
 
 # ─────────────────────────────────────────────────────────────
-# Stage 2: Dependencies
+# Stage 2: Dependencies (incluye devDependencies para el build)
 # ─────────────────────────────────────────────────────────────
 FROM base AS deps
 COPY package*.json ./
 COPY apps/api/package*.json ./apps/api/
+COPY apps/worker/package*.json ./apps/worker/
 COPY packages/database/package*.json ./packages/database/
 COPY packages/shared/package*.json ./packages/shared/
-RUN npm ci
+RUN npm ci --include=dev
 
 # ─────────────────────────────────────────────────────────────
 # Stage 3: Development (con hot reload)
