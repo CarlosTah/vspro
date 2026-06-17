@@ -1,0 +1,108 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: vspro_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: vspro_db
+      POSTGRES_USER: vspro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vspro -d vspro_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vspro_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: vspro_redis
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vspro_network
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: production
+    container_name: vspro_api
+    restart: always
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://vspro:${POSTGRES_PASSWORD}@postgres:5432/vspro_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    env_file:
+      - .env.production
+    ports:
+      - "127.0.0.1:3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - vspro_network
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: production
+    container_name: vspro_web
+    restart: always
+    environment:
+      NODE_ENV: production
+    env_file:
+      - .env.production
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - api
+    networks:
+      - vspro_network
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+      target: production
+    container_name: vspro_worker
+    restart: always
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://vspro:${POSTGRES_PASSWORD}@postgres:5432/vspro_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    env_file:
+      - .env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - vspro_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  vspro_network:
+    driver: bridge
