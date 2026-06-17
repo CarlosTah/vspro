@@ -21,6 +21,7 @@ RUN npm ci --include=dev
 # ─────────────────────────────────────────────────────────────
 FROM base AS development
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 COPY . .
 RUN npm run db:generate --workspace=@vspro/database
 EXPOSE 3001
@@ -31,6 +32,7 @@ CMD ["npm", "run", "dev", "--workspace=@vspro/api"]
 # ─────────────────────────────────────────────────────────────
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 COPY . .
 RUN npm run db:generate --workspace=@vspro/database
 RUN npm run build --workspace=@vspro/api
