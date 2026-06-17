@@ -32,9 +32,11 @@ CMD ["npm", "run", "dev", "--workspace=@vspro/api"]
 # ─────────────────────────────────────────────────────────────
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 COPY . .
+# Re-copy workspace node_modules after COPY . . (which may overwrite them)
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 RUN npm run db:generate --workspace=@vspro/database
+RUN ls apps/api/node_modules/@swc/ 2>/dev/null && echo "SWC OK" || echo "SWC NOT FOUND"
 RUN npm run build --workspace=@vspro/api
 
 # ─────────────────────────────────────────────────────────────
