@@ -22,6 +22,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
+# Ensure public dir exists for the COPY step
+RUN mkdir -p apps/web/public
 RUN npm run build --workspace=@vspro/web
 
 # ─────────────────────────────────────────────────────────────
