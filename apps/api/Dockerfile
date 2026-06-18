@@ -59,6 +59,8 @@ COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/packages ./packages
 # Copy Prisma schema for migrations
 COPY --from=builder --chown=nestjs:nodejs /app/packages/database/prisma ./prisma
+# Copy prisma assets to dist path (tsc-alias resolves paths relative to dist)
+COPY --from=builder --chown=nestjs:nodejs /app/packages/database/prisma ./dist/packages/database/prisma
 
 USER nestjs
 EXPOSE 3001
