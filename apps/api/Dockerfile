@@ -38,6 +38,8 @@ RUN npm run db:generate --workspace=@vspro/database
 # Override nest-cli.json to use tsc instead of swc (avoids SWC resolution issues in Docker)
 RUN echo '{"collection":"@nestjs/schematics","sourceRoot":"src","compilerOptions":{"builder":"tsc","typeCheck":true}}' > apps/api/nest-cli.json
 RUN npm run build --workspace=@vspro/api
+# Resolve path aliases (@vspro/database, @vspro/shared) to relative paths in compiled output
+RUN npx tsc-alias -p apps/api/tsconfig.json --outDir apps/api/dist
 
 # ─────────────────────────────────────────────────────────────
 # Stage 5: Production (imagen mínima)
@@ -49,8 +51,13 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nestjs
 
+# Copy the compiled API
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
+# Copy all node_modules (includes workspace symlinks)
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
+# Copy workspace packages (database + shared) so symlinks resolve
+COPY --from=builder --chown=nestjs:nodejs /app/packages ./packages
+# Copy Prisma schema for migrations
 COPY --from=builder --chown=nestjs:nodejs /app/packages/database/prisma ./prisma
 
 USER nestjs
