@@ -17,22 +17,22 @@ async function main() {
     {
       name: 'Básico',
       slug: 'basic',
-      priceMonthly: 49.0,
-      priceYearly: 470.0, // ~2 meses gratis
+      priceMonthly: 990.0,
+      priceYearly: 9900.0,
       features: PLAN_FEATURES['basic'],
     },
     {
       name: 'Profesional',
       slug: 'pro',
-      priceMonthly: 149.0,
-      priceYearly: 1430.0,
+      priceMonthly: 1490.0,
+      priceYearly: 14900.0,
       features: PLAN_FEATURES['pro'],
     },
     {
-      name: 'Empresarial',
+      name: 'Avanzado',
       slug: 'enterprise',
-      priceMonthly: 399.0,
-      priceYearly: 3830.0,
+      priceMonthly: 2499.0,
+      priceYearly: 24990.0,
       features: PLAN_FEATURES['enterprise'],
     },
   ];

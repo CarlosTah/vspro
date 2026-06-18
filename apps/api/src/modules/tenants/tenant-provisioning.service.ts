@@ -6,6 +6,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { TenantPrismaService } from '../../database/tenant-prisma.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { Prisma } from '@vspro/database';
+import { TRIAL_DAYS } from '@vspro/shared';
 
 @Injectable()
 export class TenantProvisioningService {
@@ -56,7 +57,7 @@ export class TenantProvisioningService {
           ownerName: dto.ownerName,
           planId: basicPlan.id,
           status: 'TRIAL',
-          trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+          trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
         },
       });
 
