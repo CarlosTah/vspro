@@ -16,6 +16,57 @@ export class WebhooksService {
   ) {}
 
   /**
+   * Verifica el webhook de Meta durante la configuración inicial (global, sin tenant).
+   * Se usa al configurar la app en Meta Developers.
+   */
+  verifyGlobal(mode: string, token: string, challenge: string): string {
+    if (mode !== 'subscribe') {
+      throw new BadRequestException('Modo de verificación inválido');
+    }
+
+    const globalToken = this.config.get('META_WEBHOOK_VERIFY_TOKEN', '');
+
+    if (token === globalToken) {
+      this.logger.log('Webhook global verificado correctamente');
+      return challenge;
+    }
+
+    this.logger.warn('Verificación de webhook global fallida');
+    throw new UnauthorizedException('Token de verificación inválido');
+  }
+
+  /**
+   * Encola mensaje recibido en el endpoint global.
+   * Extrae el phone_number_id del payload para rutear al tenant correcto.
+   */
+  async enqueueMessageGlobal(payload: unknown): Promise<void> {
+    const p = payload as any;
+    const entry = p?.entry?.[0];
+    const changes = entry?.changes?.[0];
+    const phoneNumberId = changes?.value?.metadata?.phone_number_id;
+
+    if (!phoneNumberId) {
+      this.logger.warn('Webhook global: no se encontró phone_number_id en payload');
+      return;
+    }
+
+    // TODO: Lookup tenant by phone_number_id in settings
+    // For now, enqueue with the phone_number_id for routing
+    await this.messageQueue.add(
+      'process-incoming-message',
+      { phoneNumberId, payload },
+      {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+        removeOnComplete: 100,
+        removeOnFail: 500,
+      },
+    );
+
+    this.logger.debug(`Mensaje global encolado (phone: ${phoneNumberId})`);
+  }
+
+  /**
    * Verifica el webhook de Meta durante la configuración inicial.
    * Meta envía un GET con hub.challenge y espera que lo devolvamos.
    */

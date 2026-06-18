@@ -22,6 +22,32 @@ export class WebhooksController {
 
   constructor(private readonly webhooksService: WebhooksService) {}
 
+  /** Global webhook verification — used by Meta during app setup */
+  @Get('meta')
+  @ApiExcludeEndpoint()
+  verifyWebhookGlobal(
+    @Query('hub.mode') mode: string,
+    @Query('hub.verify_token') token: string,
+    @Query('hub.challenge') challenge: string,
+  ) {
+    return this.webhooksService.verifyGlobal(mode, token, challenge);
+  }
+
+  /** Global webhook receiver — routes messages to correct tenant by phone number */
+  @Post('meta')
+  @HttpCode(200)
+  @ApiExcludeEndpoint()
+  async receiveMessageGlobal(
+    @Req() req: RawBodyRequest<Request>,
+    @Body() payload: unknown,
+    @Headers('x-hub-signature-256') signature: string,
+  ) {
+    const rawBody = req.rawBody ?? Buffer.from(JSON.stringify(payload));
+    await this.webhooksService.verifySignature(rawBody, signature);
+    await this.webhooksService.enqueueMessageGlobal(payload);
+    return { status: 'ok' };
+  }
+
   @Get('meta/:tenantSlug')
   @ApiExcludeEndpoint()
   verifyWebhook(
