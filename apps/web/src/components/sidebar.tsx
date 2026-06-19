@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { clsx } from 'clsx';
 import { useAuth } from '@/lib/auth-context';
-import { canAccessRoute, UserRole } from '@/lib/permissions';
+import { canAccessRoute, UserRole, ROLE_LABELS } from '@/lib/permissions';
 import { VsproLogo } from '@/components/vspro-logo';
 import { useSidebar } from '@/hooks/use-sidebar';
 
@@ -85,7 +85,7 @@ export function Sidebar() {
 
       {/* Rol indicator */}
       <div className="border-t border-card-border px-4 py-3">
-        <span className="text-caption text-muted capitalize">Rol: {role}</span>
+        <span className="text-caption text-muted capitalize">Rol: {ROLE_LABELS[role] ?? role}</span>
       </div>
     </>
   );

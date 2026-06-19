@@ -8,12 +8,20 @@ import { TableSkeleton } from '@/components/ui/skeleton';
 const roleLabels: Record<string, string> = {
   admin: 'Administrador',
   manager: 'Gerente',
+  vendedor: 'Vendedor',
+  produccion: 'Producción',
+  delivery: 'Entregas',
+  finanzas: 'Finanzas',
   operator: 'Operador',
 };
 
 const roleBadges: Record<string, string> = {
   admin: 'bg-purple-50 text-purple-700',
   manager: 'bg-blue-50 text-blue-700',
+  vendedor: 'bg-green-50 text-green-700',
+  produccion: 'bg-orange-50 text-orange-700',
+  delivery: 'bg-indigo-50 text-indigo-700',
+  finanzas: 'bg-yellow-50 text-yellow-700',
   operator: 'bg-gray-100 text-gray-700',
 };
 
@@ -104,22 +112,25 @@ export default function TeamPage() {
               value={inviteData.name}
               onChange={(e) => setInviteData({ ...inviteData, name: e.target.value })}
               placeholder="Nombre completo"
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
             <input
               value={inviteData.email}
               onChange={(e) => setInviteData({ ...inviteData, email: e.target.value })}
               placeholder="Email"
               type="email"
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
             <select
               value={inviteData.role}
               onChange={(e) => setInviteData({ ...inviteData, role: e.target.value })}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             >
-              <option value="operator">Operador (solo producción)</option>
-              <option value="manager">Gerente (todo excepto billing)</option>
+              <option value="vendedor">Vendedor (pedidos y clientes)</option>
+              <option value="produccion">Producción (cocina y preparación)</option>
+              <option value="delivery">Entregas (repartidores)</option>
+              <option value="finanzas">Finanzas (pagos y reportes)</option>
+              <option value="manager">Gerente (todo excepto config)</option>
               <option value="admin">Administrador (acceso total)</option>
             </select>
             <input
@@ -127,7 +138,7 @@ export default function TeamPage() {
               onChange={(e) => setInviteData({ ...inviteData, password: e.target.value })}
               placeholder="Contraseña (auto si vacío)"
               type="text"
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
           </div>
           <button
@@ -167,11 +178,14 @@ export default function TeamPage() {
                     <select
                       value={u.role}
                       onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium border-0 cursor-pointer ${roleBadges[u.role] ?? ''}`}
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium border-0 cursor-pointer ${roleBadges[u.role] ?? 'bg-gray-100 text-gray-700'}`}
                     >
                       <option value="admin">Administrador</option>
                       <option value="manager">Gerente</option>
-                      <option value="operator">Operador</option>
+                      <option value="vendedor">Vendedor</option>
+                      <option value="produccion">Producción</option>
+                      <option value="delivery">Entregas</option>
+                      <option value="finanzas">Finanzas</option>
                     </select>
                   </td>
                   <td className="px-5 py-3">

@@ -17,6 +17,17 @@ import { ROLES_KEY, UserRole } from '../decorators/roles.decorator';
 export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
+  /**
+   * Role hierarchy mapping — new functional roles inherit access from base roles.
+   * If an endpoint allows 'operator', it also allows produccion/delivery/vendedor/finanzas.
+   * If an endpoint allows 'manager', it also allows all functional roles.
+   */
+  private readonly roleHierarchy: Record<string, UserRole[]> = {
+    admin: ['admin'],
+    manager: ['manager', 'vendedor', 'produccion', 'delivery', 'finanzas'],
+    operator: ['operator', 'vendedor', 'produccion', 'delivery', 'finanzas'],
+  };
+
   canActivate(context: ExecutionContext): boolean {
     const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(
       ROLES_KEY,
@@ -38,15 +49,18 @@ export class RolesGuard implements CanActivate {
     // Admin siempre tiene acceso a todo
     if (userRole === 'admin') return true;
 
-    if (!requiredRoles.includes(userRole)) {
-      throw new ForbiddenException({
-        code: 'INSUFFICIENT_ROLE',
-        message: `Tu rol (${userRole}) no tiene acceso a este recurso`,
-        requiredRoles,
-        currentRole: userRole,
-      });
-    }
+    // Direct match
+    if (requiredRoles.includes(userRole)) return true;
 
-    return true;
+    // Hierarchy match: check if userRole is included via hierarchy expansion
+    const expandedRoles = requiredRoles.flatMap(r => this.roleHierarchy[r] ?? [r]);
+    if (expandedRoles.includes(userRole)) return true;
+
+    throw new ForbiddenException({
+      code: 'INSUFFICIENT_ROLE',
+      message: `Tu rol (${userRole}) no tiene acceso a este recurso`,
+      requiredRoles,
+      currentRole: userRole,
+    });
   }
 }
