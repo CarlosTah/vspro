@@ -10,6 +10,7 @@ import { CustomerMemoryService } from './customer-memory.service';
 import { ProactivityService } from '../proactivity/proactivity.service';
 import { TenantProvisioningService } from '../tenants/tenant-provisioning.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
+import { BillingService } from '../billing/billing.service';
 import { IncomingMessage } from '@vspro/shared';
 
 export interface AiEngineResponse {
@@ -38,6 +39,7 @@ export class AiEngineService {
     @Inject(forwardRef(() => TenantProvisioningService))
     private readonly tenantProvisioning: TenantProvisioningService,
     private readonly knowledgeBase: KnowledgeBaseService,
+    private readonly billingService: BillingService,
     private readonly config: ConfigService,
   ) {
     this.openai = new OpenAI({
@@ -438,6 +440,28 @@ export class AiEngineService {
               },
             },
             required: ['reportType'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'select_plan',
+          description: 'Genera un link de pago de Stripe para que el cliente se suscriba a un plan. Usa después del registro cuando el cliente elige su plan, o cuando quiere upgrade. Devuelve una URL de checkout que el cliente abre en su navegador.',
+          parameters: {
+            type: 'object',
+            properties: {
+              tenantSlug: {
+                type: 'string',
+                description: 'Slug del negocio registrado (ej: "tortilleria-don-jose")',
+              },
+              planSlug: {
+                type: 'string',
+                enum: ['basic', 'pro', 'enterprise'],
+                description: 'Plan elegido: basic ($990/mes), pro ($1,490/mes), enterprise ($2,499/mes)',
+              },
+            },
+            required: ['tenantSlug', 'planSlug'],
           },
         },
       },
@@ -925,6 +949,35 @@ export class AiEngineService {
           });
         } catch (err: any) {
           return JSON.stringify({ success: false, message: `Error al generar reporte: ${err.message}` });
+        }
+      }
+
+      case 'select_plan': {
+        try {
+          const tenant = await this.prisma.tenant.findUnique({
+            where: { slug: args.tenantSlug },
+          });
+
+          if (!tenant) {
+            return JSON.stringify({ success: false, message: `No se encontró el negocio '${args.tenantSlug}'. Verifica el nombre.` });
+          }
+
+          const result = await this.billingService.createCheckoutSession(
+            tenant.id,
+            args.planSlug,
+            'monthly',
+          );
+
+          const planNames: Record<string, string> = { basic: 'Básico ($990/mes)', pro: 'Profesional ($1,490/mes)', enterprise: 'Avanzado ($2,499/mes)' };
+
+          return JSON.stringify({
+            success: true,
+            checkoutUrl: result.url,
+            plan: planNames[args.planSlug] ?? args.planSlug,
+            message: `Link de pago generado para el plan ${planNames[args.planSlug]}. El cliente debe abrir el link en su navegador para completar el pago.`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al generar link de pago: ${err.message}` });
         }
       }
 

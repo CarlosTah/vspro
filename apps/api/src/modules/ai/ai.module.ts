@@ -12,9 +12,10 @@ import { CustomersModule } from '../customers/customers.module';
 import { ProactivityModule } from '../proactivity/proactivity.module';
 import { TenantsModule } from '../tenants/tenants.module';
 import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
+import { BillingModule } from '../billing/billing.module';
 
 @Module({
-  imports: [ProductsModule, OrdersModule, CustomersModule, forwardRef(() => ProactivityModule), forwardRef(() => TenantsModule), KnowledgeBaseModule],
+  imports: [ProductsModule, OrdersModule, CustomersModule, forwardRef(() => ProactivityModule), forwardRef(() => TenantsModule), KnowledgeBaseModule, BillingModule],
   controllers: [AiController, CustomerMemoryController],
   providers: [
     AiEngineService,
