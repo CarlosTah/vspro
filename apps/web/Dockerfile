@@ -21,6 +21,8 @@ FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+ARG NEXT_PUBLIC_API_URL=https://api.vspro.app
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 # Ensure public dir exists for the COPY step
 RUN mkdir -p apps/web/public

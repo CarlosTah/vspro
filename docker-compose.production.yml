@@ -63,6 +63,8 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       target: production
+      args:
+        - NEXT_PUBLIC_API_URL=https://api.vspro.app
     container_name: vspro_web
     restart: always
     environment:
