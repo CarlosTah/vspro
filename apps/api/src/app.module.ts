@@ -45,6 +45,7 @@ import { MaintenanceTicketsModule } from './modules/maintenance-tickets/maintena
 import { IssueClassifierModule } from './modules/issue-classifier/issue-classifier.module';
 import { UrgencyDetectionModule } from './modules/urgency-detection/urgency-detection.module';
 import { ProductCollectionsModule } from './modules/product-collections/product-collections.module';
+import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
 
 @Module({
   imports: [
@@ -121,6 +122,7 @@ import { ProductCollectionsModule } from './modules/product-collections/product-
     IssueClassifierModule,
     UrgencyDetectionModule,
     ProductCollectionsModule,
+    KnowledgeBaseModule,
   ],
 })
 export class AppModule implements NestModule {

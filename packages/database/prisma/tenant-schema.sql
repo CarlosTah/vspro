@@ -651,3 +651,23 @@ CREATE TABLE IF NOT EXISTS "{{schema}}".product_collections (
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- MÓDULO: Knowledge Base (FAQ / Documentos para el agente IA)
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS "{{schema}}".knowledge_base (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title       VARCHAR(255) NOT NULL,
+  content     TEXT NOT NULL,
+  category    VARCHAR(100) NOT NULL DEFAULT 'general',
+  is_active   BOOLEAN NOT NULL DEFAULT true,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_base_active
+  ON "{{schema}}".knowledge_base(is_active, sort_order)
+  WHERE is_active = true;

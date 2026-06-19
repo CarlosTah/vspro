@@ -9,6 +9,7 @@ import { AiMemoryService } from './ai-memory.service';
 import { CustomerMemoryService } from './customer-memory.service';
 import { ProactivityService } from '../proactivity/proactivity.service';
 import { TenantProvisioningService } from '../tenants/tenant-provisioning.service';
+import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { IncomingMessage } from '@vspro/shared';
 
 export interface AiEngineResponse {
@@ -36,6 +37,7 @@ export class AiEngineService {
     private readonly proactivityService: ProactivityService,
     @Inject(forwardRef(() => TenantProvisioningService))
     private readonly tenantProvisioning: TenantProvisioningService,
+    private readonly knowledgeBase: KnowledgeBaseService,
     private readonly config: ConfigService,
   ) {
     this.openai = new OpenAI({
@@ -68,6 +70,9 @@ export class AiEngineService {
       // 4. Construir system prompt dinámico
       const systemPrompt = this.buildSystemPrompt(tenant, aiConfig, products);
 
+      // 4.1. Inyectar knowledge base del tenant
+      const kbContext = await this.knowledgeBase.buildKnowledgeContext(schemaName);
+
       // 4.5. HOOK: Inyectar memoria del cliente antes de la llamada a IA
       const customerId = (conversation.context as any)?.customerId;
       let memoryContext = '';
@@ -81,7 +86,7 @@ export class AiEngineService {
 
       // 5. Construir mensajes para la API (con memoria inyectada)
       const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-        { role: 'system', content: systemPrompt + memoryContext },
+        { role: 'system', content: systemPrompt + kbContext + memoryContext },
         ...history,
       ];
 
