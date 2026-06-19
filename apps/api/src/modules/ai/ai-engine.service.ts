@@ -347,6 +347,95 @@ export class AiEngineService {
           },
         },
       },
+      {
+        type: 'function',
+        function: {
+          name: 'add_product',
+          description: 'Agrega un producto al catálogo del negocio. Usa cuando el cliente te dice el nombre y precio de un producto o servicio que ofrece.',
+          parameters: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Nombre del producto o servicio' },
+              price: { type: 'number', description: 'Precio en MXN' },
+              category: { type: 'string', description: 'Categoría del producto (ej: "Cortes", "Tacos", "Vestidos", "Servicios")' },
+              description: { type: 'string', description: 'Descripción breve (opcional)' },
+              stock: { type: 'number', description: 'Cantidad disponible (default: 50, usa -1 para ilimitado)' },
+            },
+            required: ['name', 'price'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'set_business_hours',
+          description: 'Configura los horarios de atención del negocio. Usa cuando el cliente te dice sus horarios de apertura y cierre.',
+          parameters: {
+            type: 'object',
+            properties: {
+              monday: { type: 'string', description: 'Horario lunes (ej: "09:00-20:00" o "cerrado")' },
+              tuesday: { type: 'string', description: 'Horario martes' },
+              wednesday: { type: 'string', description: 'Horario miércoles' },
+              thursday: { type: 'string', description: 'Horario jueves' },
+              friday: { type: 'string', description: 'Horario viernes' },
+              saturday: { type: 'string', description: 'Horario sábado' },
+              sunday: { type: 'string', description: 'Horario domingo' },
+              timezone: { type: 'string', description: 'Zona horaria (default: America/Mexico_City)' },
+            },
+            required: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'set_payment_info',
+          description: 'Configura los datos bancarios del negocio para recibir pagos por transferencia. CLABE interbancaria y nombre del banco.',
+          parameters: {
+            type: 'object',
+            properties: {
+              bank: { type: 'string', description: 'Nombre del banco (ej: "BBVA", "Banorte", "Santander")' },
+              clabe: { type: 'string', description: 'CLABE interbancaria (18 dígitos)' },
+              beneficiary: { type: 'string', description: 'Nombre del beneficiario como aparece en el banco' },
+            },
+            required: ['bank', 'clabe', 'beneficiary'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'add_delivery_driver',
+          description: 'Registra un repartidor/motorepartidor para entregas. Usa cuando el cliente quiere configurar su equipo de delivery.',
+          parameters: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Nombre del repartidor' },
+              phone: { type: 'string', description: 'Teléfono del repartidor con lada (ej: "529841234567")' },
+              vehicleType: { type: 'string', description: 'Tipo de vehículo: "moto", "bicicleta", "auto", "a_pie"' },
+            },
+            required: ['name', 'phone'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'generate_report',
+          description: 'Genera un reporte del negocio. Usa cuando el dueño pide información sobre ventas, pedidos, ingresos o desempeño de su negocio.',
+          parameters: {
+            type: 'object',
+            properties: {
+              reportType: {
+                type: 'string',
+                enum: ['daily', 'weekly', 'summary'],
+                description: 'Tipo de reporte: daily (hoy), weekly (últimos 7 días), summary (resumen general)',
+              },
+            },
+            required: ['reportType'],
+          },
+        },
+      },
     ];
   }
 
@@ -639,6 +728,198 @@ export class AiEngineService {
             return JSON.stringify({ success: false, message: `El slug '${args.slug}' ya está ocupado. Sugiere otro nombre para la URL.` });
           }
           return JSON.stringify({ success: false, message: `Error al registrar: ${err.message}` });
+        }
+      }
+
+      case 'add_product': {
+        try {
+          const sku = `PRD-${Date.now().toString(36).toUpperCase()}`;
+          const stock = args.stock === -1 ? 9999 : (args.stock ?? 50);
+
+          await this.prisma.$executeRawUnsafe(`
+            INSERT INTO "${schemaName}".products (name, price, category, description, sku, is_active)
+            VALUES ($1, $2, $3, $4, $5, true)
+          `, args.name, args.price, args.category ?? 'General', args.description ?? '', sku);
+
+          // Get the product ID to create inventory
+          const products = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT id FROM "${schemaName}".products WHERE sku = $1`, sku,
+          );
+          if (products[0]) {
+            await this.prisma.$executeRawUnsafe(`
+              INSERT INTO "${schemaName}".inventory (product_id, stock_available, stock_minimum)
+              VALUES ($1::uuid, $2, 5)
+              ON CONFLICT (product_id) DO NOTHING
+            `, products[0].id, stock);
+          }
+
+          return JSON.stringify({
+            success: true,
+            product: { name: args.name, price: args.price, category: args.category ?? 'General', sku },
+            message: `Producto "${args.name}" agregado al catálogo por $${args.price} MXN.`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al agregar producto: ${err.message}` });
+        }
+      }
+
+      case 'set_business_hours': {
+        try {
+          const schedule: Record<string, any> = {};
+          const dayMap: Record<string, string> = {
+            monday: 'mon', tuesday: 'tue', wednesday: 'wed',
+            thursday: 'thu', friday: 'fri', saturday: 'sat', sunday: 'sun',
+          };
+
+          for (const [day, abbr] of Object.entries(dayMap)) {
+            const val = args[day];
+            if (!val || val.toLowerCase() === 'cerrado' || val.toLowerCase() === 'closed') {
+              schedule[abbr] = null;
+            } else {
+              const [open, close] = val.split('-').map((s: string) => s.trim());
+              schedule[abbr] = { open, close };
+            }
+          }
+
+          const hoursJson = JSON.stringify({
+            timezone: args.timezone ?? 'America/Mexico_City',
+            schedule,
+          });
+
+          await this.prisma.$executeRawUnsafe(`
+            UPDATE "${schemaName}".ai_config
+            SET business_hours = $1::jsonb, updated_at = NOW()
+            WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
+          `, hoursJson);
+
+          return JSON.stringify({
+            success: true,
+            schedule,
+            message: 'Horarios de atención configurados correctamente.',
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al configurar horarios: ${err.message}` });
+        }
+      }
+
+      case 'set_payment_info': {
+        try {
+          const paymentInfo = JSON.stringify({
+            bank: args.bank,
+            clabe: args.clabe,
+            beneficiary: args.beneficiary,
+          });
+
+          // Store in ai_config agent_config field
+          await this.prisma.$executeRawUnsafe(`
+            ALTER TABLE "${schemaName}".ai_config
+            ADD COLUMN IF NOT EXISTS agent_config JSONB DEFAULT '{}'
+          `);
+
+          await this.prisma.$executeRawUnsafe(`
+            UPDATE "${schemaName}".ai_config
+            SET agent_config = jsonb_set(
+              COALESCE(agent_config, '{}'::jsonb),
+              '{payment_info}',
+              $1::jsonb
+            ), updated_at = NOW()
+            WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
+          `, paymentInfo);
+
+          return JSON.stringify({
+            success: true,
+            bank: args.bank,
+            clabe: `****${args.clabe.slice(-4)}`,
+            beneficiary: args.beneficiary,
+            message: `Datos bancarios configurados: ${args.bank}, CLABE terminación ${args.clabe.slice(-4)}, a nombre de ${args.beneficiary}.`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al configurar datos bancarios: ${err.message}` });
+        }
+      }
+
+      case 'add_delivery_driver': {
+        try {
+          await this.prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "${schemaName}".delivery_drivers (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              name VARCHAR(255) NOT NULL,
+              phone VARCHAR(50) NOT NULL,
+              vehicle_type VARCHAR(50) NOT NULL DEFAULT 'moto',
+              status VARCHAR(50) NOT NULL DEFAULT 'available',
+              max_deliveries INTEGER NOT NULL DEFAULT 3,
+              created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+          `);
+
+          const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+            INSERT INTO "${schemaName}".delivery_drivers (name, phone, vehicle_type)
+            VALUES ($1, $2, $3)
+            RETURNING id, name, phone, vehicle_type AS "vehicleType"
+          `, args.name, args.phone, args.vehicleType ?? 'moto');
+
+          return JSON.stringify({
+            success: true,
+            driver: rows[0],
+            message: `Repartidor "${args.name}" registrado (${args.vehicleType ?? 'moto'}). Recibirá pedidos por WhatsApp al ${args.phone}.`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al registrar repartidor: ${err.message}` });
+        }
+      }
+
+      case 'generate_report': {
+        try {
+          const now = new Date();
+          let dateFilter: string;
+          let label: string;
+
+          if (args.reportType === 'daily') {
+            dateFilter = `created_at >= CURRENT_DATE`;
+            label = 'Hoy';
+          } else if (args.reportType === 'weekly') {
+            dateFilter = `created_at >= CURRENT_DATE - INTERVAL '7 days'`;
+            label = 'Últimos 7 días';
+          } else {
+            dateFilter = `1=1`;
+            label = 'Total histórico';
+          }
+
+          const orders = await this.prisma.$queryRawUnsafe<any[]>(`
+            SELECT
+              COUNT(*) AS total_orders,
+              COUNT(*) FILTER (WHERE status = 'delivered') AS delivered,
+              COUNT(*) FILTER (WHERE status IN ('new', 'payment_pending', 'in_production', 'ready')) AS pending,
+              COALESCE(SUM(total), 0) AS revenue,
+              COALESCE(SUM(total) FILTER (WHERE status = 'delivered'), 0) AS collected
+            FROM "${schemaName}".orders
+            WHERE ${dateFilter}
+          `);
+
+          const customers = await this.prisma.$queryRawUnsafe<any[]>(`
+            SELECT COUNT(*) AS total FROM "${schemaName}".customers WHERE ${dateFilter}
+          `);
+
+          const r = orders[0] ?? {};
+          const report = {
+            period: label,
+            orders: {
+              total: parseInt(r.total_orders) || 0,
+              delivered: parseInt(r.delivered) || 0,
+              pending: parseInt(r.pending) || 0,
+            },
+            revenue: parseFloat(r.revenue) || 0,
+            collected: parseFloat(r.collected) || 0,
+            newCustomers: parseInt(customers[0]?.total) || 0,
+          };
+
+          return JSON.stringify({
+            success: true,
+            report,
+            message: `📊 Reporte ${label}:\n• Pedidos: ${report.orders.total} (${report.orders.delivered} entregados, ${report.orders.pending} pendientes)\n• Revenue: $${report.revenue.toLocaleString()} MXN\n• Cobrado: $${report.collected.toLocaleString()} MXN\n• Nuevos clientes: ${report.newCustomers}`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al generar reporte: ${err.message}` });
         }
       }
 
