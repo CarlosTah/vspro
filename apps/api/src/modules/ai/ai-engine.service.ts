@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { PrismaService } from '../../database/prisma.service';
@@ -8,6 +8,7 @@ import { CustomersService } from '../customers/customers.service';
 import { AiMemoryService } from './ai-memory.service';
 import { CustomerMemoryService } from './customer-memory.service';
 import { ProactivityService } from '../proactivity/proactivity.service';
+import { TenantProvisioningService } from '../tenants/tenant-provisioning.service';
 import { IncomingMessage } from '@vspro/shared';
 
 export interface AiEngineResponse {
@@ -33,6 +34,8 @@ export class AiEngineService {
     private readonly aiMemory: AiMemoryService,
     private readonly customerMemory: CustomerMemoryService,
     private readonly proactivityService: ProactivityService,
+    @Inject(forwardRef(() => TenantProvisioningService))
+    private readonly tenantProvisioning: TenantProvisioningService,
     private readonly config: ConfigService,
   ) {
     this.openai = new OpenAI({
@@ -311,6 +314,39 @@ export class AiEngineService {
           },
         },
       },
+      {
+        type: 'function',
+        function: {
+          name: 'register_business',
+          description: 'Registra un nuevo negocio en la plataforma VSPRO. Usa SOLO cuando el prospecto ha confirmado todos sus datos y quiere crear su cuenta. Necesitas: slug (URL amigable del negocio, sin espacios ni caracteres especiales), nombre del negocio, email y contraseña.',
+          parameters: {
+            type: 'object',
+            properties: {
+              slug: {
+                type: 'string',
+                description: 'URL amigable del negocio (solo letras minúsculas, números y guiones, min 3 chars). Ej: "tortilleria-don-jose", "salon-bella"',
+              },
+              businessName: {
+                type: 'string',
+                description: 'Nombre completo del negocio',
+              },
+              email: {
+                type: 'string',
+                description: 'Email del dueño del negocio',
+              },
+              ownerName: {
+                type: 'string',
+                description: 'Nombre del dueño o contacto principal',
+              },
+              password: {
+                type: 'string',
+                description: 'Contraseña elegida por el usuario (mínimo 8 caracteres)',
+              },
+            },
+            required: ['slug', 'businessName', 'email', 'ownerName', 'password'],
+          },
+        },
+      },
     ];
   }
 
@@ -577,6 +613,32 @@ export class AiEngineService {
           });
         } catch (err: any) {
           return JSON.stringify({ success: false, error: err.message });
+        }
+      }
+
+      case 'register_business': {
+        try {
+          const tenant = await this.tenantProvisioning.provision({
+            slug: args.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+            businessName: args.businessName,
+            email: args.email,
+            ownerName: args.ownerName,
+            password: args.password,
+          });
+
+          return JSON.stringify({
+            success: true,
+            tenantSlug: tenant.slug,
+            businessName: tenant.businessName,
+            panelUrl: `https://app.vspro.app`,
+            trialEndsAt: tenant.trialEndsAt,
+            message: `Negocio registrado exitosamente. El usuario puede acceder al panel en app.vspro.app con su email y contraseña.`,
+          });
+        } catch (err: any) {
+          if (err.message?.includes('ya está en uso')) {
+            return JSON.stringify({ success: false, message: `El slug '${args.slug}' ya está ocupado. Sugiere otro nombre para la URL.` });
+          }
+          return JSON.stringify({ success: false, message: `Error al registrar: ${err.message}` });
         }
       }
 

@@ -37,24 +37,50 @@ export class WebhooksService {
 
   /**
    * Encola mensaje recibido en el endpoint global.
-   * Extrae el phone_number_id del payload para rutear al tenant correcto.
+   * Busca el tenant dueño del phone_number_id en las tablas de channels.
+   * Si no encuentra un match, rutea al tenant 'vspro' (agente de pre-venta).
    */
   async enqueueMessageGlobal(payload: unknown): Promise<void> {
     const p = payload as any;
     const entry = p?.entry?.[0];
     const changes = entry?.changes?.[0];
     const phoneNumberId = changes?.value?.metadata?.phone_number_id;
+    const messages = changes?.value?.messages;
 
-    if (!phoneNumberId) {
-      this.logger.warn('Webhook global: no se encontró phone_number_id en payload');
+    // Ignorar payloads sin mensajes (status updates, etc.)
+    if (!messages || messages.length === 0) {
+      this.logger.debug('Webhook global: payload sin mensajes (posible status update)');
       return;
     }
 
-    // TODO: Lookup tenant by phone_number_id in settings
-    // For now, enqueue with the phone_number_id for routing
+    // Try to find which tenant owns this phone_number_id
+    let tenantSlug = 'vspro'; // default: VSPRO pre-sales agent
+
+    if (phoneNumberId) {
+      const tenants = await this.prisma.tenant.findMany({
+        where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+        select: { slug: true, schemaName: true },
+      });
+
+      for (const t of tenants) {
+        try {
+          const channels = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT external_id FROM "${t.schemaName}".channels WHERE external_id = $1 AND is_active = true LIMIT 1`,
+            phoneNumberId,
+          );
+          if (channels.length > 0) {
+            tenantSlug = t.slug;
+            break;
+          }
+        } catch {
+          // Schema might not exist or channels table empty — skip
+        }
+      }
+    }
+
     await this.messageQueue.add(
       'process-incoming-message',
-      { phoneNumberId, payload },
+      { tenantSlug, payload },
       {
         attempts: 3,
         backoff: { type: 'exponential', delay: 2000 },
@@ -63,7 +89,7 @@ export class WebhooksService {
       },
     );
 
-    this.logger.debug(`Mensaje global encolado (phone: ${phoneNumberId})`);
+    this.logger.log(`Mensaje global encolado → tenant: ${tenantSlug} (phone: ${phoneNumberId})`);
   }
 
   /**
