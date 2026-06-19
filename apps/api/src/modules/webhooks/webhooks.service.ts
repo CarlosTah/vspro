@@ -146,7 +146,7 @@ export class WebhooksService {
   async verifySignature(payload: Buffer | unknown, signature: string): Promise<void> {
     const appSecret = this.config.get('META_APP_SECRET');
 
-    // In development without app secret, skip verification
+    // Skip verification if META_APP_SECRET is not configured
     if (!appSecret || appSecret === 'CHANGE_ME') {
       this.logger.warn('HMAC verification skipped — META_APP_SECRET not configured');
       return;
