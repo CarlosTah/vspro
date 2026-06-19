@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useApi } from '@/hooks/use-api';
 import { TableSkeleton } from '@/components/ui/skeleton';
 
@@ -39,14 +40,23 @@ const FILTERS = [
 
 export default function OrdersPage() {
   const [filter, setFilter] = useState('');
+  const router = useRouter();
   const path = filter ? `/orders?status=${filter}` : '/orders';
   const { data: orders, loading, error } = useApi<any[]>(path);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Pedidos</h1>
-        <p className="text-sm text-gray-500">Gestiona todos los pedidos de tu negocio</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Pedidos</h1>
+          <p className="text-sm text-gray-500">Gestiona todos los pedidos de tu negocio</p>
+        </div>
+        <button
+          onClick={() => router.push('/orders/new')}
+          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+        >
+          + Nuevo pedido
+        </button>
       </div>
 
       {/* Filtros */}
@@ -85,7 +95,7 @@ export default function OrdersPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {orders.map((order: any) => (
-                <tr key={order.id} className="hover:bg-gray-50">
+                <tr key={order.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/orders/${order.id}`)}>
                   <td className="px-5 py-3 font-medium text-gray-900">{order.orderNumber}</td>
                   <td className="px-5 py-3 text-gray-600">{order.customerName}</td>
                   <td className="px-5 py-3">
