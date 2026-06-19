@@ -47,9 +47,18 @@ export class WebhooksService {
     const phoneNumberId = changes?.value?.metadata?.phone_number_id;
     const messages = changes?.value?.messages;
 
+    // Log payload structure for debugging
+    this.logger.log(`Webhook global payload: object=${p?.object}, entry=${!!entry}, changes=${!!changes}, messages=${!!messages}, phoneNumberId=${phoneNumberId}`);
+
     // Ignorar payloads sin mensajes (status updates, etc.)
     if (!messages || messages.length === 0) {
-      this.logger.debug('Webhook global: payload sin mensajes (posible status update)');
+      // Check if it's a statuses update
+      const statuses = changes?.value?.statuses;
+      if (statuses) {
+        this.logger.debug('Webhook global: status update (delivery/read receipt) — ignorado');
+        return;
+      }
+      this.logger.debug(`Webhook global: payload sin mensajes procesables`);
       return;
     }
 
