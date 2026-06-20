@@ -26,7 +26,7 @@ type Period = 'today' | 'week' | 'month';
 export default function DashboardPage() {
   const [period, setPeriod] = useState<Period>('today');
   const { data, loading } = useApi<any>('/dashboard/stats');
-  const { data: reportData } = useApi<any>(`/reports/summary?period=${period}`);
+  const { data: reportData } = useApi<any>(`/reports/summary`);
 
   if (loading) {
     return (
@@ -42,12 +42,12 @@ export default function DashboardPage() {
   const stats = data?.stats ?? { ordersToday: 0, inProduction: 0, readyForShipment: 0, salesToday: 0 };
   const recentOrders = data?.recentOrders ?? [];
   const report = reportData ?? {};
-  const revenue = report.revenue ?? 0;
-  const orderCount = report.orders ?? 0;
-  const avgTicket = orderCount > 0 ? revenue / orderCount : 0;
-  const collected = report.collected ?? 0;
-  const pending = report.pending ?? 0;
-  const newCustomers = report.newCustomers ?? 0;
+  const revenue = report.revenue?.total ?? report.revenue ?? 0;
+  const orderCount = report.orders?.total ?? report.orders ?? 0;
+  const avgTicket = orderCount > 0 ? (typeof revenue === 'number' ? revenue : 0) / orderCount : 0;
+  const collected = report.revenue?.paid ?? report.collected ?? 0;
+  const pending = report.revenue?.pending ?? report.pending ?? 0;
+  const newCustomers = report.customers?.newInPeriod ?? report.newCustomers ?? 0;
   const topProducts = report.topProducts ?? [];
 
   const periodLabels: Record<Period, string> = { today: 'Hoy', week: 'Esta semana', month: 'Este mes' };
