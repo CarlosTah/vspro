@@ -98,7 +98,7 @@ export class ConversationsController {
   @UseInterceptors(FileInterceptor('file'))
   async sendMedia(
     @Param('id', ParseUUIDPipe) id: string,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: any,
     @Body() body: { caption?: string },
     @TenantSchema() schema: string,
   ) {
