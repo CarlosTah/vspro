@@ -1,144 +1,188 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useApi } from '@/hooks/use-api';
 import { api } from '@/lib/api';
 import { TableSkeleton } from '@/components/ui/skeleton';
 
-export default function ProductsPage() {
-  const { data: products, loading, error, refetch } = useApi<any[]>('/products?all=true');
-  const [showForm, setShowForm] = useState(false);
-  const [name, setName] = useState('');
-  const [price, setPrice] = useState('');
-  const [category, setCategory] = useState('');
-  const [saving, setSaving] = useState(false);
+type ViewMode = 'grid' | 'table';
 
-  const handleCreate = async () => {
-    if (!name || !price) return;
-    setSaving(true);
+export default function ProductsPage() {
+  const router = useRouter();
+  const { data: products, loading, error, refetch } = useApi<any[]>('/products?all=true');
+  const { data: templates } = useApi<any[]>('/industry-templates');
+  const [view, setView] = useState<ViewMode>('grid');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [loadingTemplate, setLoadingTemplate] = useState(false);
+
+  // Get unique categories
+  const categories = [...new Set(products?.map((p: any) => p.category).filter(Boolean) ?? [])];
+
+  // Filter products
+  const filtered = categoryFilter
+    ? products?.filter((p: any) => p.category === categoryFilter)
+    : products;
+
+  const handleLoadTemplate = async (slug: string) => {
+    if (!confirm('¿Cargar productos de esta plantilla? Se agregarán a tu catálogo actual.')) return;
+    setLoadingTemplate(true);
     try {
-      await api.post('/products', {
-        name,
-        price: parseFloat(price),
-        category: category || undefined,
-      });
-      setName('');
-      setPrice('');
-      setCategory('');
-      setShowForm(false);
+      await api.post(`/industry-templates/${slug}/apply`);
+      setShowTemplates(false);
       refetch();
-    } catch (err) {
-      alert('Error al crear producto');
+    } catch (err: any) {
+      alert(err.message);
     } finally {
-      setSaving(false);
+      setLoadingTemplate(false);
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Productos</h1>
-          <p className="text-sm text-gray-500">Catálogo y gestión de inventario</p>
+          <h1 className="text-2xl font-bold text-white">Productos</h1>
+          <p className="text-sm text-gray-400">{products?.length ?? 0} productos en catálogo</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-        >
-          {showForm ? 'Cancelar' : '+ Nuevo producto'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowTemplates(!showTemplates)} className="vspro-btn-secondary text-sm">
+            {showTemplates ? '✕ Cerrar' : '📋 Cargar plantilla'}
+          </button>
+          <button onClick={() => router.push('/products/new')} className="vspro-btn-primary text-sm">
+            + Nuevo producto
+          </button>
+        </div>
       </div>
 
-      {/* Formulario rápido */}
-      {showForm && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Nombre del producto"
-              className="col-span-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-            />
-            <input
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="Precio"
-              type="number"
-              step="0.01"
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-            />
-            <input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="Categoría"
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-            />
+      {/* Template loader */}
+      {showTemplates && templates && (
+        <div className="rounded-xl border border-accent/30 bg-accent/5 p-5">
+          <h3 className="text-sm font-semibold text-white mb-3">Cargar productos de plantilla por giro</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {templates.map((t: any) => (
+              <button
+                key={t.slug}
+                onClick={() => handleLoadTemplate(t.slug)}
+                disabled={loadingTemplate}
+                className="rounded-lg border border-gray-700 bg-gray-800 p-3 text-left hover:border-accent/50 transition-colors disabled:opacity-50"
+              >
+                <span className="text-xl">{t.icon}</span>
+                <p className="text-xs text-white font-medium mt-1">{t.name}</p>
+              </button>
+            ))}
           </div>
-          <button
-            onClick={handleCreate}
-            disabled={saving || !name || !price}
-            className="mt-3 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-          >
-            {saving ? 'Guardando...' : 'Guardar producto'}
-          </button>
         </div>
       )}
 
-      {/* Tabla */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        {loading ? (
-          <TableSkeleton rows={5} cols={5} />
-        ) : error ? (
-          <div className="p-8 text-center text-red-500">{error}</div>
-        ) : products && products.length > 0 ? (
+      {/* Filters + View toggle */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex gap-2 overflow-x-auto">
+          <button
+            onClick={() => setCategoryFilter('')}
+            className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              !categoryFilter ? 'bg-accent text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+            }`}
+          >
+            Todos
+          </button>
+          {categories.map((cat: string) => (
+            <button
+              key={cat}
+              onClick={() => setCategoryFilter(cat)}
+              className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                categoryFilter === cat ? 'bg-accent text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1 bg-gray-800 rounded-lg p-0.5">
+          <button onClick={() => setView('grid')} className={`px-2.5 py-1.5 rounded-md text-xs ${view === 'grid' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}>▦</button>
+          <button onClick={() => setView('table')} className={`px-2.5 py-1.5 rounded-md text-xs ${view === 'table' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}>☰</button>
+        </div>
+      </div>
+
+      {/* Content */}
+      {loading ? (
+        <TableSkeleton rows={4} cols={4} />
+      ) : error ? (
+        <div className="p-8 text-center text-red-400">{error}</div>
+      ) : !filtered || filtered.length === 0 ? (
+        <div className="rounded-xl border border-card-border bg-card p-12 text-center">
+          <p className="text-3xl mb-3">📦</p>
+          <p className="text-white font-medium">Sin productos</p>
+          <p className="text-sm text-gray-400 mt-1">Agrega tu primer producto o carga una plantilla</p>
+          <div className="flex gap-2 justify-center mt-4">
+            <button onClick={() => setShowTemplates(true)} className="vspro-btn-secondary text-sm">📋 Plantilla</button>
+            <button onClick={() => router.push('/products/new')} className="vspro-btn-primary text-sm">+ Crear</button>
+          </div>
+        </div>
+      ) : view === 'grid' ? (
+        /* Grid view */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filtered.map((p: any) => (
+            <div
+              key={p.id}
+              onClick={() => router.push(`/products/${p.id}`)}
+              className="rounded-xl border border-card-border bg-card p-4 cursor-pointer hover:border-accent/40 transition-colors"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{p.name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{p.category ?? 'General'}</p>
+                </div>
+                {!p.isActive && (
+                  <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs text-gray-400">Inactivo</span>
+                )}
+              </div>
+              <div className="mt-3 flex items-end justify-between">
+                <p className="text-lg font-bold text-accent">${parseFloat(p.price).toLocaleString('es-MX')}</p>
+                <p className="text-xs text-gray-500">
+                  Stock: {p.stockAvailable ?? p.stock ?? '—'}
+                </p>
+              </div>
+              {p.sku && <p className="text-xs text-gray-600 mt-1 font-mono">{p.sku}</p>}
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* Table view */
+        <div className="rounded-xl border border-card-border bg-card overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="border-b border-gray-700">
               <tr>
-                <th className="px-5 py-3 text-left font-medium text-gray-500">Producto</th>
-                <th className="px-5 py-3 text-left font-medium text-gray-500">SKU</th>
-                <th className="px-5 py-3 text-left font-medium text-gray-500">Precio</th>
-                <th className="px-5 py-3 text-left font-medium text-gray-500">Stock</th>
-                <th className="px-5 py-3 text-left font-medium text-gray-500">Estado</th>
+                <th className="px-5 py-3 text-left font-medium text-gray-400">Producto</th>
+                <th className="px-5 py-3 text-left font-medium text-gray-400">Categoría</th>
+                <th className="px-5 py-3 text-left font-medium text-gray-400">Precio</th>
+                <th className="px-5 py-3 text-left font-medium text-gray-400">Stock</th>
+                <th className="px-5 py-3 text-left font-medium text-gray-400">Estado</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {products.map((p: any) => (
-                <tr key={p.id} className="hover:bg-gray-50">
+            <tbody className="divide-y divide-gray-700/50">
+              {filtered.map((p: any) => (
+                <tr key={p.id} onClick={() => router.push(`/products/${p.id}`)} className="hover:bg-gray-800/50 cursor-pointer">
                   <td className="px-5 py-3">
-                    <p className="font-medium text-gray-900">{p.name}</p>
-                    {p.category && <p className="text-xs text-gray-400">{p.category}</p>}
+                    <p className="text-white font-medium">{p.name}</p>
+                    <p className="text-xs text-gray-500">{p.sku}</p>
                   </td>
-                  <td className="px-5 py-3 text-gray-500 font-mono text-xs">{p.sku ?? '—'}</td>
-                  <td className="px-5 py-3 font-medium text-gray-900">${p.price}</td>
+                  <td className="px-5 py-3 text-gray-300">{p.category ?? 'General'}</td>
+                  <td className="px-5 py-3 text-accent font-medium">${parseFloat(p.price).toLocaleString('es-MX')}</td>
+                  <td className="px-5 py-3 text-gray-300">{p.stockAvailable ?? '—'}</td>
                   <td className="px-5 py-3">
-                    <span className={`text-sm font-medium ${
-                      (p.stockAvailable ?? 0) <= (p.stockMinimum ?? 5)
-                        ? 'text-red-600'
-                        : 'text-gray-900'
-                    }`}>
-                      {p.stockAvailable ?? 0}
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${p.isActive !== false ? 'bg-green-900/40 text-green-300' : 'bg-gray-700 text-gray-400'}`}>
+                      {p.isActive !== false ? 'Activo' : 'Inactivo'}
                     </span>
-                    <span className="text-xs text-gray-400 ml-1">
-                      ({p.stockReserved ?? 0} reservado)
-                    </span>
-                  </td>
-                  <td className="px-5 py-3">
-                    {p.isActive ? (
-                      <span className="rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700">Activo</span>
-                    ) : (
-                      <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">Inactivo</span>
-                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        ) : (
-          <div className="p-8 text-center text-gray-400">
-            No hay productos. Crea tu primer producto para empezar.
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
