@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useApi } from '@/hooks/use-api';
 import { api } from '@/lib/api';
+import { ProductImages } from '@/components/product-images';
 
 export default function EditProductPage() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +22,7 @@ export default function EditProductPage() {
     discount: '',
     discountType: 'percent',
     characteristics: [] as { key: string; value: string }[],
+    images: [] as string[],
   });
   const [newCharKey, setNewCharKey] = useState('');
   const [newCharValue, setNewCharValue] = useState('');
@@ -37,6 +39,7 @@ export default function EditProductPage() {
         discount: '',
         discountType: 'percent',
         characteristics: product.characteristics ?? [],
+        images: product.images ?? [],
       });
     }
   }, [product]);
@@ -130,6 +133,13 @@ export default function EditProductPage() {
           <label className="block text-sm font-medium text-gray-300 mb-1.5">Nombre *</label>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="vspro-input w-full" />
         </div>
+
+        {/* Images */}
+        <ProductImages
+          productId={id}
+          images={form.images}
+          onImagesChange={(images) => setForm({ ...form, images })}
+        />
 
         {/* Description */}
         <div>

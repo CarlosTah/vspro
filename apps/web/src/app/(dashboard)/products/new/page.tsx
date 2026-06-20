@@ -55,7 +55,8 @@ export default function NewProductPage() {
         await api.patch(`/products/${product.id}/stock`, { stockAvailable: parseInt(form.stock) });
       }
 
-      router.push('/products');
+      // Redirect to edit page so user can add images
+      router.push(`/products/${product.id}`);
     } catch (err: any) {
       setError(err.message ?? 'Error al crear producto');
     } finally {

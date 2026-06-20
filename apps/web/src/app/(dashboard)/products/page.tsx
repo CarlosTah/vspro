@@ -128,24 +128,32 @@ export default function ProductsPage() {
             <div
               key={p.id}
               onClick={() => router.push(`/products/${p.id}`)}
-              className="rounded-xl border border-card-border bg-card p-4 cursor-pointer hover:border-accent/40 transition-colors"
+              className="rounded-xl border border-card-border bg-card overflow-hidden cursor-pointer hover:border-accent/40 transition-colors"
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">{p.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{p.category ?? 'General'}</p>
-                </div>
-                {!p.isActive && (
-                  <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs text-gray-400">Inactivo</span>
+              {/* Image */}
+              <div className="aspect-square bg-gray-800 flex items-center justify-center overflow-hidden">
+                {p.images && p.images.length > 0 ? (
+                  <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-4xl opacity-30">📦</span>
                 )}
               </div>
-              <div className="mt-3 flex items-end justify-between">
-                <p className="text-lg font-bold text-accent">${parseFloat(p.price).toLocaleString('es-MX')}</p>
-                <p className="text-xs text-gray-500">
-                  Stock: {p.stockAvailable ?? p.stock ?? '—'}
-                </p>
+              {/* Info */}
+              <div className="p-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{p.name}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{p.category ?? 'General'}</p>
+                  </div>
+                  {!p.isActive && (
+                    <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs text-gray-400 ml-1">Off</span>
+                  )}
+                </div>
+                <div className="mt-2 flex items-end justify-between">
+                  <p className="text-lg font-bold text-accent">${parseFloat(p.price).toLocaleString('es-MX')}</p>
+                  <p className="text-xs text-gray-500">Stock: {p.stockAvailable ?? '—'}</p>
+                </div>
               </div>
-              {p.sku && <p className="text-xs text-gray-600 mt-1 font-mono">{p.sku}</p>}
             </div>
           ))}
         </div>
