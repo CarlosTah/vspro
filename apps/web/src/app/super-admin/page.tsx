@@ -217,6 +217,38 @@ export default function SuperAdminPage() {
                 <p className="text-center text-gray-500 py-8">Sin resultados para este filtro</p>
               )}
             </div>
+
+            {/* Monthly Revenue History */}
+            <div className="rounded-xl border border-gray-700 bg-gray-800 p-6">
+              <h3 className="font-semibold text-white mb-4">📈 Revenue mensual</h3>
+              <div className="space-y-2">
+                {(() => {
+                  // Calculate revenue by month of registration
+                  const months: Record<string, { tenants: number; revenue: number }> = {};
+                  activeTenants.forEach(t => {
+                    const month = new Date(t.createdAt).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' });
+                    if (!months[month]) months[month] = { tenants: 0, revenue: 0 };
+                    months[month].tenants++;
+                    months[month].revenue += planPrices[t.plan?.slug] ?? 0;
+                  });
+                  const entries = Object.entries(months);
+                  if (entries.length === 0) return <p className="text-sm text-gray-500">Sin datos aún</p>;
+                  return entries.map(([month, data]) => (
+                    <div key={month} className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0">
+                      <span className="text-sm text-gray-300 capitalize">{month}</span>
+                      <div className="text-right">
+                        <span className="text-sm font-bold text-green-400">${data.revenue.toLocaleString('es-MX')}</span>
+                        <span className="text-xs text-gray-500 ml-2">({data.tenants} clientes)</span>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-700 flex justify-between">
+                <span className="text-sm text-gray-400">Revenue total recurrente</span>
+                <span className="text-lg font-bold text-green-400">${mrr.toLocaleString('es-MX')}/mes</span>
+              </div>
+            </div>
           </div>
         )}
 
