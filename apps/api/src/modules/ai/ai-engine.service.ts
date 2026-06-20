@@ -325,7 +325,7 @@ export class AiEngineService {
         type: 'function',
         function: {
           name: 'register_business',
-          description: 'Registra un nuevo negocio en la plataforma VSPRO. Usa SOLO cuando el prospecto ha confirmado todos sus datos y quiere crear su cuenta. Necesitas: slug (URL amigable del negocio, sin espacios ni caracteres especiales), nombre del negocio, email y contraseña.',
+          description: 'Registra un nuevo negocio en la plataforma VSPRO. Usa SOLO cuando el prospecto ha confirmado todos sus datos y quiere crear su cuenta. Necesitas: slug, nombre del negocio, email, contraseña y tipo de negocio (industry). SIEMPRE pregunta el giro/tipo de negocio para aplicar el template correcto.',
           parameters: {
             type: 'object',
             properties: {
@@ -349,8 +349,13 @@ export class AiEngineService {
                 type: 'string',
                 description: 'Contraseña elegida por el usuario (mínimo 8 caracteres)',
               },
+              industry: {
+                type: 'string',
+                enum: ['restaurante', 'barberia', 'ropa', 'taller', 'clinica', 'inmobiliaria', 'ecommerce'],
+                description: 'Tipo/giro del negocio. restaurante=comida/tacos/café, barberia=salón/estética, ropa=tienda/moda, taller=mecánico/automotriz, clinica=doctor/vet, inmobiliaria=rentas/depas, ecommerce=tienda online',
+              },
             },
-            required: ['slug', 'businessName', 'email', 'ownerName', 'password'],
+            required: ['slug', 'businessName', 'email', 'ownerName', 'password', 'industry'],
           },
         },
       },
@@ -744,13 +749,31 @@ export class AiEngineService {
             password: args.password,
           });
 
+          // Auto-apply industry template if provided
+          let templateApplied = null;
+          if (args.industry) {
+            try {
+              const templates = await this.prisma.$queryRawUnsafe<any[]>(
+                `SELECT slug FROM public.industry_templates WHERE slug = $1`, args.industry,
+              );
+              if (templates.length > 0) {
+                const { IndustryTemplatesService } = await import('../tenants/industry-templates.service');
+                const templatesService = new IndustryTemplatesService(this.prisma);
+                templateApplied = await templatesService.applyTemplate(args.industry, tenant.schemaName);
+              }
+            } catch (tplErr: any) {
+              this.logger.warn(`Template apply failed: ${tplErr.message}`);
+            }
+          }
+
           return JSON.stringify({
             success: true,
             tenantSlug: tenant.slug,
             businessName: tenant.businessName,
             panelUrl: `https://app.vspro.app`,
             trialEndsAt: tenant.trialEndsAt,
-            message: `Negocio registrado exitosamente. El usuario puede acceder al panel en app.vspro.app con su email y contraseña.`,
+            templateApplied: templateApplied ? args.industry : null,
+            message: `Negocio registrado exitosamente.${templateApplied ? ` Se pre-cargó configuración de ${args.industry} (${templateApplied.products} productos, ${templateApplied.kbEntries} tips).` : ''} El usuario puede acceder al panel en app.vspro.app con su email y contraseña.`,
           });
         } catch (err: any) {
           if (err.message?.includes('ya está en uso')) {
