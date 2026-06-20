@@ -184,4 +184,78 @@ export class MessagingService {
 
     return rows[0] ?? null;
   }
+
+  // ─── Media Sending ────────────────────────────────────────────
+
+  /**
+   * Upload media to Meta and send it to a WhatsApp recipient.
+   * Supports: image, document, audio.
+   */
+  async sendMedia(
+    channelType: ChannelType,
+    recipientId: string,
+    mediaBuffer: Buffer,
+    mimeType: string,
+    filename: string,
+    schemaName: string,
+    caption?: string,
+  ): Promise<{ success: boolean; error?: string }> {
+    const channel = await this.getActiveChannel(channelType, schemaName);
+    if (!channel) return { success: false, error: `No hay canal ${channelType} activo` };
+
+    try {
+      if (channelType === 'whatsapp') {
+        // 1. Upload media to Meta
+        const FormData = (await import('form-data')).default;
+        const form = new FormData();
+        form.append('messaging_product', 'whatsapp');
+        form.append('file', mediaBuffer, { filename, contentType: mimeType });
+        form.append('type', mimeType);
+
+        const uploadRes = await axios.post(
+          `${this.metaBaseUrl}/${channel.external_id}/media`,
+          form,
+          { headers: { Authorization: `Bearer ${channel.access_token}`, ...form.getHeaders() } },
+        );
+
+        const mediaId = uploadRes.data?.id;
+        if (!mediaId) return { success: false, error: 'No se pudo subir el archivo a Meta' };
+
+        // 2. Determine media type for WhatsApp
+        let waType: string;
+        let mediaPayload: any;
+
+        if (mimeType.startsWith('image/')) {
+          waType = 'image';
+          mediaPayload = { id: mediaId, caption: caption ?? '' };
+        } else if (mimeType.startsWith('audio/')) {
+          waType = 'audio';
+          mediaPayload = { id: mediaId };
+        } else {
+          waType = 'document';
+          mediaPayload = { id: mediaId, filename, caption: caption ?? '' };
+        }
+
+        // 3. Send message with media
+        await axios.post(
+          `${this.metaBaseUrl}/${channel.external_id}/messages`,
+          {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: recipientId,
+            type: waType,
+            [waType]: mediaPayload,
+          },
+          { headers: { Authorization: `Bearer ${channel.access_token}` } },
+        );
+
+        return { success: true };
+      }
+
+      return { success: false, error: 'Envío de media solo soportado para WhatsApp' };
+    } catch (error: any) {
+      this.logger.error(`Error enviando media a ${recipientId}:`, error?.response?.data ?? error.message);
+      return { success: false, error: error?.response?.data?.error?.message ?? error.message };
+    }
+  }
 }

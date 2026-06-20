@@ -1,12 +1,15 @@
 import {
   Controller, Get, Post, Param, Body,
   Query, UseGuards, ParseUUIDPipe,
+  UseInterceptors, UploadedFile,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiBearerAuth, ApiQuery, ApiConsumes } from '@nestjs/swagger';
 import { ConversationsService } from './conversations.service';
 import { TenantSchema } from '../../common/decorators/tenant.decorator';
 import { MessagingFactory } from '../messaging/messaging-factory.service';
+import { MessagingService } from '../messaging/messaging.service';
 import { PrismaService } from '../../database/prisma.service';
 
 @ApiTags('conversations')
@@ -17,6 +20,7 @@ export class ConversationsController {
   constructor(
     private readonly conversationsService: ConversationsService,
     private readonly messagingFactory: MessagingFactory,
+    private readonly messagingService: MessagingService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -86,5 +90,58 @@ export class ConversationsController {
     `, id);
 
     return { success: result.success, message: result.success ? 'Mensaje enviado' : `Error: ${result.error}` };
+  }
+
+  /** Send media (image, document, audio) from dashboard */
+  @Post(':id/send-media')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file'))
+  async sendMedia(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { caption?: string },
+    @TenantSchema() schema: string,
+  ) {
+    if (!file) throw new Error('No se proporcionó archivo');
+
+    // Get conversation details
+    const convRows = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT c.channel_type, cu.channel_id AS recipient_id
+      FROM "${schema}".conversations c
+      JOIN "${schema}".customers cu ON cu.id = c.customer_id
+      WHERE c.id = $1::uuid
+    `, id);
+
+    if (!convRows[0]) throw new Error('Conversación no encontrada');
+    const { channel_type, recipient_id } = convRows[0];
+
+    // Send via Meta
+    const result = await this.messagingService.sendMedia(
+      channel_type,
+      recipient_id,
+      file.buffer,
+      file.mimetype,
+      file.originalname,
+      schema,
+      body.caption,
+    );
+
+    // Determine message type for storage
+    const msgType = file.mimetype.startsWith('image/') ? 'image'
+      : file.mimetype.startsWith('audio/') ? 'audio'
+      : 'document';
+
+    // Save outbound message
+    const content = body.caption
+      ? `[${msgType === 'image' ? '📷' : msgType === 'audio' ? '🎤' : '📄'} ${file.originalname}] ${body.caption}`
+      : `[${msgType === 'image' ? '📷 Imagen' : msgType === 'audio' ? '🎤 Audio' : '📄 ' + file.originalname}]`;
+
+    await this.conversationsService.saveMessage(id, 'outbound', msgType, content, null, null, schema);
+
+    await this.prisma.$executeRawUnsafe(`
+      UPDATE "${schema}".conversations SET last_message_at = NOW() WHERE id = $1::uuid
+    `, id);
+
+    return { success: result.success, type: msgType, filename: file.originalname, error: result.error };
   }
 }

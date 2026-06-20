@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApi } from '@/hooks/use-api';
 import { api } from '@/lib/api';
+import { AudioRecorder } from '@/components/audio-recorder';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 export default function ConversationsPage() {
   const { data: conversations, loading } = useApi<any[]>('/conversations');
@@ -11,7 +14,9 @@ export default function ConversationsPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedConv = conversations?.find((c: any) => c.id === selectedId);
 
@@ -176,11 +181,105 @@ export default function ConversationsPage() {
             {/* Reply input */}
             <div className="border-t border-gray-700 px-4 py-3">
               <div className="flex items-end gap-2">
+                {/* File upload */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*,.pdf,.doc,.docx"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file || !selectedId) return;
+                    setUploadingFile(true);
+                    try {
+                      const token = localStorage.getItem('token');
+                      const tenantSlug = localStorage.getItem('tenantSlug');
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      const res = await fetch(`${API_URL}/conversations/${selectedId}/send-media`, {
+                        method: 'POST',
+                        headers: {
+                          'Authorization': `Bearer ${token}`,
+                          'x-tenant-slug': tenantSlug ?? '',
+                        },
+                        body: formData,
+                      });
+                      const result = await res.json();
+                      if (result.success) {
+                        setMessages([...messages, {
+                          id: `temp-${Date.now()}`,
+                          direction: 'outbound',
+                          type: file.type.startsWith('image/') ? 'image' : 'document',
+                          content: `[📎 ${file.name}]`,
+                          createdAt: new Date().toISOString(),
+                          isManual: true,
+                        }]);
+                      } else {
+                        alert(`Error: ${result.error}`);
+                      }
+                    } catch (err: any) {
+                      alert(`Error: ${err.message}`);
+                    } finally {
+                      setUploadingFile(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingFile || sending}
+                  className="px-3 py-2.5 rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50"
+                  title="Enviar archivo (imagen, PDF)"
+                >
+                  {uploadingFile ? '⏳' : '📎'}
+                </button>
+
+                {/* Audio recorder */}
+                <AudioRecorder
+                  disabled={sending || uploadingFile}
+                  onRecorded={async (blob) => {
+                    if (!selectedId) return;
+                    setUploadingFile(true);
+                    try {
+                      const token = localStorage.getItem('token');
+                      const tenantSlug = localStorage.getItem('tenantSlug');
+                      const formData = new FormData();
+                      formData.append('file', blob, 'audio.webm');
+                      const res = await fetch(`${API_URL}/conversations/${selectedId}/send-media`, {
+                        method: 'POST',
+                        headers: {
+                          'Authorization': `Bearer ${token}`,
+                          'x-tenant-slug': tenantSlug ?? '',
+                        },
+                        body: formData,
+                      });
+                      const result = await res.json();
+                      if (result.success) {
+                        setMessages([...messages, {
+                          id: `temp-${Date.now()}`,
+                          direction: 'outbound',
+                          type: 'audio',
+                          content: '[🎤 Audio enviado]',
+                          createdAt: new Date().toISOString(),
+                          isManual: true,
+                        }]);
+                      } else {
+                        alert(`Error: ${result.error}`);
+                      }
+                    } catch (err: any) {
+                      alert(`Error: ${err.message}`);
+                    } finally {
+                      setUploadingFile(false);
+                    }
+                  }}
+                />
+
+                {/* Text input */}
                 <textarea
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                   onKeyDown={handleKeyPress}
-                  placeholder="Escribe un mensaje manual... (Enter para enviar)"
+                  placeholder="Escribe un mensaje..."
                   rows={1}
                   className="flex-1 vspro-input resize-none min-h-[40px] max-h-[120px]"
                   style={{ height: 'auto' }}
@@ -195,7 +294,7 @@ export default function ConversationsPage() {
                 </button>
               </div>
               <p className="text-xs text-gray-500 mt-1.5">
-                💡 La IA responde automáticamente. Tus mensajes manuales se envían directamente al cliente por WhatsApp.
+                📎 Archivos · 🎤 Mantener para audio · La IA sigue respondiendo automáticamente
               </p>
             </div>
           </>
