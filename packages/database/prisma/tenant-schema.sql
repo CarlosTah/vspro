@@ -505,15 +505,18 @@ CREATE INDEX IF NOT EXISTS idx_delivery_drivers_status
 
 -- Asignaciones de entrega
 CREATE TABLE IF NOT EXISTS "{{schema}}".delivery_assignments (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id     UUID NOT NULL REFERENCES "{{schema}}".orders(id) ON DELETE CASCADE,
-  driver_id    UUID NOT NULL REFERENCES "{{schema}}".delivery_drivers(id) ON DELETE CASCADE,
-  status       VARCHAR(50) NOT NULL DEFAULT 'offered'
-               CHECK (status IN ('offered', 'accepted', 'picked_up', 'delivered', 'rejected', 'cancelled')),
-  offered_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  accepted_at  TIMESTAMPTZ,
-  picked_up_at TIMESTAMPTZ,
-  delivered_at TIMESTAMPTZ
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id       UUID NOT NULL REFERENCES "{{schema}}".orders(id) ON DELETE CASCADE,
+  driver_id      UUID REFERENCES "{{schema}}".delivery_drivers(id) ON DELETE CASCADE,
+  status         VARCHAR(50) NOT NULL DEFAULT 'offered'
+                 CHECK (status IN ('offered', 'accepted', 'picked_up', 'delivered', 'rejected', 'cancelled')),
+  tracking_token VARCHAR(32),
+  is_external    BOOLEAN NOT NULL DEFAULT false,
+  external_phone VARCHAR(50),
+  offered_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  accepted_at    TIMESTAMPTZ,
+  picked_up_at   TIMESTAMPTZ,
+  delivered_at   TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_delivery_assignments_driver

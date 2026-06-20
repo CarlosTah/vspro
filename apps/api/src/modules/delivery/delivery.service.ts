@@ -426,4 +426,66 @@ Responde *SÍ* o *NO*`;
     const parsed = typeof items === 'string' ? JSON.parse(items) : (items ?? []);
     return parsed.map((i: any) => `  • ${i.quantity}x ${i.productName ?? i.name}`).join('\n');
   }
+
+  // ─── External Dispatch (Moto-Mandados) ────────────────────────
+
+  /**
+   * Dispatch an order to an external driver (not registered in the system).
+   * Sends WhatsApp with tracking link. Driver confirms via the public tracking page.
+   */
+  async dispatchExternal(
+    orderId: string,
+    phone: string,
+    driverName: string | undefined,
+    schemaName: string,
+    tenantId: string,
+  ) {
+    const order = await this.ordersService.findById(orderId, schemaName);
+
+    // Generate tracking token
+    const trackingToken = this.generateToken();
+
+    // Create assignment
+    await this.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schemaName}".delivery_assignments
+        (order_id, driver_id, status, offered_at, tracking_token, is_external, external_phone)
+      VALUES ($1::uuid, NULL, 'offered', NOW(), $2, true, $3)
+    `, orderId, trackingToken, phone);
+
+    // Build tracking URL
+    const appUrl = 'https://app.vspro.app';
+    const trackingUrl = `${appUrl}/track/${orderId}/${trackingToken}`;
+
+    // Build message
+    const address = this.formatAddress(order.shippingAddress);
+    const items = this.formatItems(order.items);
+    const name = driverName ?? 'Repartidor';
+
+    const message = `🛵 *Pedido para entrega*\n\n` +
+      `📋 Pedido: ${order.orderNumber}\n` +
+      `📍 Dirección: ${address}\n` +
+      `💰 Total: $${parseFloat(order.total).toLocaleString('es-MX')}\n` +
+      `📦 Productos:\n${items}\n\n` +
+      `👉 Acepta y confirma desde aquí:\n${trackingUrl}`;
+
+    // Send WhatsApp
+    const result = await this.messagingFactory.sendText(phone, message, 'whatsapp', schemaName);
+
+    this.logger.log(`[${schemaName}] External dispatch: ${order.orderNumber} → ${phone} (token: ${trackingToken})`);
+
+    return {
+      success: result.success,
+      orderNumber: order.orderNumber,
+      phone,
+      trackingUrl,
+      trackingToken,
+      message: result.success
+        ? `Enviado a ${name} (${phone}). Link de seguimiento: ${trackingUrl}`
+        : `Error al enviar: ${result.error}`,
+    };
+  }
+
+  private generateToken(): string {
+    return Array.from({ length: 16 }, () => Math.random().toString(36)[2]).join('');
+  }
 }

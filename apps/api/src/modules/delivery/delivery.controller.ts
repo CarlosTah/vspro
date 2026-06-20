@@ -109,4 +109,15 @@ export class DeliveryController {
   ) {
     return this.delivery.getDeliveryHistory(schema, limit);
   }
+
+  /** Dispatch to external driver (moto-mandado) via WhatsApp — no registered driver needed */
+  @Post('dispatch-external')
+  @Roles('admin', 'manager')
+  async dispatchExternal(
+    @Body() body: { orderId: string; phone: string; driverName?: string },
+    @TenantSchema() schema: string,
+    @Req() req: any,
+  ) {
+    return this.delivery.dispatchExternal(body.orderId, body.phone, body.driverName, schema, req.user.tenantId);
+  }
 }
