@@ -14,6 +14,7 @@ export default function ProductsPage() {
   const { data: templates } = useApi<any[]>('/industry-templates');
   const [view, setView] = useState<ViewMode>('grid');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [search, setSearch] = useState('');
   const [showTemplates, setShowTemplates] = useState(false);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
 
@@ -21,9 +22,11 @@ export default function ProductsPage() {
   const categories = [...new Set(products?.map((p: any) => p.category).filter(Boolean) ?? [])];
 
   // Filter products
-  const filtered = categoryFilter
-    ? products?.filter((p: any) => p.category === categoryFilter)
-    : products;
+  const filtered = products?.filter((p: any) => {
+    const matchesCategory = !categoryFilter || p.category === categoryFilter;
+    const matchesSearch = !search || p.name?.toLowerCase().includes(search.toLowerCase()) || p.category?.toLowerCase().includes(search.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   const handleLoadTemplate = async (slug: string) => {
     if (!confirm('¿Cargar productos de esta plantilla? Se agregarán a tu catálogo actual.')) return;
@@ -77,8 +80,15 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Filters + View toggle */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      {/* Search + Filters + View toggle */}
+      <div className="space-y-3">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="🔍 Buscar producto por nombre o categoría..."
+          className="vspro-input w-full"
+        />
+        <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex gap-2 overflow-x-auto">
           <button
             onClick={() => setCategoryFilter('')}
@@ -104,6 +114,7 @@ export default function ProductsPage() {
           <button onClick={() => setView('grid')} className={`px-2.5 py-1.5 rounded-md text-xs ${view === 'grid' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}>▦</button>
           <button onClick={() => setView('table')} className={`px-2.5 py-1.5 rounded-md text-xs ${view === 'table' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}>☰</button>
         </div>
+      </div>
       </div>
 
       {/* Content */}

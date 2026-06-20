@@ -6,7 +6,7 @@ const sections = [
   {
     title: 'Datos del negocio',
     description: 'Nombre, logo y datos de contacto',
-    href: '/settings/team',
+    href: '/settings/business',
     icon: '🏪',
   },
   {
@@ -36,7 +36,7 @@ const sections = [
   {
     title: 'Plan y facturación',
     description: 'Plan actual y método de pago',
-    href: '/settings/team',
+    href: '/settings/billing',
     icon: '💳',
   },
   {
