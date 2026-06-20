@@ -114,7 +114,62 @@ export class MessageProcessor {
         }
       }
 
-      // 6. Procesar con IA y obtener respuesta
+      // 6. Transcribir audio si es mensaje de voz
+      if ((message.type === 'audio' || message.type === 'voice') && message.mediaUrl) {
+        this.logger.log(`Audio recibido de ${message.senderId} → transcribiendo con Whisper`);
+        try {
+          const { ConfigService } = await import('@nestjs/config');
+          const OpenAI = (await import('openai')).default;
+          const axios = (await import('axios')).default;
+
+          const apiKey = process.env.OPENAI_API_KEY;
+          if (apiKey) {
+            // Download audio from Meta
+            const channelRows = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT access_token FROM "${schema}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`
+            );
+            const accessToken = channelRows[0]?.access_token;
+
+            if (accessToken) {
+              // Get media URL from Meta
+              const mediaInfo = await axios.get(message.mediaUrl, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              });
+              const audioUrl = mediaInfo.data?.url;
+
+              if (audioUrl) {
+                // Download actual audio file
+                const audioResponse = await axios.get(audioUrl, {
+                  headers: { Authorization: `Bearer ${accessToken}` },
+                  responseType: 'arraybuffer',
+                });
+
+                // Transcribe with Whisper
+                const openai = new OpenAI({ apiKey });
+                const audioBuffer = Buffer.from(audioResponse.data);
+                const file = new File([audioBuffer], 'audio.ogg', { type: 'audio/ogg' });
+                const transcription = await openai.audio.transcriptions.create({
+                  model: 'whisper-1',
+                  file,
+                  language: 'es',
+                });
+
+                // Replace message text with transcription
+                message.text = transcription.text;
+                message.type = 'text'; // Treat as text from here
+                this.logger.log(`Transcripción: "${transcription.text.slice(0, 100)}"`);
+              }
+            }
+          }
+        } catch (err: any) {
+          this.logger.error(`Error transcribiendo audio: ${err.message}`);
+          // If transcription fails, send error message to user
+          message.text = '[Audio recibido pero no se pudo transcribir]';
+          message.type = 'text';
+        }
+      }
+
+      // 7. Procesar con IA y obtener respuesta
       const aiResponse = await this.aiEngine.processMessage(
         tenant,
         conversation,

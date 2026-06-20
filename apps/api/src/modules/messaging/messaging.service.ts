@@ -61,6 +61,10 @@ export class MessagingService {
         ? `${this.metaBaseUrl}/${msg.image.id}`
         : msg.document?.id
         ? `${this.metaBaseUrl}/${msg.document.id}`
+        : msg.audio?.id
+        ? `${this.metaBaseUrl}/${msg.audio.id}`
+        : msg.voice?.id
+        ? `${this.metaBaseUrl}/${msg.voice.id}`
         : undefined,
       timestamp: new Date(parseInt(msg.timestamp) * 1000),
       raw: payload,
