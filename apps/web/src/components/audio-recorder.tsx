@@ -17,7 +17,13 @@ export function AudioRecorder({ onRecorded, disabled }: AudioRecorderProps) {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+      // Use ogg/opus format (supported by Meta WhatsApp API)
+      const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+        ? 'audio/ogg;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+        ? 'audio/mp4'
+        : 'audio/webm;codecs=opus';
+      const recorder = new MediaRecorder(stream, { mimeType });
       chunks.current = [];
 
       recorder.ondataavailable = (e) => {
@@ -25,7 +31,7 @@ export function AudioRecorder({ onRecorded, disabled }: AudioRecorderProps) {
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunks.current, { type: 'audio/webm' });
+        const blob = new Blob(chunks.current, { type: recorder.mimeType });
         onRecorded(blob);
         stream.getTracks().forEach((t) => t.stop());
         setDuration(0);

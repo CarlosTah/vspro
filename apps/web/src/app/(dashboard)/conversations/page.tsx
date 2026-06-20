@@ -244,7 +244,7 @@ export default function ConversationsPage() {
                       const token = localStorage.getItem('vspro_token');
                       const tenantSlug = localStorage.getItem('vspro_tenant_slug');
                       const formData = new FormData();
-                      formData.append('file', blob, 'audio.webm');
+                      formData.append('file', blob, 'audio.ogg');
                       const res = await fetch(`${API_URL}/conversations/${selectedId}/send-media`, {
                         method: 'POST',
                         headers: {
