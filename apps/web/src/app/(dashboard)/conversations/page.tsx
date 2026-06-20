@@ -192,8 +192,8 @@ export default function ConversationsPage() {
                     if (!file || !selectedId) return;
                     setUploadingFile(true);
                     try {
-                      const token = localStorage.getItem('token');
-                      const tenantSlug = localStorage.getItem('tenantSlug');
+                      const token = localStorage.getItem('vspro_token');
+                      const tenantSlug = localStorage.getItem('vspro_tenant_slug');
                       const formData = new FormData();
                       formData.append('file', file);
                       const res = await fetch(`${API_URL}/conversations/${selectedId}/send-media`, {
@@ -241,8 +241,8 @@ export default function ConversationsPage() {
                     if (!selectedId) return;
                     setUploadingFile(true);
                     try {
-                      const token = localStorage.getItem('token');
-                      const tenantSlug = localStorage.getItem('tenantSlug');
+                      const token = localStorage.getItem('vspro_token');
+                      const tenantSlug = localStorage.getItem('vspro_tenant_slug');
                       const formData = new FormData();
                       formData.append('file', blob, 'audio.webm');
                       const res = await fetch(`${API_URL}/conversations/${selectedId}/send-media`, {
