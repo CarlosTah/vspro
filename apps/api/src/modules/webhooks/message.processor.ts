@@ -115,7 +115,7 @@ export class MessageProcessor {
       }
 
       // 6. Transcribir audio si es mensaje de voz
-      if ((message.type === 'audio' || message.type === 'voice') && message.mediaUrl) {
+      if ((['audio', 'voice'] as string[]).includes(message.type) && message.mediaUrl) {
         this.logger.log(`Audio recibido de ${message.senderId} → transcribiendo con Whisper`);
         try {
           const { ConfigService } = await import('@nestjs/config');
