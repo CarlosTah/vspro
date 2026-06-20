@@ -35,9 +35,15 @@ const sections = [
   },
   {
     title: 'Plan y facturación',
-    description: 'Plan actual: Básico · $49/mes',
+    description: 'Plan actual y método de pago',
     href: '/settings/team',
     icon: '💳',
+  },
+  {
+    title: 'Reportes automáticos',
+    description: 'Recibe resúmenes por WhatsApp',
+    href: '/settings/reports',
+    icon: '📊',
   },
 ];
 
