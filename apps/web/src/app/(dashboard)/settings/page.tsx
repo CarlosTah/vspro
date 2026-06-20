@@ -45,6 +45,12 @@ const sections = [
     href: '/settings/reports',
     icon: '📊',
   },
+  {
+    title: 'Entregas y repartidores',
+    description: 'Auto-despacho, tiempos, notificaciones',
+    href: '/settings/delivery',
+    icon: '🛵',
+  },
 ];
 
 export default function SettingsPage() {

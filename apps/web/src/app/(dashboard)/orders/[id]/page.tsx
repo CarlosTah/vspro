@@ -65,6 +65,12 @@ export default function OrderDetailPage() {
         <div className="text-right">
           <p className="text-3xl font-bold text-white">${parseFloat(order.total).toLocaleString('es-MX')}</p>
           <p className="text-sm text-gray-400">MXN</p>
+          <button
+            onClick={() => router.push(`/orders/${id}/print`)}
+            className="mt-2 text-xs text-accent hover:underline"
+          >
+            🖨️ Imprimir ticket
+          </button>
         </div>
       </div>
 
