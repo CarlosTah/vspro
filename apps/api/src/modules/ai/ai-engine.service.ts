@@ -470,6 +470,47 @@ export class AiEngineService {
           },
         },
       },
+      {
+        type: 'function',
+        function: {
+          name: 'set_delivery_address',
+          description: 'Establece la dirección de entrega para un pedido existente. Usa cuando el cliente proporciona su dirección o ubicación para el envío. Si recibiste una ubicación de WhatsApp (coordenadas), incluye lat y lng.',
+          parameters: {
+            type: 'object',
+            properties: {
+              orderId: {
+                type: 'string',
+                description: 'ID del pedido (UUID)',
+              },
+              street: {
+                type: 'string',
+                description: 'Calle y número',
+              },
+              colony: {
+                type: 'string',
+                description: 'Colonia o fraccionamiento',
+              },
+              city: {
+                type: 'string',
+                description: 'Ciudad',
+              },
+              reference: {
+                type: 'string',
+                description: 'Referencias adicionales (entre calles, color de casa, etc.)',
+              },
+              lat: {
+                type: 'number',
+                description: 'Latitud (si el cliente envió ubicación de WhatsApp)',
+              },
+              lng: {
+                type: 'number',
+                description: 'Longitud (si el cliente envió ubicación de WhatsApp)',
+              },
+            },
+            required: ['orderId'],
+          },
+        },
+      },
     ];
   }
 
@@ -1001,6 +1042,41 @@ export class AiEngineService {
           });
         } catch (err: any) {
           return JSON.stringify({ success: false, message: `Error al generar link de pago: ${err.message}` });
+        }
+      }
+
+      case 'set_delivery_address': {
+        try {
+          const address: Record<string, any> = {};
+          if (args.street) address.street = args.street;
+          if (args.colony) address.colony = args.colony;
+          if (args.city) address.city = args.city;
+          if (args.reference) address.reference = args.reference;
+          if (args.lat) address.lat = args.lat;
+          if (args.lng) address.lng = args.lng;
+          if (args.lat && args.lng) {
+            address.mapsUrl = `https://maps.google.com/?q=${args.lat},${args.lng}`;
+          }
+
+          await this.prisma.$executeRawUnsafe(`
+            UPDATE "${schemaName}".orders
+            SET shipping_address = $1::jsonb, updated_at = NOW()
+            WHERE id = $2::uuid
+          `, JSON.stringify(address), args.orderId);
+
+          const readable = [
+            args.street,
+            args.colony,
+            args.city,
+          ].filter(Boolean).join(', ') || 'Ubicación guardada';
+
+          return JSON.stringify({
+            success: true,
+            address,
+            message: `Dirección de entrega guardada: ${readable}${address.mapsUrl ? ` 📍 ${address.mapsUrl}` : ''}`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al guardar dirección: ${err.message}` });
         }
       }
 

@@ -160,9 +160,16 @@ export class DeliveryDispatchCronService {
       ? `${order.shippingAddress.street ?? ''} ${order.shippingAddress.colony ?? ''} ${order.shippingAddress.city ?? ''}`.trim()
       : (order.shippingAddress ?? 'No especificada');
 
+    // Append Google Maps link if coordinates available
+    const mapsLink = (typeof order.shippingAddress === 'object' && order.shippingAddress?.lat && order.shippingAddress?.lng)
+      ? `\n🗺️ https://maps.google.com/?q=${order.shippingAddress.lat},${order.shippingAddress.lng}`
+      : (typeof order.shippingAddress === 'object' && order.shippingAddress?.mapsUrl)
+        ? `\n🗺️ ${order.shippingAddress.mapsUrl}`
+        : '';
+
     const message = (settings.dispatchMessage || '📦 Pedido #{orderNumber} listo.\n📍 {address}\n💰 ${total}\n\n¿Puedes recogerlo? Responde SI o NO')
       .replace('{orderNumber}', order.orderNumber)
-      .replace('{address}', address)
+      .replace('{address}', address + mapsLink)
       .replace('{total}', parseFloat(order.total).toLocaleString('es-MX'))
       .replace('{customerName}', order.customerName ?? '');
 
@@ -178,7 +185,7 @@ export class DeliveryDispatchCronService {
   private async getDeliverySettings(schemaName: string): Promise<any> {
     const defaults = {
       autoDispatchEnabled: true,
-      timeoutMinutes: 10,
+      timeoutMinutes: 5,
       maxRetries: 3,
       dispatchMessage: '',
       notifyClientOnShipped: true,

@@ -102,7 +102,7 @@ export default function LoginPage() {
           </button>
 
           <div className="text-center">
-            <a href="/onboarding" className="text-sm text-blue-400 hover:text-blue-300">
+            <a href="/register" className="text-sm text-blue-400 hover:text-blue-300">
               ¿No tienes cuenta? Regístrate gratis
             </a>
           </div>

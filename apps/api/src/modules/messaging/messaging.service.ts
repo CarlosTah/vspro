@@ -50,6 +50,23 @@ export class MessagingService {
 
     const contact = value?.contacts?.[0];
 
+    // Handle location messages — convert to Google Maps URL text
+    if (msg.type === 'location' && msg.location) {
+      const lat = msg.location.latitude;
+      const lng = msg.location.longitude;
+      const locationText = `📍 Ubicación: https://maps.google.com/?q=${lat},${lng}`;
+      return {
+        channelType: 'whatsapp',
+        senderId: msg.from,
+        senderName: contact?.profile?.name,
+        messageId: msg.id,
+        type: 'text',
+        text: locationText,
+        timestamp: new Date(parseInt(msg.timestamp) * 1000),
+        raw: payload,
+      };
+    }
+
     return {
       channelType: 'whatsapp',
       senderId: msg.from,

@@ -28,7 +28,7 @@ export interface DeliverySettings {
 
 const DEFAULT_SETTINGS: DeliverySettings = {
   autoDispatchEnabled: true,
-  timeoutMinutes: 10,
+  timeoutMinutes: 5,
   maxRetries: 3,
   autoPrintOnPayment: false,
   notifyClientOnShipped: true,
