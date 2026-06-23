@@ -16,6 +16,8 @@ const navigation = [
   { name: 'Productos', href: '/products', icon: '📦' },
   { name: 'Clientes', href: '/customers', icon: '👥' },
   { name: 'Conversaciones', href: '/conversations', icon: '💬' },
+  { name: 'Escalaciones', href: '/escalations', icon: '⚠️' },
+  { name: 'Tickets', href: '/tickets', icon: '🎫' },
   { name: 'Pagos', href: '/payments', icon: '💰' },
   { name: 'Entregas', href: '/deliveries', icon: '🛵' },
   { name: 'Reportes', href: '/reports', icon: '📈' },

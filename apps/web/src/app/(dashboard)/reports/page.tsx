@@ -146,7 +146,88 @@ export default function ReportsPage() {
               </div>
             </div>
           </div>
+
+          {/* Cancellation Metrics */}
+          <CancellationMetrics />
         </>
+      )}
+    </div>
+  );
+}
+
+function CancellationMetrics() {
+  const { data: metrics } = useApi<any>('/orders/analytics/cancellations');
+
+  if (!metrics) return null;
+
+  return (
+    <div className="space-y-4 pt-4 border-t border-gray-700">
+      <h3 className="text-lg font-semibold text-white">❌ Cancelaciones</h3>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-xl border border-gray-700 bg-gray-800 p-4">
+          <p className="text-2xl font-bold text-red-400">{metrics.overall.cancellationRate}%</p>
+          <p className="text-xs text-gray-400">Tasa de cancelación</p>
+        </div>
+        <div className="rounded-xl border border-gray-700 bg-gray-800 p-4">
+          <p className="text-2xl font-bold text-white">{metrics.overall.cancelledOrders}</p>
+          <p className="text-xs text-gray-400">Total cancelados</p>
+        </div>
+        <div className="rounded-xl border border-gray-700 bg-gray-800 p-4">
+          <p className="text-2xl font-bold text-red-300">${metrics.overall.lostRevenue.toLocaleString('es-MX')}</p>
+          <p className="text-xs text-gray-400">Revenue perdido</p>
+        </div>
+        <div className="rounded-xl border border-gray-700 bg-gray-800 p-4">
+          <p className="text-2xl font-bold text-yellow-300">{metrics.thisMonth.cancelledOrders}</p>
+          <p className="text-xs text-gray-400">Cancelados este mes</p>
+        </div>
+      </div>
+
+      {/* Reasons */}
+      {metrics.reasons.length > 0 && (
+        <div className="rounded-xl border border-gray-700 bg-gray-800 p-4">
+          <h4 className="text-sm font-medium text-gray-300 mb-3">Motivos frecuentes</h4>
+          <div className="space-y-2">
+            {metrics.reasons.map((r: any) => {
+              const maxCount = Math.max(...metrics.reasons.map((x: any) => x.count), 1);
+              return (
+                <div key={r.reason} className="flex items-center gap-3">
+                  <span className="text-xs text-gray-400 w-36 truncate">{r.reason}</span>
+                  <div className="flex-1 bg-gray-700 rounded-full h-2">
+                    <div
+                      className="bg-red-500 rounded-full h-2"
+                      style={{ width: `${(r.count / maxCount) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-gray-400 w-8 text-right">{r.count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Recent cancellations */}
+      {metrics.recent.length > 0 && (
+        <div className="rounded-xl border border-gray-700 bg-gray-800 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-700">
+            <h4 className="text-sm font-medium text-gray-300">Últimas cancelaciones</h4>
+          </div>
+          <div className="divide-y divide-gray-700/50">
+            {metrics.recent.map((r: any) => (
+              <div key={r.orderNumber} className="px-4 py-2.5 flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-white font-mono">#{r.orderNumber}</span>
+                  <span className="text-xs text-gray-400 ml-2">{r.customerName}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-red-400">${r.total.toLocaleString('es-MX')}</span>
+                  <p className="text-[10px] text-gray-500">{r.reason}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

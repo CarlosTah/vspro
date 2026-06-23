@@ -28,6 +28,11 @@ export class OrdersController {
     return this.ordersService.findAll(schema, status);
   }
 
+  @Get('analytics/cancellations')
+  async getCancellationMetrics(@TenantSchema() schema: string) {
+    return this.ordersService.getCancellationMetrics(schema);
+  }
+
   @Get(':id')
   findOne(
     @Param('id', ParseUUIDPipe) id: string,

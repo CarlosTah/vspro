@@ -13,9 +13,10 @@ import { ProactivityModule } from '../proactivity/proactivity.module';
 import { TenantsModule } from '../tenants/tenants.module';
 import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
 import { BillingModule } from '../billing/billing.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [ProductsModule, OrdersModule, CustomersModule, forwardRef(() => ProactivityModule), forwardRef(() => TenantsModule), KnowledgeBaseModule, BillingModule],
+  imports: [ProductsModule, OrdersModule, CustomersModule, forwardRef(() => ProactivityModule), forwardRef(() => TenantsModule), KnowledgeBaseModule, BillingModule, NotificationsModule],
   controllers: [AiController, CustomerMemoryController],
   providers: [
     AiEngineService,

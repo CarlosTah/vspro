@@ -254,4 +254,97 @@ export class OrdersService {
     const count = parseInt(rows[0].count) + 1;
     return `ORD-${year}-${String(count).padStart(5, '0')}`;
   }
+
+  // ─── Analytics: Cancellations ─────────────────────────────────
+
+  async getCancellationMetrics(schemaName: string) {
+    try {
+      // Overall stats
+      const stats = await this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT
+          COUNT(*) AS "totalOrders",
+          COUNT(*) FILTER (WHERE status = 'cancelled') AS "cancelledOrders",
+          COALESCE(SUM(total) FILTER (WHERE status = 'cancelled'), 0) AS "lostRevenue",
+          COALESCE(SUM(total) FILTER (WHERE status = 'delivered'), 0) AS "deliveredRevenue"
+        FROM "${schemaName}".orders
+      `);
+
+      const s = stats[0] ?? {};
+      const totalOrders = parseInt(s.totalOrders) || 0;
+      const cancelledOrders = parseInt(s.cancelledOrders) || 0;
+      const cancellationRate = totalOrders > 0 ? (cancelledOrders / totalOrders) * 100 : 0;
+
+      // This month stats
+      const monthStats = await this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT
+          COUNT(*) AS "totalOrders",
+          COUNT(*) FILTER (WHERE status = 'cancelled') AS "cancelledOrders",
+          COALESCE(SUM(total) FILTER (WHERE status = 'cancelled'), 0) AS "lostRevenue"
+        FROM "${schemaName}".orders
+        WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE)
+      `);
+
+      const m = monthStats[0] ?? {};
+
+      // Cancellation reasons (extracted from notes)
+      const reasons = await this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT
+          CASE
+            WHEN notes ILIKE '%cambio de opinión%' OR notes ILIKE '%ya no quiero%' THEN 'Cambio de opinión'
+            WHEN notes ILIKE '%tardó%' OR notes ILIKE '%tarda%' OR notes ILIKE '%demora%' THEN 'Demora en entrega'
+            WHEN notes ILIKE '%equivoc%' OR notes ILIKE '%incorrecto%' THEN 'Pedido incorrecto'
+            WHEN notes ILIKE '%precio%' OR notes ILIKE '%caro%' THEN 'Precio'
+            WHEN notes ILIKE '%duplicado%' THEN 'Pedido duplicado'
+            ELSE 'Otro'
+          END AS reason,
+          COUNT(*) AS count
+        FROM "${schemaName}".orders
+        WHERE status = 'cancelled'
+        GROUP BY reason
+        ORDER BY count DESC
+        LIMIT 10
+      `);
+
+      // Recent cancellations
+      const recent = await this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT o.order_number AS "orderNumber", o.total, o.notes,
+               o.created_at AS "createdAt", c.name AS "customerName"
+        FROM "${schemaName}".orders o
+        LEFT JOIN "${schemaName}".customers c ON c.id = o.customer_id
+        WHERE o.status = 'cancelled'
+        ORDER BY o.updated_at DESC
+        LIMIT 10
+      `);
+
+      return {
+        overall: {
+          totalOrders,
+          cancelledOrders,
+          cancellationRate: Math.round(cancellationRate * 10) / 10,
+          lostRevenue: parseFloat(s.lostRevenue) || 0,
+          deliveredRevenue: parseFloat(s.deliveredRevenue) || 0,
+        },
+        thisMonth: {
+          totalOrders: parseInt(m.totalOrders) || 0,
+          cancelledOrders: parseInt(m.cancelledOrders) || 0,
+          lostRevenue: parseFloat(m.lostRevenue) || 0,
+        },
+        reasons: reasons.map(r => ({ reason: r.reason, count: parseInt(r.count) || 0 })),
+        recent: recent.map(r => ({
+          orderNumber: r.orderNumber,
+          total: parseFloat(r.total) || 0,
+          customerName: r.customerName ?? 'N/A',
+          reason: r.notes?.match(/\[CANCELADO: (.+?)\]/)?.[1] ?? 'Sin motivo',
+          date: r.createdAt,
+        })),
+      };
+    } catch {
+      return {
+        overall: { totalOrders: 0, cancelledOrders: 0, cancellationRate: 0, lostRevenue: 0, deliveredRevenue: 0 },
+        thisMonth: { totalOrders: 0, cancelledOrders: 0, lostRevenue: 0 },
+        reasons: [],
+        recent: [],
+      };
+    }
+  }
 }

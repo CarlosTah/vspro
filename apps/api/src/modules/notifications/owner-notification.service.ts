@@ -1,20 +1,23 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
 import { PrismaService } from '../../database/prisma.service';
+import { MessagingFactory } from '../messaging/messaging-factory.service';
+
+export interface OwnerNotificationPayload {
+  schemaName: string;
+  type: 'complaint' | 'ticket' | 'cancellation' | 'general';
+  title: string;
+  body: string;
+  customerName?: string;
+  customerPhone?: string;
+  orderId?: string;
+  orderNumber?: string;
+  conversationId?: string;
+  priority?: 'low' | 'medium' | 'high';
+}
 
 /**
- * Owner Notification Service — Push alerts to PYME owner via WhatsApp.
- *
- * Triggered automatically when key business events occur:
- * - New order created
- * - Payment received/verified
- * - Low stock detected
- * - Shipment delivered
- * - Customer complaint/escalation
- *
- * The owner's WhatsApp number is stored in the tenant's admin user record.
- * Messages are queued to avoid blocking the main flow.
+ * Reusable service to notify tenant owners via WhatsApp.
+ * Used by: complaint escalation, support tickets, order cancellations, etc.
  */
 @Injectable()
 export class OwnerNotificationService {
@@ -22,215 +25,132 @@ export class OwnerNotificationService {
 
   constructor(
     private readonly prisma: PrismaService,
-    @InjectQueue('owner-notifications') private readonly notifQueue: Queue,
+    private readonly messaging: MessagingFactory,
   ) {}
 
-  // ─── Event Triggers ───────────────────────────────────────────
-
   /**
-   * Notify owner: new order received.
+   * Send a WhatsApp notification to the tenant owner(s) with admin role.
+   * Looks up phone from the tenant's users table.
    */
-  async onNewOrder(event: {
-    tenantId: string;
-    schemaName: string;
-    orderNumber: string;
-    customerName: string;
-    total: number;
-    itemCount: number;
-    channel: string;
-  }): Promise<void> {
-    const message = `🛒 *Nuevo pedido*\n\n` +
-      `📋 ${event.orderNumber}\n` +
-      `👤 ${event.customerName}\n` +
-      `💰 $${event.total.toLocaleString()} MXN\n` +
-      `📦 ${event.itemCount} artículo(s)\n` +
-      `📱 Canal: ${event.channel}`;
+  async notifyOwner(payload: OwnerNotificationPayload): Promise<{ sent: boolean; error?: string }> {
+    try {
+      // Get admin users with phone numbers
+      const admins = await this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT name, phone, email FROM "${payload.schemaName}".users
+        WHERE role IN ('admin', 'manager') AND phone IS NOT NULL
+        ORDER BY role ASC
+        LIMIT 3
+      `);
 
-    await this.enqueueNotification(event.tenantId, event.schemaName, 'new_order', message);
+      if (!admins || admins.length === 0) {
+        this.logger.debug(`No admins with phone found in ${payload.schemaName}`);
+        return { sent: false, error: 'No admin phone found' };
+      }
+
+      // Build notification message
+      const message = this.buildMessage(payload);
+
+      // Send to all admin/manager phones
+      let sentCount = 0;
+      for (const admin of admins) {
+        const result = await this.messaging.sendText(
+          admin.phone,
+          message,
+          'whatsapp',
+          payload.schemaName,
+        );
+        if (result.success) sentCount++;
+      }
+
+      if (sentCount > 0) {
+        this.logger.log(`[${payload.schemaName}] Owner notified: ${payload.type} — ${payload.title}`);
+        return { sent: true };
+      }
+
+      return { sent: false, error: 'Failed to send to any admin' };
+    } catch (err: any) {
+      this.logger.error(`Owner notification failed: ${err.message}`);
+      return { sent: false, error: err.message };
+    }
   }
 
-  /**
-   * Notify owner: payment received and verified.
-   */
-  async onPaymentVerified(event: {
-    tenantId: string;
-    schemaName: string;
-    orderNumber: string;
-    amount: number;
-    method: string;
-    customerName: string;
-  }): Promise<void> {
-    const message = `💰 *Pago recibido*\n\n` +
-      `📋 ${event.orderNumber}\n` +
-      `👤 ${event.customerName}\n` +
-      `💵 $${event.amount.toLocaleString()} MXN\n` +
-      `🏦 Método: ${event.method}\n` +
-      `✅ Verificado automáticamente`;
+  // ─── Event-driven notifications ────────────────────────────────
 
-    await this.enqueueNotification(event.tenantId, event.schemaName, 'payment_verified', message);
+  async onNewOrder(data: { tenantId: string; schemaName: string; orderNumber: string; customerName: string; total: number; itemCount: number; channel: string }) {
+    return this.notifyOwner({
+      schemaName: data.schemaName,
+      type: 'general',
+      title: `Nuevo pedido #${data.orderNumber}`,
+      body: `${data.customerName} hizo un pedido de $${data.total.toLocaleString('es-MX')} (${data.itemCount} productos) por ${data.channel}.`,
+      customerName: data.customerName,
+      orderNumber: data.orderNumber,
+    });
   }
 
-  /**
-   * Notify owner: low stock alert.
-   */
-  async onLowStock(event: {
-    tenantId: string;
-    schemaName: string;
-    products: Array<{ name: string; sku: string; current: number; minimum: number }>;
-  }): Promise<void> {
-    const items = event.products.map(p => `  • ${p.name} (${p.sku}): ${p.current}/${p.minimum}`).join('\n');
-
-    const message = `⚠️ *Alerta de inventario*\n\n` +
-      `${event.products.length} producto(s) bajo stock mínimo:\n\n` +
-      `${items}\n\n` +
-      `Considera hacer resurtido pronto.`;
-
-    await this.enqueueNotification(event.tenantId, event.schemaName, 'low_stock', message);
+  async onPaymentVerified(data: { tenantId: string; schemaName: string; orderNumber: string; amount: number; method: string; customerName: string }) {
+    return this.notifyOwner({
+      schemaName: data.schemaName,
+      type: 'general',
+      title: `Pago verificado #${data.orderNumber}`,
+      body: `${data.customerName} pagó $${data.amount.toLocaleString('es-MX')} por ${data.method}.`,
+      customerName: data.customerName,
+      orderNumber: data.orderNumber,
+    });
   }
 
-  /**
-   * Notify owner: shipment delivered.
-   */
-  async onShipmentDelivered(event: {
-    tenantId: string;
-    schemaName: string;
-    orderNumber: string;
-    customerName: string;
-    carrier: string;
-  }): Promise<void> {
-    const message = `✅ *Pedido entregado*\n\n` +
-      `📋 ${event.orderNumber}\n` +
-      `👤 ${event.customerName}\n` +
-      `🚚 ${event.carrier}`;
-
-    await this.enqueueNotification(event.tenantId, event.schemaName, 'shipment_delivered', message);
+  async onShipmentDelivered(data: { tenantId: string; schemaName: string; orderNumber: string; customerName: string; carrier: string }) {
+    return this.notifyOwner({
+      schemaName: data.schemaName,
+      type: 'general',
+      title: `Entrega confirmada #${data.orderNumber}`,
+      body: `Pedido de ${data.customerName} entregado exitosamente vía ${data.carrier}.`,
+      customerName: data.customerName,
+      orderNumber: data.orderNumber,
+    });
   }
 
-  /**
-   * Notify owner: customer escalation (complaint or unresolved issue).
-   */
-  async onCustomerEscalation(event: {
-    tenantId: string;
-    schemaName: string;
-    customerName: string;
-    issue: string;
-    conversationId: string;
-  }): Promise<void> {
-    const message = `🚨 *Escalación de cliente*\n\n` +
-      `👤 ${event.customerName}\n` +
-      `📝 ${event.issue}\n\n` +
-      `Requiere atención humana.`;
-
-    await this.enqueueNotification(event.tenantId, event.schemaName, 'escalation', message);
+  async onDailySummary(data: { tenantId: string; schemaName: string; ordersToday: number; revenueToday: number; pendingPayments: number; pendingShipments: number }) {
+    const body = `📦 Pedidos hoy: ${data.ordersToday}\n💰 Revenue: $${data.revenueToday.toLocaleString('es-MX')}\n⏳ Pagos pendientes: ${data.pendingPayments}\n🚚 Envíos pendientes: ${data.pendingShipments}`;
+    return this.notifyOwner({
+      schemaName: data.schemaName,
+      type: 'general',
+      title: 'Resumen del día',
+      body,
+    });
   }
 
-  /**
-   * Notify owner: daily sales summary (triggered by cron).
-   */
-  async onDailySummary(event: {
-    tenantId: string;
-    schemaName: string;
-    ordersToday: number;
-    revenueToday: number;
-    pendingPayments: number;
-    pendingShipments: number;
-  }): Promise<void> {
-    const message = `📊 *Resumen del día*\n\n` +
-      `🛒 Pedidos: ${event.ordersToday}\n` +
-      `💰 Ingresos: $${event.revenueToday.toLocaleString()}\n` +
-      `⏳ Pagos pendientes: ${event.pendingPayments}\n` +
-      `📦 Envíos pendientes: ${event.pendingShipments}\n\n` +
-      `¡Buen trabajo! 💪`;
+  private buildMessage(payload: OwnerNotificationPayload): string {
+    const icons: Record<string, string> = {
+      complaint: '⚠️',
+      ticket: '🎫',
+      cancellation: '❌',
+      general: '📢',
+    };
 
-    await this.enqueueNotification(event.tenantId, event.schemaName, 'daily_summary', message);
-  }
+    const priorityLabels: Record<string, string> = {
+      high: '🔴 URGENTE',
+      medium: '🟡 Media',
+      low: '🟢 Baja',
+    };
 
-  // ─── Core Queue Logic ─────────────────────────────────────────
+    let msg = `${icons[payload.type]} *${payload.title}*\n\n`;
+    msg += payload.body;
 
-  private async enqueueNotification(
-    tenantId: string,
-    schemaName: string,
-    type: NotificationType,
-    message: string,
-  ): Promise<void> {
-    // Get owner's phone number
-    const ownerPhone = await this.getOwnerPhone(schemaName);
-    if (!ownerPhone) {
-      this.logger.warn(`[${schemaName}] No owner phone configured — notification skipped`);
-      return;
+    if (payload.customerName) {
+      msg += `\n\n👤 Cliente: ${payload.customerName}`;
+    }
+    if (payload.customerPhone) {
+      msg += `\n📱 Tel: ${payload.customerPhone}`;
+    }
+    if (payload.orderNumber) {
+      msg += `\n📦 Pedido: #${payload.orderNumber}`;
+    }
+    if (payload.priority) {
+      msg += `\n⚡ Prioridad: ${priorityLabels[payload.priority] ?? payload.priority}`;
     }
 
-    await this.notifQueue.add('send-notification', {
-      tenantId,
-      schemaName,
-      type,
-      message,
-      ownerPhone,
-      timestamp: new Date().toISOString(),
-    }, {
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 5000 },
-      removeOnComplete: 200,
-    });
+    msg += `\n\n💡 Entra al panel para dar seguimiento → https://app.vspro.app`;
 
-    this.logger.debug(`[${schemaName}] Notification queued: ${type}`);
+    return msg;
   }
-
-  /**
-   * Get the owner's WhatsApp phone from the admin user record.
-   */
-  private async getOwnerPhone(schemaName: string): Promise<string | null> {
-    // Try to get from tenant record first
-    const tenant = await this.prisma.tenant.findFirst({
-      where: { schemaName },
-      select: { ownerEmail: true, settings: true },
-    });
-
-    const settings = tenant?.settings as Record<string, any> | null;
-    if (settings?.ownerPhone) return settings.ownerPhone;
-
-    // Fallback: get from first admin user in tenant schema
-    const admins = await this.prisma.$queryRawUnsafe<any[]>(`
-      SELECT name FROM "${schemaName}".users WHERE role = 'admin' LIMIT 1
-    `).catch(() => []);
-
-    // For now return null — in production the owner sets their phone during onboarding
-    return null;
-  }
-
-  // ─── Notification Preferences ─────────────────────────────────
-
-  /**
-   * Check if notification type is enabled for this tenant.
-   */
-  async isEnabled(schemaName: string, type: NotificationType): Promise<boolean> {
-    const config = await this.prisma.$queryRawUnsafe<any[]>(`
-      SELECT agent_config->'notifications' AS prefs
-      FROM "${schemaName}".ai_config LIMIT 1
-    `).catch(() => []);
-
-    const prefs = config[0]?.prefs;
-    if (!prefs) return true; // All enabled by default
-
-    return prefs[type] !== false;
-  }
-}
-
-// ─── Types ──────────────────────────────────────────────────────
-
-export type NotificationType =
-  | 'new_order'
-  | 'payment_verified'
-  | 'low_stock'
-  | 'shipment_delivered'
-  | 'escalation'
-  | 'daily_summary';
-
-export interface NotificationJob {
-  tenantId: string;
-  schemaName: string;
-  type: NotificationType;
-  message: string;
-  ownerPhone: string;
-  timestamp: string;
 }

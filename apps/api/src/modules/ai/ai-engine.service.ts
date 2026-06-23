@@ -11,6 +11,7 @@ import { ProactivityService } from '../proactivity/proactivity.service';
 import { TenantProvisioningService } from '../tenants/tenant-provisioning.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { BillingService } from '../billing/billing.service';
+import { OwnerNotificationService } from '../notifications/owner-notification.service';
 import { IncomingMessage } from '@vspro/shared';
 
 export interface AiEngineResponse {
@@ -40,6 +41,7 @@ export class AiEngineService {
     private readonly tenantProvisioning: TenantProvisioningService,
     private readonly knowledgeBase: KnowledgeBaseService,
     private readonly billingService: BillingService,
+    private readonly ownerNotification: OwnerNotificationService,
     private readonly config: ConfigService,
   ) {
     this.openai = new OpenAI({
@@ -511,6 +513,53 @@ export class AiEngineService {
           },
         },
       },
+      {
+        type: 'function',
+        function: {
+          name: 'escalate_complaint',
+          description: 'Escala una queja o problema grave al dueño del negocio. Usa cuando el cliente está frustrado, molesto o tiene un problema que no puedes resolver (producto defectuoso, mal servicio, pedido incorrecto, etc.). El dueño recibirá una notificación inmediata por WhatsApp con el contexto.',
+          parameters: {
+            type: 'object',
+            properties: {
+              reason: {
+                type: 'string',
+                description: 'Resumen breve de la queja o problema del cliente',
+              },
+              priority: {
+                type: 'string',
+                enum: ['low', 'medium', 'high'],
+                description: 'Prioridad: high=cliente muy molesto/urgente, medium=problema claro pero no urgente, low=sugerencia/comentario',
+              },
+              orderNumber: {
+                type: 'string',
+                description: 'Número de pedido relacionado (si aplica)',
+              },
+            },
+            required: ['reason', 'priority'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'cancel_order',
+          description: 'Cancela un pedido existente. Solo se puede cancelar si el pedido NO está en producción o en entrega. Siempre pide el motivo al cliente antes de cancelar.',
+          parameters: {
+            type: 'object',
+            properties: {
+              orderId: {
+                type: 'string',
+                description: 'ID del pedido a cancelar',
+              },
+              reason: {
+                type: 'string',
+                description: 'Motivo de la cancelación proporcionado por el cliente',
+              },
+            },
+            required: ['orderId', 'reason'],
+          },
+        },
+      },
     ];
   }
 
@@ -708,25 +757,69 @@ export class AiEngineService {
       }
 
       case 'create_support_ticket': {
-        // Guardar como mensaje especial en la conversación
-        const ticketId = `TKT-${Date.now().toString(36).toUpperCase()}`;
+        try {
+          const ticketNumber = `TKT-${Date.now().toString(36).toUpperCase()}`;
+          const customerId = (conversation.context as any)?.customerId;
+          let customerName = 'Cliente';
+          let customerPhone = '';
 
-        await this.prisma.$executeRawUnsafe(`
-          INSERT INTO "${schemaName}".messages
-            (conversation_id, direction, type, content, ai_processed)
-          VALUES ($1::uuid, 'outbound', 'text', $2, true)
-        `,
-          conversation.id,
-          `[TICKET ${ticketId}] Prioridad: ${args.priority}\nAsunto: ${args.subject}\n${args.description}`,
-        );
+          if (customerId) {
+            const customers = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT name, channel_id FROM "${schemaName}".customers WHERE id = $1::uuid`, customerId,
+            );
+            if (customers[0]) {
+              customerName = customers[0].name || 'Cliente';
+              customerPhone = customers[0].channel_id || '';
+            }
+          }
 
-        return JSON.stringify({
-          success: true,
-          ticketId,
-          subject: args.subject,
-          priority: args.priority,
-          message: 'Ticket creado. Un agente humano se pondrá en contacto pronto.',
-        });
+          // Ensure support_tickets table exists
+          await this.prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "${schemaName}".support_tickets (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              ticket_number VARCHAR(50) NOT NULL,
+              conversation_id UUID,
+              customer_id UUID,
+              subject VARCHAR(255) NOT NULL,
+              description TEXT,
+              priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+              status VARCHAR(20) NOT NULL DEFAULT 'open',
+              assigned_to VARCHAR(255),
+              resolution_note TEXT,
+              resolved_at TIMESTAMPTZ,
+              created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+              updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+          `);
+
+          // Insert ticket
+          await this.prisma.$executeRawUnsafe(`
+            INSERT INTO "${schemaName}".support_tickets
+              (ticket_number, conversation_id, customer_id, subject, description, priority)
+            VALUES ($1, $2::uuid, $3, $4, $5, $6)
+          `, ticketNumber, conversation.id, customerId ?? null, args.subject, args.description, args.priority);
+
+          // Notify owner via WhatsApp
+          await this.ownerNotification.notifyOwner({
+            schemaName,
+            type: 'ticket',
+            title: `Ticket #${ticketNumber}: ${args.subject}`,
+            body: args.description,
+            customerName,
+            customerPhone,
+            priority: args.priority,
+          });
+
+          return JSON.stringify({
+            success: true,
+            ticketNumber,
+            subject: args.subject,
+            priority: args.priority,
+            message: `Ticket #${ticketNumber} creado. El dueño del negocio ha sido notificado y dará seguimiento a tu caso.`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al crear ticket: ${err.message}` });
+        }
       }
 
       case 'get_shipment_tracking': {
@@ -1077,6 +1170,117 @@ export class AiEngineService {
           });
         } catch (err: any) {
           return JSON.stringify({ success: false, message: `Error al guardar dirección: ${err.message}` });
+        }
+      }
+
+      case 'escalate_complaint': {
+        try {
+          const customerId = (conversation.context as any)?.customerId;
+          let customerName = 'Cliente';
+          let customerPhone = '';
+
+          if (customerId) {
+            const customers = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT name, channel_id FROM "${schemaName}".customers WHERE id = $1::uuid`, customerId,
+            );
+            if (customers[0]) {
+              customerName = customers[0].name || 'Cliente';
+              customerPhone = customers[0].channel_id || '';
+            }
+          }
+
+          // Create escalation record
+          await this.prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "${schemaName}".escalations (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              conversation_id UUID,
+              customer_id UUID,
+              reason TEXT NOT NULL,
+              priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+              order_number VARCHAR(50),
+              status VARCHAR(20) NOT NULL DEFAULT 'open',
+              resolved_at TIMESTAMPTZ,
+              resolved_by VARCHAR(255),
+              resolution_note TEXT,
+              created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+          `);
+
+          await this.prisma.$executeRawUnsafe(`
+            INSERT INTO "${schemaName}".escalations (conversation_id, customer_id, reason, priority, order_number)
+            VALUES ($1::uuid, $2, $3, $4, $5)
+          `, conversation.id, customerId ?? null, args.reason, args.priority, args.orderNumber ?? null);
+
+          // Notify owner via WhatsApp
+          await this.ownerNotification.notifyOwner({
+            schemaName,
+            type: 'complaint',
+            title: 'Queja de cliente',
+            body: args.reason,
+            customerName,
+            customerPhone,
+            orderNumber: args.orderNumber,
+            priority: args.priority,
+          });
+
+          return JSON.stringify({
+            success: true,
+            message: `Queja escalada al equipo. El dueño ha sido notificado y dará seguimiento pronto.`,
+            priority: args.priority,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al escalar: ${err.message}` });
+        }
+      }
+
+      case 'cancel_order': {
+        try {
+          // Validate order exists and check status
+          const order = await this.ordersService.findById(args.orderId, schemaName);
+          const nonCancellable = ['in_production', 'ready', 'shipped', 'delivered'];
+
+          if (nonCancellable.includes(order.status)) {
+            return JSON.stringify({
+              success: false,
+              message: `No se puede cancelar el pedido #${order.orderNumber} porque está en estado "${order.status}". Solo se pueden cancelar pedidos que aún no entran a producción.`,
+            });
+          }
+
+          // Cancel the order
+          await this.prisma.$executeRawUnsafe(`
+            UPDATE "${schemaName}".orders
+            SET status = 'cancelled', notes = COALESCE(notes, '') || $1, updated_at = NOW()
+            WHERE id = $2::uuid
+          `, `\n[CANCELADO: ${args.reason}]`, args.orderId);
+
+          // Get customer info for notification
+          const customerId = (conversation.context as any)?.customerId;
+          let customerName = 'Cliente';
+          if (customerId) {
+            const customers = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT name FROM "${schemaName}".customers WHERE id = $1::uuid`, customerId,
+            );
+            if (customers[0]) customerName = customers[0].name || 'Cliente';
+          }
+
+          // Notify owner
+          await this.ownerNotification.notifyOwner({
+            schemaName,
+            type: 'cancellation',
+            title: 'Pedido cancelado',
+            body: `Motivo: ${args.reason}`,
+            customerName,
+            orderNumber: order.orderNumber,
+            priority: 'medium',
+          });
+
+          return JSON.stringify({
+            success: true,
+            orderNumber: order.orderNumber,
+            message: `Pedido #${order.orderNumber} cancelado. Motivo: ${args.reason}`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al cancelar: ${err.message}` });
         }
       }
 

@@ -46,6 +46,9 @@ import { IssueClassifierModule } from './modules/issue-classifier/issue-classifi
 import { UrgencyDetectionModule } from './modules/urgency-detection/urgency-detection.module';
 import { ProductCollectionsModule } from './modules/product-collections/product-collections.module';
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { EscalationsModule } from './modules/escalations/escalations.module';
+import { TicketsModule } from './modules/tickets/tickets.module';
 
 @Module({
   imports: [
@@ -123,6 +126,9 @@ import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.mod
     UrgencyDetectionModule,
     ProductCollectionsModule,
     KnowledgeBaseModule,
+    NotificationsModule,
+    EscalationsModule,
+    TicketsModule,
   ],
 })
 export class AppModule implements NestModule {
