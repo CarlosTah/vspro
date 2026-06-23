@@ -72,12 +72,23 @@ export class OrdersService {
   // ─── Creación ─────────────────────────────────────────────────
 
   async create(dto: CreateOrderDto, schemaName: string) {
-    // 1. Verificar que el cliente existe
-    const customers = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT id FROM "${schemaName}".customers WHERE id = $1::uuid`,
-      dto.customerId,
-    );
-    if (!customers[0]) throw new NotFoundException('Cliente no encontrado');
+    // 1. Handle customer — create walk-in customer if no customerId
+    let customerId = dto.customerId;
+    if (!customerId) {
+      const walkIn = await this.prisma.$queryRawUnsafe<any[]>(`
+        INSERT INTO "${schemaName}".customers (name, channel_type, channel_id)
+        VALUES ('Mostrador', $1, 'manual-' || gen_random_uuid()::text)
+        RETURNING id
+      `, dto.channelType ?? 'manual');
+      customerId = walkIn[0]?.id;
+    } else {
+      // Verify customer exists
+      const customers = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id FROM "${schemaName}".customers WHERE id = $1::uuid`,
+        customerId,
+      );
+      if (!customers[0]) throw new NotFoundException('Cliente no encontrado');
+    }
 
     // 2. Resolver productos y calcular totales
     const resolvedItems = await this.resolveItems(dto.items, schemaName);
@@ -89,17 +100,19 @@ export class OrdersService {
     const orderNumber = await this.generateOrderNumber(schemaName);
 
     // 4. Crear el pedido
+    const initialStatus = dto.status ?? 'new';
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`
       INSERT INTO "${schemaName}".orders
         (order_number, customer_id, channel_type, status, items,
          subtotal, shipping_cost, total, notes, shipping_address)
-      VALUES ($1, $2::uuid, $3, 'new', $4::jsonb, $5, 0, $6, $7, $8::jsonb)
+      VALUES ($1, $2::uuid, $3, $4, $5::jsonb, $6, 0, $7, $8, $9::jsonb)
       RETURNING id, order_number AS "orderNumber", status, total,
                 subtotal, created_at AS "createdAt"
     `,
       orderNumber,
-      dto.customerId,
+      customerId,
       dto.channelType,
+      initialStatus,
       JSON.stringify(resolvedItems),
       subtotal,
       total,

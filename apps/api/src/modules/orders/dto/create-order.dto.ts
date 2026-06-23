@@ -20,11 +20,12 @@ export class OrderItemDto {
 export class CreateOrderDto {
   @ApiProperty({ example: 'uuid-del-cliente' })
   @IsUUID()
-  customerId!: string;
+  @IsOptional()
+  customerId?: string;
 
-  @ApiProperty({ enum: ['whatsapp', 'messenger', 'instagram'] })
-  @IsIn(['whatsapp', 'messenger', 'instagram'])
-  channelType!: ChannelType;
+  @ApiProperty({ enum: ['whatsapp', 'messenger', 'instagram', 'manual', 'web'] })
+  @IsIn(['whatsapp', 'messenger', 'instagram', 'manual', 'web'])
+  channelType!: string;
 
   @ApiProperty({ type: [OrderItemDto] })
   @IsArray()
@@ -40,4 +41,9 @@ export class CreateOrderDto {
   @ApiProperty({ required: false })
   @IsOptional()
   shippingAddress?: Record<string, any>;
+
+  @ApiProperty({ required: false, description: 'Initial status for manual orders (e.g. payment_verified)' })
+  @IsString()
+  @IsOptional()
+  status?: string;
 }
