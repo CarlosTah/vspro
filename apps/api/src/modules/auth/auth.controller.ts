@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Body, Get, Patch, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
@@ -61,5 +61,17 @@ export class AuthController {
   @ApiBearerAuth()
   me(@Req() req: any) {
     return req.user;
+  }
+
+  @Patch('profile')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  async updateProfile(@Req() req: any, @Body() dto: { phone?: string; name?: string }) {
+    const schema = req.user.tenantSchema;
+    const userId = req.user.sub;
+
+    // Ensure phone column exists
+    await this.authService.updateUserProfile(userId, dto, schema);
+    return { success: true };
   }
 }

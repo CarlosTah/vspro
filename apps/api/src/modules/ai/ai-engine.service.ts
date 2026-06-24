@@ -875,13 +875,17 @@ export class AiEngineService {
 
       case 'register_business': {
         try {
+          // Get sender's phone from conversation context to link their WhatsApp
+          const senderPhone = (conversation.context as any)?.senderPhone ?? null;
+
           const tenant = await this.tenantProvisioning.provision({
             slug: args.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
             businessName: args.businessName,
             email: args.email,
             ownerName: args.ownerName,
             password: args.password,
-          });
+            phone: senderPhone,
+          } as any);
 
           // Auto-apply industry template if provided
           let templateApplied = null;

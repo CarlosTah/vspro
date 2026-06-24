@@ -101,4 +101,26 @@ export class AuthService {
 
     return { success: true };
   }
+
+  async updateUserProfile(userId: string, dto: { phone?: string; name?: string }, schemaName: string) {
+    // Ensure phone column exists
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schemaName}".users ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`
+    );
+
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (dto.phone !== undefined) { fields.push(`phone = $${idx++}`); values.push(dto.phone); }
+    if (dto.name !== undefined) { fields.push(`name = $${idx++}`); values.push(dto.name); }
+
+    if (fields.length === 0) return;
+
+    values.push(userId);
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE "${schemaName}".users SET ${fields.join(', ')} WHERE id = $${idx}::uuid`,
+      ...values,
+    );
+  }
 }

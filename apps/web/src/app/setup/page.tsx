@@ -45,6 +45,12 @@ export default function SetupPage() {
       if (hours) config.customInstructions = `Horario de atención: ${hours}. Dirección: ${address || 'No especificada'}. Teléfono: ${phone || 'No especificado'}.`;
       
       await api.patch('/ai/config', config).catch(() => {});
+
+      // Save phone to user profile for WhatsApp linking
+      if (phone) {
+        await api.patch('/auth/profile', { phone }).catch(() => {});
+      }
+
       setStep(2);
     } catch {
       setStep(2);

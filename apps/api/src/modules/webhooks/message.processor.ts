@@ -58,6 +58,16 @@ export class MessageProcessor {
         `Procesando mensaje [${message.channelType}] de ${message.senderId} → ${tenantSlug}`,
       );
 
+      // 2.5. OWNER DETECTION: Check if this sender owns a registered tenant
+      // Only applies when messaging the VSPRO platform number (tenantSlug === 'vspro')
+      const ownerTenant = await this.detectTenantOwner(message.senderId, tenantSlug);
+      if (ownerTenant && ownerTenant.slug !== tenantSlug) {
+        this.logger.log(`Owner detected: ${message.senderId} → tenant ${ownerTenant.slug} (${ownerTenant.businessName})`);
+        // Route this message to the owner's own tenant schema
+        await this.processAsOwner(ownerTenant, tenant, message);
+        return;
+      }
+
       // 3. Buscar o crear cliente
       const customer = await this.customersService.findOrCreateByChannel(
         message.channelType,
@@ -170,9 +180,14 @@ export class MessageProcessor {
       }
 
       // 7. Procesar con IA y obtener respuesta
+      // Inject senderPhone into context so register_business can link the owner
+      const enrichedConversation = {
+        ...conversation,
+        context: { ...conversation.context, customerId: customer.id, senderPhone: message.senderId },
+      };
       const aiResponse = await this.aiEngine.processMessage(
         tenant,
-        conversation,
+        enrichedConversation,
         message,
         schema,
       );
@@ -239,5 +254,112 @@ export class MessageProcessor {
     `, customerId);
 
     return rows[0] ?? null;
+  }
+
+  /**
+   * Detects if a phone number belongs to a registered tenant owner.
+   * Checks the users table of all active/trial tenants for admin users with matching phone.
+   */
+  private async detectTenantOwner(
+    senderPhone: string,
+    currentTenantSlug: string,
+  ): Promise<{ id: string; slug: string; schemaName: string; businessName: string; status: string } | null> {
+    // Only do owner detection when messaging the VSPRO platform
+    if (currentTenantSlug !== 'vspro') return null;
+
+    // Normalize phone (remove + prefix for matching)
+    const normalizedPhone = senderPhone.replace(/^\+/, '');
+
+    // Look for this phone in tenant owner data
+    const tenants = await this.prisma.tenant.findMany({
+      where: { status: { in: ['ACTIVE', 'TRIAL'] }, slug: { not: 'vspro' } },
+      select: { id: true, slug: true, schemaName: true, businessName: true, status: true },
+    });
+
+    for (const t of tenants) {
+      try {
+        const users = await this.prisma.$queryRawUnsafe<any[]>(`
+          SELECT phone FROM "${t.schemaName}".users
+          WHERE role = 'admin' AND phone IS NOT NULL
+            AND (phone = $1 OR phone = $2 OR phone = $3)
+          LIMIT 1
+        `, senderPhone, normalizedPhone, `+${normalizedPhone}`);
+
+        if (users.length > 0) return t;
+      } catch {
+        // Schema might not have users table yet, skip
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Process a message from a tenant owner — routes to their own schema
+   * with admin context so Max can add products, configure things, etc.
+   */
+  private async processAsOwner(
+    ownerTenant: { id: string; slug: string; schemaName: string; businessName: string; status: string },
+    platformTenant: any,
+    message: IncomingMessage,
+  ): Promise<void> {
+    const schema = ownerTenant.schemaName;
+
+    // Find or create the owner as a customer in their OWN schema (for conversation tracking)
+    const customer = await this.customersService.findOrCreateByChannel(
+      message.channelType,
+      message.senderId,
+      message.senderName ?? 'Dueño',
+      schema,
+    );
+
+    // Find or create conversation in their schema
+    const conversation = await this.conversationsService.findOrCreate(
+      customer.id,
+      message.channelType,
+      message.messageId,
+      schema,
+    );
+
+    // Save inbound message
+    await this.conversationsService.saveMessage(
+      conversation.id, 'inbound', message.type, message.text ?? null,
+      message.mediaUrl ?? null, message.messageId, schema,
+    );
+
+    // Process with AI using THEIR schema (so add_product, etc. works on their data)
+    // The AI will have access to their products, orders, etc.
+    const fullTenant = await this.prisma.tenant.findUnique({
+      where: { id: ownerTenant.id },
+      include: { plan: true },
+    });
+
+    const aiResponse = await this.aiEngine.processMessage(
+      fullTenant,
+      { ...conversation, context: { ...conversation.context, isOwner: true, customerId: customer.id } },
+      message,
+      schema,
+    );
+
+    // Send response
+    if (aiResponse.text) {
+      await this.messagingService.sendText(
+        message.channelType,
+        message.senderId,
+        aiResponse.text,
+        platformTenant.schemaName, // Send FROM the VSPRO WhatsApp number
+      );
+
+      await this.conversationsService.saveMessage(
+        conversation.id, 'outbound', 'text', aiResponse.text, null, null, schema,
+      );
+    }
+
+    // Update context
+    if (aiResponse.updatedContext) {
+      await this.conversationsService.updateContext(conversation.id, aiResponse.updatedContext, schema);
+    }
+
+    this.logger.log(`Owner message processed: ${message.senderId} → ${ownerTenant.slug}`);
   }
 }

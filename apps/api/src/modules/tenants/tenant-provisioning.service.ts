@@ -111,13 +111,19 @@ export class TenantProvisioningService {
   }
 
   private async createOwnerUser(schemaName: string, dto: CreateTenantDto): Promise<void> {
+    // Ensure phone column exists
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schemaName}".users ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`
+    );
+
     const passwordHash = await bcrypt.hash(dto.password, 12);
     await this.prisma.$executeRawUnsafe(
-      `INSERT INTO "${schemaName}".users (email, password_hash, name, role)
-       VALUES ($1, $2, $3, 'admin')`,
+      `INSERT INTO "${schemaName}".users (email, password_hash, name, role, phone)
+       VALUES ($1, $2, $3, 'admin', $4)`,
       dto.email,
       passwordHash,
       dto.ownerName ?? dto.businessName,
+      (dto as any).phone ?? null,
     );
   }
 
