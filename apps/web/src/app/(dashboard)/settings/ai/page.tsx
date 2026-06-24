@@ -27,7 +27,8 @@ export default function AiConfigPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.patch('/ai/config', form);
+      const { id, updatedAt, createdAt, ...payload } = form;
+      await api.patch('/ai/config', payload);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: any) {
