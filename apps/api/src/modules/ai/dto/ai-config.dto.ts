@@ -40,6 +40,10 @@ export class UpdateAiConfigDto {
   @IsBoolean()
   @IsOptional()
   humanHandoffEnabled?: boolean;
+
+  @ApiProperty({ description: 'Business data (name, phone, address, social media, location)', required: false })
+  @IsOptional()
+  businessData?: Record<string, any>;
 }
 
 export class TestChatDto {

@@ -17,6 +17,7 @@ export class AiConfigService {
         language,
         business_hours AS "businessHours",
         custom_instructions AS "customInstructions",
+        agent_config->'businessData' AS "businessData",
         updated_at AS "updatedAt"
       FROM "${schemaName}".ai_config
       LIMIT 1
@@ -39,14 +40,31 @@ export class AiConfigService {
     if (dto.customInstructions !== undefined) { fields.push(`custom_instructions = $${idx++}`); values.push(dto.customInstructions); }
     if (dto.businessHours !== undefined) { fields.push(`business_hours = $${idx++}::jsonb`); values.push(JSON.stringify(dto.businessHours)); }
 
-    if (fields.length === 0) return this.getConfig(schemaName);
+    if (fields.length === 0 && !dto.businessData) return this.getConfig(schemaName);
 
-    fields.push(`updated_at = NOW()`);
+    if (fields.length > 0) {
+      fields.push(`updated_at = NOW()`);
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE "${schemaName}".ai_config SET ${fields.join(', ')} WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)`,
+        ...values,
+      );
+    }
 
-    await this.prisma.$executeRawUnsafe(
-      `UPDATE "${schemaName}".ai_config SET ${fields.join(', ')} WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)`,
-      ...values,
-    );
+    // Store businessData in agent_config JSONB
+    if (dto.businessData) {
+      await this.prisma.$executeRawUnsafe(`
+        ALTER TABLE "${schemaName}".ai_config ADD COLUMN IF NOT EXISTS agent_config JSONB DEFAULT '{}'
+      `);
+      await this.prisma.$executeRawUnsafe(`
+        UPDATE "${schemaName}".ai_config
+        SET agent_config = jsonb_set(
+          COALESCE(agent_config, '{}'::jsonb),
+          '{businessData}',
+          $1::jsonb
+        ), updated_at = NOW()
+        WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
+      `, JSON.stringify(dto.businessData));
+    }
 
     return this.getConfig(schemaName);
   }

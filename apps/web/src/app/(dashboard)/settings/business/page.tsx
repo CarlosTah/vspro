@@ -11,6 +11,8 @@ export default function BusinessSettingsPage() {
     phone: '',
     email: '',
     address: '',
+    lat: '',
+    lng: '',
     instagram: '',
     facebook: '',
     tiktok: '',
@@ -18,6 +20,7 @@ export default function BusinessSettingsPage() {
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [locating, setLocating] = useState(false);
 
   useEffect(() => {
     if (current?.businessData) {
@@ -39,7 +42,32 @@ export default function BusinessSettingsPage() {
     }
   };
 
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Tu navegador no soporta geolocalización');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setForm({ ...form, lat: pos.coords.latitude.toString(), lng: pos.coords.longitude.toString() });
+        setLocating(false);
+      },
+      () => {
+        alert('No se pudo obtener la ubicación. Verifica los permisos del navegador.');
+        setLocating(false);
+      },
+      { enableHighAccuracy: true },
+    );
+  };
+
   if (loading) return <div className="p-8 text-gray-400 text-center">Cargando...</div>;
+
+  const hasLocation = form.lat && form.lng;
+  const mapsUrl = hasLocation ? `https://maps.google.com/?q=${form.lat},${form.lng}` : '';
+  const mapsEmbed = hasLocation
+    ? `https://maps.google.com/maps?q=${form.lat},${form.lng}&z=16&output=embed`
+    : '';
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -68,6 +96,55 @@ export default function BusinessSettingsPage() {
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-1.5">Dirección</label>
           <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Calle, Colonia, Ciudad" className="vspro-input w-full" />
+        </div>
+
+        {/* Location picker */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1.5">Ubicación en mapa</label>
+          <div className="flex gap-2 mb-2">
+            <button
+              onClick={handleGetLocation}
+              disabled={locating}
+              className="rounded-lg border border-blue-600 px-3 py-2 text-xs text-blue-400 hover:bg-blue-900/30 disabled:opacity-50"
+            >
+              {locating ? '📍 Obteniendo...' : '📍 Usar mi ubicación actual'}
+            </button>
+            {hasLocation && (
+              <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-gray-600 px-3 py-2 text-xs text-gray-300 hover:text-white">
+                🗺️ Ver en Google Maps
+              </a>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <input
+              value={form.lat}
+              onChange={(e) => setForm({ ...form, lat: e.target.value })}
+              placeholder="Latitud (ej: 20.9674)"
+              className="vspro-input w-full text-xs"
+            />
+            <input
+              value={form.lng}
+              onChange={(e) => setForm({ ...form, lng: e.target.value })}
+              placeholder="Longitud (ej: -89.6237)"
+              className="vspro-input w-full text-xs"
+            />
+          </div>
+          {hasLocation && (
+            <div className="rounded-lg overflow-hidden border border-gray-700">
+              <iframe
+                src={mapsEmbed}
+                width="100%"
+                height="200"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            </div>
+          )}
+          {!hasLocation && (
+            <p className="text-xs text-gray-500">Haz clic en "Usar mi ubicación" o ingresa las coordenadas manualmente. Los clientes podrán ver tu ubicación cuando pregunten.</p>
+          )}
         </div>
 
         <div className="border-t border-gray-700 pt-4">
