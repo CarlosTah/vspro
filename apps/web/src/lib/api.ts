@@ -71,7 +71,9 @@ class ApiClient {
       throw new Error('Sesión expirada');
     }
 
-    const data = await res.json();
+    // Handle empty responses (e.g., DELETE returns no body)
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
 
     if (!res.ok) {
       throw new Error(data.message ?? `Error ${res.status}`);
