@@ -96,11 +96,42 @@ export class AiEngineService {
 
       // Agregar mensaje actual (con imagen si aplica)
       if (message.mediaUrl && message.type === 'image') {
+        // Download image from Meta and convert to base64 for GPT-4o Vision
+        let imageUrl = message.mediaUrl;
+        try {
+          const axios = (await import('axios')).default;
+          // Get the channel access token
+          const channelRows = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`
+          );
+          const accessToken = channelRows[0]?.access_token;
+          if (accessToken) {
+            // Get media download URL from Meta
+            const mediaInfo = await axios.get(message.mediaUrl, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            const downloadUrl = mediaInfo.data?.url;
+            if (downloadUrl) {
+              // Download actual image
+              const imgResponse = await axios.get(downloadUrl, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                responseType: 'arraybuffer',
+              });
+              const base64 = Buffer.from(imgResponse.data).toString('base64');
+              const mimeType = imgResponse.headers['content-type'] || 'image/jpeg';
+              imageUrl = `data:${mimeType};base64,${base64}`;
+            }
+          }
+        } catch (err: any) {
+          this.logger.warn(`Could not download image from Meta: ${err.message}`);
+          // Fallback: try using the URL directly (might work for non-Meta images)
+        }
+
         messages.push({
           role: 'user',
           content: [
             { type: 'text', text: message.text ?? 'Te envío una imagen' },
-            { type: 'image_url', image_url: { url: message.mediaUrl, detail: 'high' } },
+            { type: 'image_url', image_url: { url: imageUrl, detail: 'high' } },
           ],
         });
       } else {

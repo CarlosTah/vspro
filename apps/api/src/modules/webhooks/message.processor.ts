@@ -278,6 +278,14 @@ export class MessageProcessor {
 
     for (const t of tenants) {
       try {
+        // Check if phone column exists first
+        const colCheck = await this.prisma.$queryRawUnsafe<any[]>(`
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = $1 AND table_name = 'users' AND column_name = 'phone'
+        `, t.schemaName);
+
+        if (colCheck.length === 0) continue;
+
         const users = await this.prisma.$queryRawUnsafe<any[]>(`
           SELECT phone FROM "${t.schemaName}".users
           WHERE role = 'admin' AND phone IS NOT NULL
