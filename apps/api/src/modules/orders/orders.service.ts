@@ -8,12 +8,14 @@ import { PrismaService } from '../../database/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { isValidTransition, OrderStatus } from '@vspro/shared';
 import { OrderNotificationsService } from './order-notifications.service';
+import { MessagingFactory } from '../messaging/messaging-factory.service';
 
 @Injectable()
 export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: OrderNotificationsService,
+    private readonly messagingFactory: MessagingFactory,
   ) {}
 
   // ─── Consultas ────────────────────────────────────────────────
@@ -125,7 +127,57 @@ export class OrdersService {
     // 5. Reservar stock
     await this.reserveStock(resolvedItems, schemaName);
 
+    // 6. Send WhatsApp notification to customer if they have a phone/channel
+    this.sendOrderCreatedNotification(order.id, resolvedItems, total, schemaName).catch(() => {});
+
     return order;
+  }
+
+  /**
+   * Send order summary to customer via WhatsApp when created from panel.
+   */
+  private async sendOrderCreatedNotification(
+    orderId: string,
+    items: any[],
+    total: number,
+    schemaName: string,
+  ): Promise<void> {
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT o.order_number AS "orderNumber", o.channel_type AS "channelType",
+               c.name AS "customerName", c.channel_id AS "channelId",
+               c.channel_type AS "customerChannelType"
+        FROM "${schemaName}".orders o
+        JOIN "${schemaName}".customers c ON c.id = o.customer_id
+        WHERE o.id = $1::uuid
+      `, orderId);
+
+      const order = rows[0];
+      if (!order || !order.channelId) return;
+
+      // Don't send for truly manual walk-in customers (auto-generated IDs)
+      if (order.channelId.startsWith('manual-')) return;
+
+      const channelType = order.customerChannelType ?? 'whatsapp';
+      const name = order.customerName?.split(' ')[0] ?? '';
+
+      const itemsList = items.map((i: any) => `  • ${i.productName} x${i.quantity} — $${i.subtotal}`).join('\n');
+
+      const message = `📋 *Nuevo pedido #${order.orderNumber}*\n\n` +
+        `Hola${name ? ` ${name}` : ''}, tu pedido ha sido registrado:\n\n` +
+        `${itemsList}\n\n` +
+        `💰 *Total: $${total.toLocaleString('es-MX')} MXN*\n\n` +
+        `Para confirmar tu pedido, realiza tu transferencia y envíanos el comprobante aquí. 📸`;
+
+      await this.messagingFactory.sendText(
+        order.channelId,
+        message,
+        channelType,
+        schemaName,
+      );
+    } catch {
+      // Non-blocking
+    }
   }
 
   // ─── Transiciones de estado ───────────────────────────────────
