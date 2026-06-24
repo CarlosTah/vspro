@@ -28,6 +28,11 @@ export class UpdateChannelDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
+  externalId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
   accessToken?: string;
 
   @ApiProperty({ required: false })
