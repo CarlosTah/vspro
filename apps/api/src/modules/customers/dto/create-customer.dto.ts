@@ -18,9 +18,9 @@ export class CreateCustomerDto {
   @IsOptional()
   email?: string;
 
-  @ApiProperty({ enum: ['whatsapp', 'messenger', 'instagram'] })
-  @IsIn(['whatsapp', 'messenger', 'instagram'])
-  channelType!: ChannelType;
+  @ApiProperty({ enum: ['whatsapp', 'messenger', 'instagram', 'manual', 'web'] })
+  @IsIn(['whatsapp', 'messenger', 'instagram', 'manual', 'web'])
+  channelType!: string;
 
   @ApiProperty({ example: '5215512345678' })
   @IsString()
