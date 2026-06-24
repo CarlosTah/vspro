@@ -14,6 +14,7 @@ export default function ChannelsPage() {
   const [loading, setLoading] = useState(true);
   const [showSetup, setShowSetup] = useState<string | null>(null);
   const [setupResult, setSetupResult] = useState<any>(null);
+  const [editingChannel, setEditingChannel] = useState<any>(null);
 
   // Form
   const [externalId, setExternalId] = useState('');
@@ -21,21 +22,50 @@ export default function ChannelsPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    api.get('/channels').then(setChannels).catch(console.error).finally(() => setLoading(false));
+    loadChannels();
   }, []);
+
+  const loadChannels = () => {
+    api.get('/channels').then(setChannels).catch(console.error).finally(() => setLoading(false));
+  };
 
   const handleConnect = async (type: string) => {
     setSaving(true);
     try {
-      const result = await api.post('/channels', { type, externalId, accessToken });
-      setSetupResult(result);
-      setChannels([...channels, result.channel]);
+      if (editingChannel) {
+        // Update existing
+        await api.patch(`/channels/${editingChannel.id}`, { externalId, accessToken });
+        setEditingChannel(null);
+      } else {
+        // Create new
+        const result = await api.post('/channels', { type, externalId, accessToken });
+        setSetupResult(result);
+      }
       setExternalId('');
       setAccessToken('');
+      setShowSetup(null);
+      loadChannels();
     } catch (err: any) {
       alert(err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleEdit = (ch: any) => {
+    setEditingChannel(ch);
+    setExternalId(ch.externalId ?? '');
+    setAccessToken(''); // Don't prefill token for security
+    setShowSetup(ch.type);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Eliminar este canal? Dejarás de recibir mensajes por este número.')) return;
+    try {
+      await api.delete(`/channels/${id}`);
+      loadChannels();
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 
@@ -73,7 +103,7 @@ export default function ChannelsPage() {
                     <p className="text-xs text-gray-400">ID: {ch.externalId}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   {ch.isActive ? (
                     <span className="rounded-full bg-green-900/40 px-2.5 py-0.5 text-xs font-medium text-green-300">Activo</span>
                   ) : (
@@ -83,7 +113,19 @@ export default function ChannelsPage() {
                     onClick={() => handleTest(ch.id)}
                     className="rounded-lg border border-gray-600 px-3 py-1.5 text-xs font-medium text-gray-300 hover:bg-gray-700"
                   >
-                    Probar conexión
+                    Probar
+                  </button>
+                  <button
+                    onClick={() => handleEdit(ch)}
+                    className="rounded-lg border border-blue-600 px-3 py-1.5 text-xs font-medium text-blue-300 hover:bg-blue-900/30"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => handleDelete(ch.id)}
+                    className="rounded-lg border border-red-600 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-900/30"
+                  >
+                    Eliminar
                   </button>
                 </div>
               </div>
@@ -160,7 +202,7 @@ export default function ChannelsPage() {
                     disabled={saving || !externalId || !accessToken}
                     className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                   >
-                    {saving ? 'Conectando...' : `Conectar ${info.name}`}
+                    {saving ? 'Guardando...' : editingChannel ? 'Actualizar canal' : `Conectar ${info.name}`}
                   </button>
 
                   {/* Instrucciones post-conexión */}
