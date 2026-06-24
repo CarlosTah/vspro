@@ -62,10 +62,32 @@ export default function BillingPage() {
           </span>
         </div>
 
+        {/* Trial banner */}
+        {status === 'TRIALING' && (
+          <div className="rounded-lg bg-blue-900/30 border border-blue-700 p-4 mb-4">
+            <p className="text-sm text-blue-300 font-medium">Estás en periodo de prueba gratuita</p>
+            <p className="text-xs text-blue-400 mt-1">
+              {subscription?.trialEndsAt
+                ? `Tu trial vence el ${new Date(subscription.trialEndsAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}.`
+                : 'Tienes 7 días para probar todas las funciones.'}
+              {' '}Agrega tu tarjeta ahora para no perder el servicio al vencer.
+            </p>
+          </div>
+        )}
+
         <div className="flex items-baseline gap-1 mb-4">
           <span className="text-3xl font-bold text-accent">${plan.priceMonthly ?? '990'}</span>
           <span className="text-gray-400">/mes MXN</span>
         </div>
+
+        {/* Billing info for active subscriptions */}
+        {status === 'ACTIVE' && subscription?.currentPeriodEnd && (
+          <div className="bg-gray-900 rounded-lg p-3 mb-4 text-xs text-gray-400 space-y-1">
+            <p>📅 Próximo cobro: <span className="text-white font-medium">{new Date(subscription.currentPeriodEnd).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}</span></p>
+            <p>💳 Monto: <span className="text-white font-medium">${plan.priceMonthly ?? '990'} MXN</span></p>
+            <p>🔄 Cobro recurrente mensual automático</p>
+          </div>
+        )}
 
         {/* Usage */}
         {usage && (
@@ -76,13 +98,21 @@ export default function BillingPage() {
         )}
 
         {/* Actions */}
-        <div className="flex gap-3 pt-4 border-t border-gray-700">
-          <button onClick={openPortal} disabled={loadingPortal} className="vspro-btn-secondary text-sm disabled:opacity-50">
-            {loadingPortal ? '...' : '💳 Cambiar tarjeta'}
-          </button>
-          <button onClick={openPortal} disabled={loadingPortal} className="vspro-btn-secondary text-sm disabled:opacity-50">
-            📄 Ver facturas
-          </button>
+        <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-700">
+          {status === 'TRIALING' ? (
+            <button onClick={() => upgradePlan(plan.slug ?? 'basic')} disabled={loadingUpgrade} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+              {loadingUpgrade ? '...' : '💳 Agregar tarjeta y activar plan'}
+            </button>
+          ) : (
+            <>
+              <button onClick={openPortal} disabled={loadingPortal} className="vspro-btn-secondary text-sm disabled:opacity-50">
+                {loadingPortal ? '...' : '💳 Cambiar tarjeta'}
+              </button>
+              <button onClick={openPortal} disabled={loadingPortal} className="vspro-btn-secondary text-sm disabled:opacity-50">
+                📄 Ver facturas y comprobantes
+              </button>
+            </>
+          )}
         </div>
       </div>
 
