@@ -99,4 +99,13 @@ export class OrdersController {
   ) {
     return this.ordersService.updateShippingAddress(id, address, schema);
   }
+
+  @Patch(':id/status')
+  changeStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { status: string },
+    @TenantSchema() schema: string,
+  ) {
+    return this.ordersService.transition(id, body.status as any, schema);
+  }
 }

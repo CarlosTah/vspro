@@ -96,6 +96,19 @@ export class DeliveryService {
   }
 
   async createDriver(dto: CreateDriverDto, schemaName: string): Promise<DeliveryDriver> {
+    // Ensure table exists
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}".delivery_drivers (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        phone VARCHAR(50) NOT NULL,
+        vehicle_type VARCHAR(50) NOT NULL DEFAULT 'moto',
+        status VARCHAR(50) NOT NULL DEFAULT 'available',
+        max_deliveries INTEGER NOT NULL DEFAULT 3,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`
       INSERT INTO "${schemaName}".delivery_drivers (name, phone, vehicle_type, max_deliveries, status)
       VALUES ($1, $2, $3, $4, 'available')
