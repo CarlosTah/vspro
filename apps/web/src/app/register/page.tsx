@@ -70,7 +70,7 @@ export default function RegisterPage() {
 
       // Auto-login with returned token
       api.setAuth(res.accessToken, res.tenant.slug);
-      router.push('/');
+      router.push('/setup');
     } catch (err: any) {
       setError(err.message || 'Error al registrar. Intenta de nuevo.');
     } finally {
