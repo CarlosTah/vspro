@@ -69,13 +69,39 @@ export class DeliveryService {
   // ─── Driver Management ────────────────────────────────────────
 
   async getDrivers(schemaName: string): Promise<DeliveryDriver[]> {
+    // Ensure tables exist
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}".delivery_drivers (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        phone VARCHAR(50) NOT NULL,
+        vehicle_type VARCHAR(50) NOT NULL DEFAULT 'moto',
+        status VARCHAR(50) NOT NULL DEFAULT 'available',
+        max_deliveries INTEGER NOT NULL DEFAULT 3,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}".delivery_assignments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        order_id UUID NOT NULL,
+        driver_id UUID NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'offered',
+        offered_at TIMESTAMPTZ DEFAULT NOW(),
+        accepted_at TIMESTAMPTZ,
+        picked_up_at TIMESTAMPTZ,
+        delivered_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
     return this.prisma.$queryRawUnsafe<DeliveryDriver[]>(`
       SELECT d.id, d.name, d.phone, d.vehicle_type AS "vehicleType",
              d.status, d.max_deliveries AS "maxDeliveries",
              d.created_at AS "createdAt",
-             COUNT(a.id) FILTER (WHERE a.status IN ('accepted', 'picked_up')) AS "activeDeliveries"
+             COUNT(a.id)::int AS "activeDeliveries"
       FROM "${schemaName}".delivery_drivers d
-      LEFT JOIN "${schemaName}".delivery_assignments a ON a.driver_id = d.id
+      LEFT JOIN "${schemaName}".delivery_assignments a ON a.driver_id = d.id AND a.status IN ('accepted', 'picked_up')
       GROUP BY d.id
       ORDER BY d.name
     `);
@@ -85,13 +111,13 @@ export class DeliveryService {
     return this.prisma.$queryRawUnsafe<DeliveryDriver[]>(`
       SELECT d.id, d.name, d.phone, d.vehicle_type AS "vehicleType",
              d.status, d.max_deliveries AS "maxDeliveries",
-             COUNT(a.id) FILTER (WHERE a.status IN ('accepted', 'picked_up')) AS "activeDeliveries"
+             COUNT(a.id)::int AS "activeDeliveries"
       FROM "${schemaName}".delivery_drivers d
-      LEFT JOIN "${schemaName}".delivery_assignments a ON a.driver_id = d.id
+      LEFT JOIN "${schemaName}".delivery_assignments a ON a.driver_id = d.id AND a.status IN ('accepted', 'picked_up')
       WHERE d.status = 'available'
       GROUP BY d.id
-      HAVING COUNT(a.id) FILTER (WHERE a.status IN ('accepted', 'picked_up')) < d.max_deliveries
-      ORDER BY COUNT(a.id) FILTER (WHERE a.status IN ('accepted', 'picked_up')) ASC
+      HAVING COUNT(a.id)::int < d.max_deliveries
+      ORDER BY COUNT(a.id)::int ASC
     `);
   }
 
