@@ -39,11 +39,12 @@ export default function SetupPage() {
   const handleSaveBusiness = async () => {
     setSaving(true);
     try {
-      // Save business config via AI config (stores in ai_config table)
-      await api.patch('/ai/config', {
-        assistantName: agentName || 'Asistente',
-        businessData: { phone, address, hours },
-      }).catch(() => {});
+      // Save agent name and custom instructions with business info
+      const config: any = {};
+      if (agentName) config.assistantName = agentName;
+      if (hours) config.customInstructions = `Horario de atención: ${hours}. Dirección: ${address || 'No especificada'}. Teléfono: ${phone || 'No especificado'}.`;
+      
+      await api.patch('/ai/config', config).catch(() => {});
       setStep(2);
     } catch {
       setStep(2);
