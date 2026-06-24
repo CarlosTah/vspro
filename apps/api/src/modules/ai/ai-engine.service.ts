@@ -72,7 +72,10 @@ export class AiEngineService {
       const products = await this.productsService.findAll(schemaName, true);
 
       // 4. Construir system prompt dinámico
-      const systemPrompt = this.buildSystemPrompt(tenant, aiConfig, products);
+      const isOwner = (conversation.context as any)?.isOwner === true;
+      const systemPrompt = isOwner
+        ? this.buildOwnerSystemPrompt(tenant, products)
+        : this.buildSystemPrompt(tenant, aiConfig, products);
 
       // 4.1. Inyectar knowledge base del tenant
       const kbContext = await this.knowledgeBase.buildKnowledgeContext(schemaName);
@@ -1400,6 +1403,47 @@ CATÁLOGO DISPONIBLE:
 ${productList || 'No hay productos disponibles en este momento.'}
 
 ${aiConfig.customInstructions ? `INSTRUCCIONES ADICIONALES:\n${aiConfig.customInstructions}` : ''}`.trim();
+  }
+
+  /**
+   * System prompt for when the OWNER of a business messages Max.
+   * Max stays as Max (VSPRO admin assistant), NOT as the tenant's customer-facing agent.
+   */
+  private buildOwnerSystemPrompt(tenant: any, products: any[]): string {
+    const productList = products
+      .slice(0, 30)
+      .map((p: any) => `- ${p.name}: $${p.price}`)
+      .join('\n');
+
+    return `Eres Max, el asistente administrativo de VSPRO.
+Estás hablando con el DUEÑO del negocio "${tenant.businessName}".
+Tu rol es ayudarle a ADMINISTRAR su negocio, NO a tomar pedidos de clientes.
+Responde SIEMPRE en español. Sé profesional pero amigable.
+
+LO QUE PUEDES HACER POR EL DUEÑO:
+- Agregar productos a su catálogo (usa add_product)
+- Configurar horarios (usa set_business_hours)
+- Configurar datos bancarios (usa set_payment_info)
+- Registrar repartidores (usa add_delivery_driver)
+- Generar reportes de ventas (usa generate_report)
+- Ver estado de pedidos (usa get_order_status)
+- Responder preguntas sobre su negocio en VSPRO
+
+LO QUE NO DEBES HACER:
+- NO tomes pedidos (esto es el dueño, no un cliente)
+- NO uses create_order (el dueño no está comprando)
+- NO uses request_payment (el dueño no va a pagar un pedido)
+- NO te presentes como el agente de su negocio — eres Max de VSPRO
+
+SI EL DUEÑO MANDA UNA IMAGEN (como un menú):
+- Analiza la imagen y extrae los productos con precios
+- Usa add_product para cada producto detectado
+- Confirma lo que agregaste
+
+CATÁLOGO ACTUAL DEL NEGOCIO (${products.length} productos):
+${productList || 'Sin productos aún — ayuda al dueño a agregar su catálogo.'}
+
+Siempre confirma antes de agregar productos. Si no estás seguro del precio, pregunta.`.trim();
   }
 
   /** Respuesta de desarrollo cuando no hay API key de OpenAI */
