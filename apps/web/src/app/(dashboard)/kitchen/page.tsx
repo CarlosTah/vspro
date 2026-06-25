@@ -13,6 +13,7 @@ export default function KitchenPage() {
   const [quickCart, setQuickCart] = useState<{ id: string; name: string; price: number; qty: number }[]>([]);
   const [quickType, setQuickType] = useState<'pickup' | 'delivery'>('pickup');
   const [savingQuick, setSavingQuick] = useState(false);
+  const [autoPrint, setAutoPrint] = useState(true);
   const prevCount = useRef(0);
 
   // Auto-refresh every 15 seconds
@@ -21,10 +22,19 @@ export default function KitchenPage() {
     return () => clearInterval(interval);
   }, [refetch]);
 
-  // Play sound when new order arrives
+  // Play sound and auto-print when new order arrives
   useEffect(() => {
     if (queue && queue.length > prevCount.current && prevCount.current > 0) {
       try { new Audio('/notification.mp3').play().catch(() => {}); } catch {}
+      // Auto-print: open print dialog for the newest order ticket
+      const newOrders = queue.slice(0, queue.length - prevCount.current);
+      if (newOrders.length > 0 && autoPrint) {
+        const newest = newOrders[0];
+        const printWindow = window.open(`/orders/${newest.id}/print`, '_blank', 'width=400,height=600');
+        if (printWindow) {
+          printWindow.onload = () => { printWindow.print(); };
+        }
+      }
     }
     prevCount.current = queue?.length ?? 0;
   }, [queue]);
@@ -83,7 +93,16 @@ export default function KitchenPage() {
             {queue?.length ?? 0} pedidos en cola
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoPrint}
+              onChange={(e) => setAutoPrint(e.target.checked)}
+              className="w-3.5 h-3.5 rounded border-gray-600 bg-gray-900 text-blue-500"
+            />
+            <span className="text-xs text-gray-400">Auto-print</span>
+          </label>
           <button onClick={() => setShowQuickOrder(!showQuickOrder)} className="vspro-btn-secondary text-sm">
             {showQuickOrder ? '✕ Cerrar' : '+ Pedido rápido'}
           </button>

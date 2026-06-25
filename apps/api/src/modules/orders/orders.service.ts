@@ -245,6 +245,16 @@ export class OrdersService {
     // Notificar al cliente automáticamente (non-blocking)
     this.notifications.notify(id, newStatus, schemaName).catch(() => {});
 
+    // AUTO-TRANSITION: payment_verified → in_production (automático)
+    if (newStatus === 'payment_verified') {
+      // Small delay to let the payment notification send first, then auto-move to production
+      setTimeout(async () => {
+        try {
+          await this.transition(id, 'in_production' as any, schemaName);
+        } catch {}
+      }, 2000);
+    }
+
     return this.findById(id, schemaName);
   }
 

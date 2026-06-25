@@ -51,15 +51,10 @@ export class DeliveryTrackingController {
       WHERE id = $1::uuid
     `, a.assignmentId);
 
-    // Transition order to shipped
-    await this.prisma.$executeRawUnsafe(`
-      UPDATE "${a.schemaName}".orders SET status = 'shipped', updated_at = NOW() WHERE id = $1::uuid
-    `, orderId);
-
-    return { success: true, message: 'Entrega aceptada. ¡Recoge el pedido!' };
+    return { success: true, message: 'Entrega aceptada. ¡Ve a recoger el pedido!' };
   }
 
-  /** External driver confirms pickup */
+  /** External driver confirms pickup — order transitions to 'shipped' */
   @Post(':orderId/:token/pickup')
   async pickup(@Param('orderId') orderId: string, @Param('token') token: string) {
     const a = await this.findAssignment(orderId, token);
@@ -72,10 +67,18 @@ export class DeliveryTrackingController {
       WHERE id = $1::uuid
     `, a.assignmentId);
 
+    // Transition order to shipped — "en camino al cliente"
+    await this.prisma.$executeRawUnsafe(`
+      UPDATE "${a.schemaName}".orders SET status = 'shipped', updated_at = NOW() WHERE id = $1::uuid
+    `, orderId);
+
+    // Notify customer that order is on the way
+    await this.notifyCustomer(a.schemaName, orderId, 'shipped');
+
     return { success: true, message: 'Recogida confirmada. ¡En camino al cliente!' };
   }
 
-  /** External driver confirms delivery */
+  /** External driver confirms delivery — order transitions to 'delivered' + final notification */
   @Post(':orderId/:token/deliver')
   async deliver(@Param('orderId') orderId: string, @Param('token') token: string) {
     const a = await this.findAssignment(orderId, token);
@@ -93,10 +96,59 @@ export class DeliveryTrackingController {
       UPDATE "${a.schemaName}".orders SET status = 'delivered', updated_at = NOW() WHERE id = $1::uuid
     `, orderId);
 
+    // Notify customer — final message "entregado, disfruta"
+    await this.notifyCustomer(a.schemaName, orderId, 'delivered');
+
     return { success: true, message: '¡Entrega confirmada! Gracias.' };
   }
 
-  // ─── Helper ───────────────────────────────────────────────────
+  // ─── Helpers ───────────────────────────────────────────────────
+
+  /**
+   * Send WhatsApp notification to customer when order status changes via tracking.
+   * Uses the tenant's WhatsApp channel to send the message.
+   */
+  private async notifyCustomer(schemaName: string, orderId: string, status: 'shipped' | 'delivered'): Promise<void> {
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT o.order_number AS "orderNumber", c.name AS "customerName",
+               c.channel_id AS "channelId", ch.external_id AS "phoneNumberId", ch.access_token AS "accessToken"
+        FROM "${schemaName}".orders o
+        JOIN "${schemaName}".customers c ON c.id = o.customer_id
+        LEFT JOIN "${schemaName}".channels ch ON ch.type = 'whatsapp' AND ch.is_active = true
+        WHERE o.id = $1::uuid
+      `, orderId);
+
+      const order = rows[0];
+      if (!order?.channelId || !order.phoneNumberId || order.channelId.startsWith('manual-')) return;
+
+      const name = order.customerName?.split(' ')[0] ?? '';
+      const num = order.orderNumber;
+
+      let message: string;
+      if (status === 'shipped') {
+        message = `🛵 *¡Tu pedido va en camino!*\n\n${name}, el repartidor ya recogió tu pedido *${num}* y va hacia ti.\n\n⏱ Llegará en aproximadamente 20-30 minutos.`;
+      } else {
+        message = `✅ *¡Pedido entregado!*\n\n${name}, tu pedido *${num}* fue entregado.\n\n¡Gracias por tu compra! 🙏 Que lo disfrutes.\n\nSi tienes algún comentario, escríbenos aquí.`;
+      }
+
+      // Send via Meta API directly
+      const axios = (await import('axios')).default;
+      await axios.post(
+        `https://graph.facebook.com/v19.0/${order.phoneNumberId}/messages`,
+        {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: order.channelId,
+          type: 'text',
+          text: { body: message, preview_url: false },
+        },
+        { headers: { Authorization: `Bearer ${order.accessToken}` } },
+      );
+    } catch (err: any) {
+      // Non-blocking
+    }
+  }
 
   private async findAssignment(orderId: string, token: string) {
     // Search across all active tenants for this order + token combo
