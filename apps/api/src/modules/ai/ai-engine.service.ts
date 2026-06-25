@@ -594,6 +594,54 @@ export class AiEngineService {
           },
         },
       },
+      {
+        type: 'function',
+        function: {
+          name: 'check_availability',
+          description: 'Verifica disponibilidad de fechas para una reserva/hospedaje. Usa cuando el cliente pregunta si hay disponibilidad en ciertas fechas.',
+          parameters: {
+            type: 'object',
+            properties: {
+              checkIn: { type: 'string', description: 'Fecha de entrada (YYYY-MM-DD)' },
+              checkOut: { type: 'string', description: 'Fecha de salida (YYYY-MM-DD)' },
+            },
+            required: ['checkIn', 'checkOut'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'create_reservation',
+          description: 'Crea una reserva para un huésped. Usa cuando el cliente confirma que quiere reservar en las fechas disponibles. Pide nombre, teléfono y fechas antes de usar.',
+          parameters: {
+            type: 'object',
+            properties: {
+              guestName: { type: 'string', description: 'Nombre del huésped' },
+              guestPhone: { type: 'string', description: 'Teléfono del huésped' },
+              checkIn: { type: 'string', description: 'Fecha de entrada (YYYY-MM-DD)' },
+              checkOut: { type: 'string', description: 'Fecha de salida (YYYY-MM-DD)' },
+              guests: { type: 'number', description: 'Número de huéspedes' },
+              notes: { type: 'string', description: 'Notas especiales (hora de llegada, etc.)' },
+            },
+            required: ['guestName', 'checkIn', 'checkOut'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_property_info',
+          description: 'Obtiene información de la propiedad/hospedaje: características, amenidades, reglas, precios. Usa cuando el cliente pregunta detalles sobre el lugar.',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Qué quiere saber: "precio", "amenidades", "reglas", "ubicación", "capacidad"' },
+            },
+            required: ['query'],
+          },
+        },
+      },
     ];
   }
 
@@ -1319,6 +1367,89 @@ export class AiEngineService {
           });
         } catch (err: any) {
           return JSON.stringify({ success: false, message: `Error al cancelar: ${err.message}` });
+        }
+      }
+
+      case 'check_availability': {
+        try {
+          const { ReservationsService } = await import('../reservations/reservations.service');
+          const reservationsService = new ReservationsService(this.prisma);
+          const result = await reservationsService.checkAvailability(args.checkIn, args.checkOut, schemaName);
+
+          if (result.available) {
+            const price = await reservationsService.calculatePrice(args.checkIn, args.checkOut, schemaName);
+            const nights = Math.ceil((new Date(args.checkOut).getTime() - new Date(args.checkIn).getTime()) / 86400000);
+            return JSON.stringify({
+              available: true,
+              checkIn: args.checkIn,
+              checkOut: args.checkOut,
+              nights,
+              totalPrice: price,
+              pricePerNight: nights > 0 ? Math.round(price / nights) : 0,
+              message: `¡Sí hay disponibilidad! Del ${args.checkIn} al ${args.checkOut} (${nights} noches) por $${price.toLocaleString('es-MX')} MXN${nights > 0 ? ` ($${Math.round(price / nights)}/noche)` : ''}.`,
+            });
+          } else {
+            return JSON.stringify({
+              available: false,
+              conflicts: result.conflicts.length,
+              message: `Lo siento, esas fechas no están disponibles. Ya hay ${result.conflicts.length} reserva(s) en ese período. ¿Te gustaría consultar otras fechas?`,
+            });
+          }
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al verificar: ${err.message}` });
+        }
+      }
+
+      case 'create_reservation': {
+        try {
+          const { ReservationsService } = await import('../reservations/reservations.service');
+          const reservationsService = new ReservationsService(this.prisma);
+          const reservation = await reservationsService.create({
+            guestName: args.guestName,
+            guestPhone: args.guestPhone,
+            checkIn: args.checkIn,
+            checkOut: args.checkOut,
+            guests: args.guests ?? 1,
+            notes: args.notes,
+          }, schemaName);
+
+          return JSON.stringify({
+            success: true,
+            reservationId: reservation.id,
+            ...reservation,
+            message: `Reserva confirmada para ${args.guestName}. Check-in: ${args.checkIn}, Check-out: ${args.checkOut} (${reservation.nights} noches). Total: $${parseFloat(reservation.totalPrice).toLocaleString('es-MX')} MXN. Para confirmar, se requiere un anticipo.`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al reservar: ${err.message}` });
+        }
+      }
+
+      case 'get_property_info': {
+        try {
+          // Get property info from products and knowledge base
+          const products = await this.productsService.findAll(schemaName, true);
+          const kbContext = await this.knowledgeBase.buildKnowledgeContext(schemaName);
+
+          const property = products[0]; // First product = main property
+          let info: any = { name: property?.name ?? 'Propiedad', price: property?.price };
+
+          // Get pricing rules
+          const { ReservationsService } = await import('../reservations/reservations.service');
+          const reservationsService = new ReservationsService(this.prisma);
+          const rules = await reservationsService.getPricingRules(schemaName);
+          const defaultPrice = rules.find((r: any) => r.isDefault);
+
+          info.pricePerNight = defaultPrice ? parseFloat(defaultPrice.pricePerNight) : (property?.price ?? 0);
+          info.description = property?.description ?? '';
+          info.knowledgeBase = kbContext;
+
+          return JSON.stringify({
+            success: true,
+            property: info,
+            message: `${info.name}: $${info.pricePerNight}/noche. ${info.description}`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al obtener info: ${err.message}` });
         }
       }
 

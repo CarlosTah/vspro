@@ -49,6 +49,7 @@ import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.mod
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { EscalationsModule } from './modules/escalations/escalations.module';
 import { TicketsModule } from './modules/tickets/tickets.module';
+import { ReservationsModule } from './modules/reservations/reservations.module';
 
 @Module({
   imports: [
@@ -129,6 +130,7 @@ import { TicketsModule } from './modules/tickets/tickets.module';
     NotificationsModule,
     EscalationsModule,
     TicketsModule,
+    ReservationsModule,
   ],
 })
 export class AppModule implements NestModule {

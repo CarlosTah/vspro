@@ -21,6 +21,7 @@ const navigation = [
   { name: 'Pagos', href: '/payments', icon: '💰', industries: null },
   { name: 'Entregas', href: '/deliveries', icon: '🛵', industries: ['restaurante', 'ropa', 'ecommerce', 'barberia', 'taller'] },
   { name: 'Reportes', href: '/reports', icon: '📈', industries: null },
+  { name: 'Reservaciones', href: '/reservations', icon: '📅', industries: ['inmobiliaria'] },
 ];
 
 const bottomNav = [
