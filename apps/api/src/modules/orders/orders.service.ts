@@ -263,6 +263,20 @@ export class OrdersService {
         throw new BadRequestException(`El producto "${product.name}" está inactivo. Actívalo en la sección de productos o genera stock.`);
       }
 
+      // Auto-create inventory if missing
+      if (product.stockAvailable === 0) {
+        const hasInventory = await this.prisma.$queryRawUnsafe<any[]>(
+          `SELECT 1 FROM "${schemaName}".inventory WHERE product_id = $1::uuid`, item.productId,
+        );
+        if (hasInventory.length === 0) {
+          await this.prisma.$executeRawUnsafe(`
+            INSERT INTO "${schemaName}".inventory (product_id, stock_available, stock_minimum)
+            VALUES ($1::uuid, 9999, 5)
+          `, item.productId);
+          product.stockAvailable = 9999;
+        }
+      }
+
       if (product.stockAvailable < item.quantity) {
         throw new BadRequestException(
           `Stock insuficiente para '${product.name}'. Disponible: ${product.stockAvailable}, solicitado: ${item.quantity}`,
