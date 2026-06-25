@@ -246,18 +246,22 @@ export class OrdersService {
 
     for (const item of items) {
       const products = await this.prisma.$queryRawUnsafe<any[]>(`
-        SELECT p.id, p.name, p.price, p.sku,
-               i.stock_available AS "stockAvailable"
+        SELECT p.id, p.name, p.price, p.sku, p.is_active AS "isActive",
+               COALESCE(i.stock_available, 0) AS "stockAvailable"
         FROM "${schemaName}".products p
-        JOIN "${schemaName}".inventory i ON i.product_id = p.id
-        WHERE p.id = $1::uuid AND p.is_active = true
+        LEFT JOIN "${schemaName}".inventory i ON i.product_id = p.id
+        WHERE p.id = $1::uuid
       `, item.productId);
 
       if (!products[0]) {
-        throw new NotFoundException(`Producto ${item.productId} no encontrado o inactivo`);
+        throw new NotFoundException(`Producto no encontrado`);
       }
 
       const product = products[0];
+
+      if (!product.isActive) {
+        throw new BadRequestException(`El producto "${product.name}" está inactivo. Actívalo en la sección de productos o genera stock.`);
+      }
 
       if (product.stockAvailable < item.quantity) {
         throw new BadRequestException(
