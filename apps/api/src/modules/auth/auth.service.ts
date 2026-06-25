@@ -67,6 +67,7 @@ export class AuthService {
         slug: tenant.slug,
         businessName: tenant.businessName,
         plan: tenant.plan.slug,
+        industry: (tenant.settings as any)?.industry ?? null,
       },
     };
   }

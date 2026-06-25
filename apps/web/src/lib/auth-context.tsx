@@ -15,6 +15,7 @@ interface Tenant {
   slug: string;
   businessName: string;
   plan: string;
+  industry?: string;
 }
 
 interface AuthState {

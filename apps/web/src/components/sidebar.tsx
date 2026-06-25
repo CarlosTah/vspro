@@ -9,18 +9,18 @@ import { VsproLogo } from '@/components/vspro-logo';
 import { useSidebar } from '@/hooks/use-sidebar';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: '📊' },
-  { name: 'Pedidos', href: '/orders', icon: '📋' },
-  { name: 'Producción', href: '/production', icon: '🏭' },
-  { name: 'Cocina', href: '/kitchen', icon: '🍳' },
-  { name: 'Productos', href: '/products', icon: '📦' },
-  { name: 'Clientes', href: '/customers', icon: '👥' },
-  { name: 'Conversaciones', href: '/conversations', icon: '💬' },
-  { name: 'Escalaciones', href: '/escalations', icon: '⚠️' },
-  { name: 'Tickets', href: '/tickets', icon: '🎫' },
-  { name: 'Pagos', href: '/payments', icon: '💰' },
-  { name: 'Entregas', href: '/deliveries', icon: '🛵' },
-  { name: 'Reportes', href: '/reports', icon: '📈' },
+  { name: 'Dashboard', href: '/', icon: '📊', industries: null },
+  { name: 'Pedidos', href: '/orders', icon: '📋', industries: null },
+  { name: 'Producción', href: '/production', icon: '🏭', industries: ['restaurante', 'ropa', 'taller', 'ecommerce'] },
+  { name: 'Cocina', href: '/kitchen', icon: '🍳', industries: ['restaurante'] },
+  { name: 'Productos', href: '/products', icon: '📦', industries: null },
+  { name: 'Clientes', href: '/customers', icon: '👥', industries: null },
+  { name: 'Conversaciones', href: '/conversations', icon: '💬', industries: null },
+  { name: 'Escalaciones', href: '/escalations', icon: '⚠️', industries: null },
+  { name: 'Tickets', href: '/tickets', icon: '🎫', industries: null },
+  { name: 'Pagos', href: '/payments', icon: '💰', industries: null },
+  { name: 'Entregas', href: '/deliveries', icon: '🛵', industries: ['restaurante', 'ropa', 'ecommerce', 'barberia', 'taller'] },
+  { name: 'Reportes', href: '/reports', icon: '📈', industries: null },
 ];
 
 const bottomNav = [
@@ -29,11 +29,14 @@ const bottomNav = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, tenant } = useAuth();
   const { isOpen, close } = useSidebar();
   const role = (user?.role ?? 'operator') as UserRole;
+  const industry = tenant?.industry ?? null;
 
-  const visibleNav = navigation.filter((item) => canAccessRoute(role, item.href));
+  const visibleNav = navigation
+    .filter((item) => canAccessRoute(role, item.href))
+    .filter((item) => !item.industries || !industry || item.industries.includes(industry));
   const visibleBottom = bottomNav.filter((item) => canAccessRoute(role, item.href));
 
   const sidebarContent = (

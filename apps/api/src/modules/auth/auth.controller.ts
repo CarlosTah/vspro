@@ -35,6 +35,14 @@ export class AuthController {
       // Template failure is non-critical
     }
 
+    // 2.5 Save industry in tenant settings
+    try {
+      await this.tenantProvisioning['prisma'].tenant.update({
+        where: { id: tenant.id },
+        data: { settings: { industry: dto.industry } },
+      });
+    } catch {}
+
     // 3. Auto-login: generate JWT
     const loginResult = await this.authService.login(dto.email, dto.password, tenant.slug);
 
