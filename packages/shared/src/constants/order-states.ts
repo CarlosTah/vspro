@@ -7,12 +7,12 @@ import { OrderStatus } from '../types/order.types';
  * El sistema rechaza cualquier transición que no esté en este mapa.
  */
 export const ORDER_STATE_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  new: ['quoted', 'cancelled'],
+  new: ['quoted', 'payment_pending', 'payment_verified', 'in_production', 'cancelled'],
   quoted: ['payment_pending', 'cancelled'],
   payment_pending: ['payment_verified', 'cancelled'],
   payment_verified: ['in_production', 'cancelled'],
-  in_production: ['ready'],
-  ready: ['shipped'],
+  in_production: ['ready', 'cancelled'],
+  ready: ['shipped', 'delivered', 'cancelled'],
   shipped: ['delivered'],
   delivered: [],
   cancelled: [],

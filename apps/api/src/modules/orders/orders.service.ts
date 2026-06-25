@@ -163,11 +163,31 @@ export class OrdersService {
 
       const itemsList = items.map((i: any) => `  • ${i.productName} x${i.quantity} — $${i.subtotal}`).join('\n');
 
+      // Get payment info if configured
+      let paymentInfo = '';
+      try {
+        const configRows = await this.prisma.$queryRawUnsafe<any[]>(`
+          SELECT agent_config->'payment_info' AS "paymentInfo"
+          FROM "${schemaName}".ai_config LIMIT 1
+        `);
+        const pi = configRows[0]?.paymentInfo;
+        if (pi && pi.bank) {
+          paymentInfo = `\n🏦 *Datos para transferencia:*\n` +
+            `  Banco: ${pi.bank}\n` +
+            `  CLABE: ${pi.clabe}\n` +
+            `  Beneficiario: ${pi.beneficiary}\n`;
+        }
+      } catch {}
+
       const message = `📋 *Nuevo pedido #${order.orderNumber}*\n\n` +
         `Hola${name ? ` ${name}` : ''}, tu pedido ha sido registrado:\n\n` +
         `${itemsList}\n\n` +
-        `💰 *Total: $${total.toLocaleString('es-MX')} MXN*\n\n` +
-        `Para confirmar tu pedido, realiza tu transferencia y envíanos el comprobante aquí. 📸`;
+        `💰 *Total: $${total.toLocaleString('es-MX')} MXN*\n` +
+        `${paymentInfo}\n` +
+        `Para confirmar tu pedido:\n` +
+        `1️⃣ Realiza tu transferencia y envíanos el comprobante aquí 📸\n` +
+        `2️⃣ O paga en línea: https://app.vspro.app/pay/${order.orderNumber}\n\n` +
+        `¡Gracias por tu preferencia! 🙏`;
 
       await this.messagingFactory.sendText(
         order.channelId,
