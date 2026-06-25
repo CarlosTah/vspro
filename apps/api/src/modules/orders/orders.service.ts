@@ -101,15 +101,20 @@ export class OrdersService {
     // 3. Generar número de pedido único
     const orderNumber = await this.generateOrderNumber(schemaName);
 
+    // 3.5 Ensure delivery_type column exists
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schemaName}".orders ADD COLUMN IF NOT EXISTS delivery_type VARCHAR(20) DEFAULT 'pickup'`
+    );
+
     // 4. Crear el pedido
     const initialStatus = dto.status ?? 'new';
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`
       INSERT INTO "${schemaName}".orders
         (order_number, customer_id, channel_type, status, items,
-         subtotal, shipping_cost, total, notes, shipping_address)
-      VALUES ($1, $2::uuid, $3, $4, $5::jsonb, $6, 0, $7, $8, $9::jsonb)
+         subtotal, shipping_cost, total, notes, shipping_address, delivery_type)
+      VALUES ($1, $2::uuid, $3, $4, $5::jsonb, $6, 0, $7, $8, $9::jsonb, $10)
       RETURNING id, order_number AS "orderNumber", status, total,
-                subtotal, created_at AS "createdAt"
+                subtotal, delivery_type AS "deliveryType", created_at AS "createdAt"
     `,
       orderNumber,
       customerId,
@@ -120,6 +125,7 @@ export class OrdersService {
       total,
       dto.notes ?? null,
       dto.shippingAddress ? JSON.stringify(dto.shippingAddress) : null,
+      dto.deliveryType ?? 'pickup',
     );
 
     const order = rows[0];

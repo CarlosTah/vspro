@@ -38,6 +38,11 @@ export class CreateOrderDto {
   @IsOptional()
   notes?: string;
 
+  @ApiProperty({ enum: ['pickup', 'delivery'], required: false, description: 'Tipo de entrega: recoger en local o envío a domicilio' })
+  @IsIn(['pickup', 'delivery'])
+  @IsOptional()
+  deliveryType?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   shippingAddress?: Record<string, any>;

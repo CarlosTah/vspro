@@ -23,6 +23,8 @@ export default function NewOrderPage() {
   const [showNewCustomer, setShowNewCustomer] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [notes, setNotes] = useState('');
+  const [deliveryType, setDeliveryType] = useState<'pickup' | 'delivery'>('pickup');
+  const [address, setAddress] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -84,8 +86,10 @@ export default function NewOrderPage() {
       const order = await api.post<any>('/orders', {
         customerId,
         channelType: 'manual',
+        deliveryType,
         items: cart.map(i => ({ productId: i.productId, quantity: i.quantity })),
         notes: notes || undefined,
+        shippingAddress: deliveryType === 'delivery' && address ? { street: address } : undefined,
       });
 
       router.push(`/orders/${order.id}`);
@@ -183,6 +187,47 @@ export default function NewOrderPage() {
                 <p className="text-sm text-gray-500 col-span-2">No hay productos. Crea uno en Productos.</p>
               )}
             </div>
+          </div>
+
+          {/* Delivery Type */}
+          <div className="rounded-xl border border-card-border bg-card p-5">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">🚚 Tipo de entrega</h3>
+            <div className="flex gap-3 mb-3">
+              <button
+                type="button"
+                onClick={() => setDeliveryType('pickup')}
+                className={`flex-1 rounded-lg border p-3 text-center text-sm transition-colors ${
+                  deliveryType === 'pickup'
+                    ? 'border-blue-500 bg-blue-900/30 text-white'
+                    : 'border-gray-600 text-gray-400 hover:border-gray-500'
+                }`}
+              >
+                🏪 Recoger en local
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeliveryType('delivery')}
+                className={`flex-1 rounded-lg border p-3 text-center text-sm transition-colors ${
+                  deliveryType === 'delivery'
+                    ? 'border-blue-500 bg-blue-900/30 text-white'
+                    : 'border-gray-600 text-gray-400 hover:border-gray-500'
+                }`}
+              >
+                🛵 Envío a domicilio
+              </button>
+            </div>
+            {deliveryType === 'delivery' && (
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Dirección de envío</label>
+                <input
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Calle, número, colonia, referencias..."
+                  className="w-full vspro-input"
+                />
+                <p className="text-xs text-gray-500 mt-1">Si no la tienes, el agente la pedirá por WhatsApp al cliente.</p>
+              </div>
+            )}
           </div>
 
           {/* Notes */}

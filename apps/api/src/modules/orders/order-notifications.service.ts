@@ -45,6 +45,7 @@ export class OrderNotificationsService {
                o.items,
                o.channel_type AS "channelType",
                o.shipping_address AS "shippingAddress",
+               COALESCE(o.delivery_type, 'pickup') AS "deliveryType",
                c.id AS "customerId",
                c.name AS "customerName",
                c.channel_id AS "channelId",
@@ -120,7 +121,7 @@ export class OrderNotificationsService {
     const name = order.customerName?.split(' ')[0] ?? '';
     const num = order.orderNumber;
     const total = parseFloat(order.total ?? 0).toLocaleString();
-    const hasDelivery = !!order.shippingAddress;
+    const isDelivery = order.deliveryType === 'delivery' || !!order.shippingAddress;
 
     switch (status) {
       case 'payment_verified':
@@ -130,8 +131,8 @@ export class OrderNotificationsService {
         return `👨‍🍳 *En preparación*\n\n${name}, tu pedido *${num}* se está preparando.\n\nTe avisamos cuando esté listo.`;
 
       case 'ready':
-        if (hasDelivery) {
-          return `🎉 *¡Pedido listo!*\n\n${name}, tu pedido *${num}* está listo.\n\n🛵 Tu repartidor va en camino. Te avisamos cuando salga.`;
+        if (isDelivery) {
+          return `🎉 *¡Pedido listo!*\n\n${name}, tu pedido *${num}* está listo.\n\n🛵 Estamos contactando a un repartidor para enviártelo. Te avisamos cuando salga.`;
         }
         return `🎉 *¡Pedido listo!*\n\n${name}, tu pedido *${num}* está listo para recoger.\n\n📍 Pasa cuando gustes. ¡Te esperamos!`;
 
