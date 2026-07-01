@@ -8,6 +8,25 @@ import { canAccessRoute, UserRole, ROLE_LABELS } from '@/lib/permissions';
 import { VsproLogo } from '@/components/vspro-logo';
 import { useSidebar } from '@/hooks/use-sidebar';
 
+// Labels adapt by industry
+const INDUSTRY_LABELS: Record<string, Record<string, string>> = {
+  inmobiliaria: {
+    'Productos': 'Propiedades',
+    'Pedidos': 'Solicitudes',
+    'Clientes': 'Huéspedes',
+    'Pagos': 'Ingresos',
+  },
+  clinica: {
+    'Productos': 'Servicios',
+    'Pedidos': 'Citas',
+    'Clientes': 'Pacientes',
+  },
+  barberia: {
+    'Productos': 'Servicios',
+    'Pedidos': 'Citas',
+  },
+};
+
 const navigation = [
   { name: 'Dashboard', href: '/', icon: '📊', industries: null },
   { name: 'Pedidos', href: '/orders', icon: '📋', industries: null },
@@ -40,6 +59,14 @@ export function Sidebar() {
     .filter((item) => !item.industries || !industry || item.industries.includes(industry));
   const visibleBottom = bottomNav.filter((item) => canAccessRoute(role, item.href));
 
+  // Get industry-specific label or default
+  const getLabel = (name: string) => {
+    if (industry && INDUSTRY_LABELS[industry]) {
+      return INDUSTRY_LABELS[industry][name] ?? name;
+    }
+    return name;
+  };
+
   const sidebarContent = (
     <>
       {/* Logo */}
@@ -66,7 +93,7 @@ export function Sidebar() {
               )}
             >
               <span className="text-lg">{item.icon}</span>
-              {item.name}
+              {getLabel(item.name)}
             </Link>
           );
         })}
@@ -83,7 +110,7 @@ export function Sidebar() {
               className="flex items-center gap-3 rounded-button px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-card hover:text-white transition-colors"
             >
               <span className="text-lg">{item.icon}</span>
-              {item.name}
+              {getLabel(item.name)}
             </Link>
           ))}
         </div>

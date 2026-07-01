@@ -18,6 +18,8 @@ export interface PricingRuleDto {
   dateFrom?: string;
   dateTo?: string;
   pricePerNight: number;
+  pricePerWeek?: number;
+  pricePerMonth?: number;
   minNights?: number;
   label?: string; // "Temporada alta", "Año nuevo", etc.
 }
@@ -52,6 +54,8 @@ export class ReservationsService {
         date_from DATE,
         date_to DATE,
         price_per_night DECIMAL(10,2) NOT NULL,
+        price_per_week DECIMAL(10,2),
+        price_per_month DECIMAL(10,2),
         min_nights INTEGER NOT NULL DEFAULT 1,
         label VARCHAR(100),
         is_default BOOLEAN NOT NULL DEFAULT false,
@@ -143,7 +147,9 @@ export class ReservationsService {
     await this.ensureTables(schema);
     return this.prisma.$queryRawUnsafe<any[]>(`
       SELECT id, property_id AS "propertyId", date_from AS "dateFrom", date_to AS "dateTo",
-             price_per_night AS "pricePerNight", min_nights AS "minNights", label, is_default AS "isDefault"
+             price_per_night AS "pricePerNight", price_per_week AS "pricePerWeek",
+             price_per_month AS "pricePerMonth",
+             min_nights AS "minNights", label, is_default AS "isDefault"
       FROM "${schema}".pricing_rules
       ORDER BY is_default DESC, date_from ASC
     `);
@@ -151,12 +157,18 @@ export class ReservationsService {
 
   async createPricingRule(dto: PricingRuleDto, schema: string) {
     await this.ensureTables(schema);
+    // Add columns if missing (for existing tenants)
+    await this.prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".pricing_rules ADD COLUMN IF NOT EXISTS price_per_week DECIMAL(10,2)`);
+    await this.prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".pricing_rules ADD COLUMN IF NOT EXISTS price_per_month DECIMAL(10,2)`);
+
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`
-      INSERT INTO "${schema}".pricing_rules (property_id, date_from, date_to, price_per_night, min_nights, label, is_default)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, price_per_night AS "pricePerNight", label, is_default AS "isDefault"
+      INSERT INTO "${schema}".pricing_rules (property_id, date_from, date_to, price_per_night, price_per_week, price_per_month, min_nights, label, is_default)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id, price_per_night AS "pricePerNight", price_per_week AS "pricePerWeek",
+                price_per_month AS "pricePerMonth", label, is_default AS "isDefault"
     `, dto.propertyId ?? null, dto.dateFrom ?? null, dto.dateTo ?? null,
-       dto.pricePerNight, dto.minNights ?? 1, dto.label ?? null,
+       dto.pricePerNight, dto.pricePerWeek ?? null, dto.pricePerMonth ?? null,
+       dto.minNights ?? 1, dto.label ?? null,
        (!dto.dateFrom && !dto.dateTo)); // is_default if no dates specified
 
     return rows[0];
@@ -171,16 +183,31 @@ export class ReservationsService {
     const rules = await this.getPricingRules(schema);
     const start = new Date(checkIn);
     const end = new Date(checkOut);
-    let total = 0;
+    const nights = Math.ceil((end.getTime() - start.getTime()) / 86400000);
 
     const defaultRule = rules.find(r => r.isDefault);
     const basePrice = defaultRule ? parseFloat(defaultRule.pricePerNight) : 0;
+    const weeklyPrice = defaultRule?.pricePerWeek ? parseFloat(defaultRule.pricePerWeek) : null;
+    const monthlyPrice = defaultRule?.pricePerMonth ? parseFloat(defaultRule.pricePerMonth) : null;
 
-    // Calculate night by night
+    // Apply best rate: monthly > weekly > nightly
+    if (monthlyPrice && nights >= 30) {
+      const months = Math.floor(nights / 30);
+      const remainingNights = nights % 30;
+      return (months * monthlyPrice) + (remainingNights * basePrice);
+    }
+
+    if (weeklyPrice && nights >= 7) {
+      const weeks = Math.floor(nights / 7);
+      const remainingNights = nights % 7;
+      return (weeks * weeklyPrice) + (remainingNights * basePrice);
+    }
+
+    // Calculate night by night with seasonal pricing
+    let total = 0;
     const current = new Date(start);
     while (current < end) {
       const dateStr = current.toISOString().split('T')[0];
-      // Find applicable seasonal rule
       const seasonalRule = rules.find(r =>
         !r.isDefault && r.dateFrom && r.dateTo &&
         dateStr >= r.dateFrom && dateStr <= r.dateTo

@@ -23,7 +23,7 @@ export default function ReservationsPage() {
   // New reservation form
   const [form, setForm] = useState({ guestName: '', guestPhone: '', checkIn: '', checkOut: '', guests: 1, notes: '' });
   // New pricing form
-  const [priceForm, setPriceForm] = useState({ pricePerNight: 0, dateFrom: '', dateTo: '', label: '', minNights: 1 });
+  const [priceForm, setPriceForm] = useState({ pricePerNight: 0, pricePerWeek: 0, pricePerMonth: 0, dateFrom: '', dateTo: '', label: '', minNights: 1 });
 
   useEffect(() => { loadData(); }, [year, month]);
 
@@ -59,7 +59,7 @@ export default function ReservationsPage() {
     try {
       await api.post('/reservations/pricing', priceForm);
       setShowNewPrice(false);
-      setPriceForm({ pricePerNight: 0, dateFrom: '', dateTo: '', label: '', minNights: 1 });
+      setPriceForm({ pricePerNight: 0, pricePerWeek: 0, pricePerMonth: 0, dateFrom: '', dateTo: '', label: '', minNights: 1 });
       loadData();
     } catch (err: any) { alert(err.message); }
     finally { setSaving(false); }
@@ -216,7 +216,9 @@ export default function ReservationsPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-white font-semibold">${parseFloat(p.pricePerNight).toLocaleString('es-MX')}/noche</p>
-                    <p className="text-xs text-gray-400">{p.isDefault ? 'Precio base' : p.label ?? `${p.dateFrom} → ${p.dateTo}`}</p>
+                    {p.pricePerWeek && <p className="text-sm text-blue-300">${parseFloat(p.pricePerWeek).toLocaleString('es-MX')}/semana</p>}
+                    {p.pricePerMonth && <p className="text-sm text-green-300">${parseFloat(p.pricePerMonth).toLocaleString('es-MX')}/mes</p>}
+                    <p className="text-xs text-gray-400 mt-1">{p.isDefault ? 'Precio base' : p.label ?? `${p.dateFrom} → ${p.dateTo}`}</p>
                     {p.minNights > 1 && <p className="text-xs text-gray-500">Mínimo {p.minNights} noches</p>}
                   </div>
                   {!p.isDefault && (
@@ -260,6 +262,10 @@ export default function ReservationsPage() {
             <h2 className="text-lg font-semibold text-white mb-4">Nueva regla de precio</h2>
             <form onSubmit={handleCreatePrice} className="space-y-3">
               <div><label className="text-xs text-gray-400">Precio por noche (MXN)</label><input type="number" value={priceForm.pricePerNight} onChange={e => setPriceForm({ ...priceForm, pricePerNight: parseFloat(e.target.value) || 0 })} required min={0} className="w-full vspro-input" /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-xs text-gray-400">Precio por semana (7 noches)</label><input type="number" value={priceForm.pricePerWeek} onChange={e => setPriceForm({ ...priceForm, pricePerWeek: parseFloat(e.target.value) || 0 })} min={0} className="w-full vspro-input" placeholder="Opcional" /></div>
+                <div><label className="text-xs text-gray-400">Precio por mes (30 noches)</label><input type="number" value={priceForm.pricePerMonth} onChange={e => setPriceForm({ ...priceForm, pricePerMonth: parseFloat(e.target.value) || 0 })} min={0} className="w-full vspro-input" placeholder="Opcional" /></div>
+              </div>
               <input value={priceForm.label} onChange={e => setPriceForm({ ...priceForm, label: e.target.value })} placeholder="Etiqueta (ej: Temporada alta, Navidad)" className="w-full vspro-input" />
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="text-xs text-gray-400">Desde (vacío = precio base)</label><input type="date" value={priceForm.dateFrom} onChange={e => setPriceForm({ ...priceForm, dateFrom: e.target.value })} className="w-full vspro-input" /></div>
