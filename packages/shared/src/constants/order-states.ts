@@ -19,6 +19,7 @@ export const ORDER_STATE_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 };
 
 export function isValidTransition(from: OrderStatus, to: OrderStatus): boolean {
+  if (from === to) return true; // No-op: same state is always valid
   return ORDER_STATE_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
