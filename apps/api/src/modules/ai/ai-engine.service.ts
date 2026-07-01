@@ -1577,9 +1577,11 @@ FLUJO DE PEDIDO — SIEMPRE SIGUE ESTE ORDEN:
 3. Usa create_order para registrar el pedido
 4. Pregunta: "¿Pasas a recoger o te lo enviamos a domicilio?"
 5. Si es ENVÍO:
+   - Informa que el envío tiene un costo adicional (según configuración del negocio)
    - Pide la dirección escrita (calle, colonia, referencias)
    - Pide que envíe su UBICACIÓN por WhatsApp (el pin/📍) para el repartidor
    - Usa set_delivery_address con la dirección y coordenadas
+   - El costo de envío se suma automáticamente al total
 6. Si es RECOGER: confirma que pase cuando esté listo
 7. Solicita el pago: da los datos bancarios (si los tienes configurados) y pide comprobante de transferencia
 8. Cuando el cliente mande imagen de transferencia, se verifica automáticamente

@@ -78,14 +78,23 @@ export class DeliveryService {
         vehicle_type VARCHAR(50) NOT NULL DEFAULT 'moto',
         status VARCHAR(50) NOT NULL DEFAULT 'available',
         max_deliveries INTEGER NOT NULL DEFAULT 3,
+        delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
+        total_earned DECIMAL(10,2) NOT NULL DEFAULT 0,
+        total_paid DECIMAL(10,2) NOT NULL DEFAULT 0,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
+    await this.prisma.$executeRawUnsafe(`ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0`);
+    await this.prisma.$executeRawUnsafe(`ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS total_earned DECIMAL(10,2) NOT NULL DEFAULT 0`);
+    await this.prisma.$executeRawUnsafe(`ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS total_paid DECIMAL(10,2) NOT NULL DEFAULT 0`);
+
     await this.prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "${schemaName}".delivery_assignments (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         order_id UUID NOT NULL,
-        driver_id UUID NOT NULL,
+        driver_id UUID,
+        external_phone VARCHAR(50),
+        tracking_token VARCHAR(100),
         status VARCHAR(50) NOT NULL DEFAULT 'offered',
         offered_at TIMESTAMPTZ DEFAULT NOW(),
         accepted_at TIMESTAMPTZ,
@@ -98,6 +107,9 @@ export class DeliveryService {
     return this.prisma.$queryRawUnsafe<DeliveryDriver[]>(`
       SELECT d.id, d.name, d.phone, d.vehicle_type AS "vehicleType",
              d.status, d.max_deliveries AS "maxDeliveries",
+             d.delivery_fee AS "deliveryFee",
+             d.total_earned AS "totalEarned", d.total_paid AS "totalPaid",
+             (COALESCE(d.total_earned, 0) - COALESCE(d.total_paid, 0)) AS "balance",
              d.created_at AS "createdAt",
              COUNT(a.id)::int AS "activeDeliveries"
       FROM "${schemaName}".delivery_drivers d
@@ -122,7 +134,7 @@ export class DeliveryService {
   }
 
   async createDriver(dto: CreateDriverDto, schemaName: string): Promise<DeliveryDriver> {
-    // Ensure table exists
+    // Ensure table exists with all columns
     await this.prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "${schemaName}".delivery_drivers (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -131,16 +143,22 @@ export class DeliveryService {
         vehicle_type VARCHAR(50) NOT NULL DEFAULT 'moto',
         status VARCHAR(50) NOT NULL DEFAULT 'available',
         max_deliveries INTEGER NOT NULL DEFAULT 3,
+        delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
+        total_earned DECIMAL(10,2) NOT NULL DEFAULT 0,
+        total_paid DECIMAL(10,2) NOT NULL DEFAULT 0,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
+    await this.prisma.$executeRawUnsafe(`ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0`);
+    await this.prisma.$executeRawUnsafe(`ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS total_earned DECIMAL(10,2) NOT NULL DEFAULT 0`);
+    await this.prisma.$executeRawUnsafe(`ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS total_paid DECIMAL(10,2) NOT NULL DEFAULT 0`);
 
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`
-      INSERT INTO "${schemaName}".delivery_drivers (name, phone, vehicle_type, max_deliveries, status)
-      VALUES ($1, $2, $3, $4, 'available')
+      INSERT INTO "${schemaName}".delivery_drivers (name, phone, vehicle_type, max_deliveries, delivery_fee, status)
+      VALUES ($1, $2, $3, $4, $5, 'available')
       RETURNING id, name, phone, vehicle_type AS "vehicleType", status,
-                max_deliveries AS "maxDeliveries", created_at AS "createdAt"
-    `, dto.name, dto.phone, dto.vehicleType ?? 'moto', dto.maxDeliveries ?? 3);
+                max_deliveries AS "maxDeliveries", delivery_fee AS "deliveryFee", created_at AS "createdAt"
+    `, dto.name, dto.phone, dto.vehicleType ?? 'moto', dto.maxDeliveries ?? 3, (dto as any).deliveryFee ?? 0);
 
     return { ...rows[0], activeDeliveries: 0 };
   }

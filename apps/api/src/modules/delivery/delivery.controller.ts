@@ -5,13 +5,17 @@ import { DeliveryService, CreateDriverDto, RequestDeliveryDto } from './delivery
 import { TenantSchema } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { PrismaService } from '../../database/prisma.service';
 
 @ApiTags('delivery')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller('delivery')
 export class DeliveryController {
-  constructor(private readonly delivery: DeliveryService) {}
+  constructor(
+    private readonly delivery: DeliveryService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   // ─── Drivers CRUD ─────────────────────────────────────────────
 
@@ -119,5 +123,103 @@ export class DeliveryController {
     @Req() req: any,
   ) {
     return this.delivery.dispatchExternal(body.orderId, body.phone, body.driverName, schema, req.user.tenantId);
+  }
+
+  // ─── Assignments History & Driver Payments ────────────────────
+
+  /** Get all delivery assignments with timeline */
+  @Get('assignments')
+  @Roles('admin', 'manager')
+  async getAssignments(@TenantSchema() schema: string) {
+    return this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT da.id, da.status, da.offered_at AS "offeredAt", da.accepted_at AS "acceptedAt",
+             da.picked_up_at AS "pickedUpAt", da.delivered_at AS "deliveredAt",
+             da.created_at AS "createdAt",
+             o.order_number AS "orderNumber", o.total AS "orderTotal",
+             o.shipping_address AS "shippingAddress",
+             c.name AS "customerName",
+             COALESCE(d.name, da.external_phone) AS "driverName",
+             d.phone AS "driverPhone", d.delivery_fee AS "deliveryFee"
+      FROM "${schema}".delivery_assignments da
+      JOIN "${schema}".orders o ON o.id = da.order_id
+      JOIN "${schema}".customers c ON c.id = o.customer_id
+      LEFT JOIN "${schema}".delivery_drivers d ON d.id = da.driver_id
+      ORDER BY da.created_at DESC
+      LIMIT 50
+    `).catch(() => []);
+  }
+
+  /** Get driver payment summary */
+  @Get('drivers/:id/payments')
+  @Roles('admin', 'manager')
+  async getDriverPayments(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
+    const driver = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT id, name, phone, delivery_fee AS "deliveryFee",
+             total_earned AS "totalEarned", total_paid AS "totalPaid",
+             (COALESCE(total_earned, 0) - COALESCE(total_paid, 0)) AS "balance"
+      FROM "${schema}".delivery_drivers WHERE id = $1::uuid
+    `, id);
+
+    const deliveries = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT da.id, da.status, da.delivered_at AS "deliveredAt",
+             o.order_number AS "orderNumber", d.delivery_fee AS "fee"
+      FROM "${schema}".delivery_assignments da
+      JOIN "${schema}".orders o ON o.id = da.order_id
+      LEFT JOIN "${schema}".delivery_drivers d ON d.id = da.driver_id
+      WHERE da.driver_id = $1::uuid AND da.status = 'delivered'
+      ORDER BY da.delivered_at DESC
+      LIMIT 50
+    `, id);
+
+    return { driver: driver[0] ?? null, deliveries };
+  }
+
+  /** Record payment to a driver */
+  @Post('drivers/:id/pay')
+  @Roles('admin')
+  async payDriver(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { amount: number; note?: string },
+    @TenantSchema() schema: string,
+  ) {
+    await this.prisma.$executeRawUnsafe(`
+      ALTER TABLE "${schema}".delivery_drivers ADD COLUMN IF NOT EXISTS total_paid DECIMAL(10,2) NOT NULL DEFAULT 0
+    `);
+    await this.prisma.$executeRawUnsafe(`
+      UPDATE "${schema}".delivery_drivers
+      SET total_paid = COALESCE(total_paid, 0) + $1
+      WHERE id = $2::uuid
+    `, body.amount, id);
+    return { success: true, message: `Pago de $${body.amount} registrado` };
+  }
+
+  /** Get delivery shipping cost config */
+  @Get('shipping-cost')
+  @Roles('admin', 'manager')
+  async getShippingCost(@TenantSchema() schema: string) {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT agent_config->'deliverySettings'->'shippingCost' AS "shippingCost"
+      FROM "${schema}".ai_config LIMIT 1
+    `).catch(() => []);
+    return { shippingCost: rows[0]?.shippingCost ?? 0 };
+  }
+
+  /** Set delivery shipping cost */
+  @Post('shipping-cost')
+  @Roles('admin')
+  async setShippingCost(@Body() body: { cost: number }, @TenantSchema() schema: string) {
+    await this.prisma.$executeRawUnsafe(`
+      ALTER TABLE "${schema}".ai_config ADD COLUMN IF NOT EXISTS agent_config JSONB DEFAULT '{}'
+    `);
+    await this.prisma.$executeRawUnsafe(`
+      UPDATE "${schema}".ai_config
+      SET agent_config = jsonb_set(
+        jsonb_set(COALESCE(agent_config, '{}'::jsonb), '{deliverySettings}', COALESCE(agent_config->'deliverySettings', '{}'::jsonb)),
+        '{deliverySettings,shippingCost}',
+        $1::jsonb
+      ), updated_at = NOW()
+      WHERE id = (SELECT id FROM "${schema}".ai_config LIMIT 1)
+    `, JSON.stringify(body.cost));
+    return { success: true, shippingCost: body.cost };
   }
 }
