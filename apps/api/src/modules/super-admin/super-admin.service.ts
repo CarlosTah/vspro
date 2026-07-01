@@ -696,8 +696,8 @@ export class SuperAdminService {
     for (const t of allTenants) {
       try {
         await this.prisma.$executeRawUnsafe(`
-          DELETE FROM "${t.schemaName}".channels WHERE external_id = $1
-        `, phoneNumberId);
+          DELETE FROM "${t.schemaName}".channels WHERE type = 'whatsapp'
+        `);
       } catch {}
     }
 
