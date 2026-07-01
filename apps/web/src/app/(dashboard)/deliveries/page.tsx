@@ -27,23 +27,26 @@ const assignmentLabels: Record<string, string> = {
   rejected: 'Rechazado',
 };
 
-type Tab = 'active' | 'drivers' | 'history';
+type Tab = 'active' | 'drivers' | 'assignments' | 'history';
 
 export default function DeliveriesPage() {
   const [tab, setTab] = useState<Tab>('active');
   const { data: drivers, loading: loadingDrivers, refetch: refetchDrivers } = useApi<any[]>('/delivery/drivers');
   const { data: active, loading: loadingActive, refetch: refetchActive } = useApi<any[]>('/delivery/active');
   const { data: history, loading: loadingHistory } = useApi<any[]>('/delivery/history');
+  const { data: assignments, refetch: refetchAssignments } = useApi<any[]>('/delivery/assignments');
 
   const [showAddDriver, setShowAddDriver] = useState(false);
-  const [driverForm, setDriverForm] = useState({ name: '', phone: '', vehicleType: 'moto' });
+  const [driverForm, setDriverForm] = useState({ name: '', phone: '', vehicleType: 'moto', deliveryFee: 0 });
   const [saving, setSaving] = useState(false);
+  const [payingDriver, setPayingDriver] = useState<string | null>(null);
+  const [payAmount, setPayAmount] = useState(0);
 
   const handleAddDriver = async () => {
     setSaving(true);
     try {
       await api.post('/delivery/drivers', driverForm);
-      setDriverForm({ name: '', phone: '', vehicleType: 'moto' });
+      setDriverForm({ name: '', phone: '', vehicleType: 'moto', deliveryFee: 0 });
       setShowAddDriver(false);
       refetchDrivers();
     } catch (err: any) {
@@ -115,6 +118,17 @@ export default function DeliveriesPage() {
               <option value="a_pie">🚶 A pie</option>
             </select>
           </div>
+          <div>
+            <label className="text-xs text-gray-400">Tarifa por envío ($)</label>
+            <input
+              type="number"
+              value={driverForm.deliveryFee}
+              onChange={(e) => setDriverForm({ ...driverForm, deliveryFee: parseFloat(e.target.value) || 0 })}
+              placeholder="50"
+              min={0}
+              className="vspro-input"
+            />
+          </div>
           <button
             onClick={handleAddDriver}
             disabled={saving || !driverForm.name || !driverForm.phone}
@@ -130,6 +144,7 @@ export default function DeliveriesPage() {
         {([
           { key: 'active', label: '🚀 Entregas activas' },
           { key: 'drivers', label: '👥 Repartidores' },
+          { key: 'assignments', label: '📨 Asignaciones' },
           { key: 'history', label: '📋 Historial' },
         ] as { key: Tab; label: string }[]).map(t => (
           <button
@@ -191,7 +206,8 @@ export default function DeliveriesPage() {
                   <th className="px-5 py-3 text-left font-medium text-gray-400">Repartidor</th>
                   <th className="px-5 py-3 text-left font-medium text-gray-400">Vehículo</th>
                   <th className="px-5 py-3 text-left font-medium text-gray-400">Estado</th>
-                  <th className="px-5 py-3 text-left font-medium text-gray-400">Entregas activas</th>
+                  <th className="px-5 py-3 text-left font-medium text-gray-400">Tarifa</th>
+                  <th className="px-5 py-3 text-left font-medium text-gray-400">Saldo</th>
                   <th className="px-5 py-3 text-left font-medium text-gray-400">Acciones</th>
                 </tr>
               </thead>
@@ -216,8 +232,19 @@ export default function DeliveriesPage() {
                         <option value="offline">Offline</option>
                       </select>
                     </td>
-                    <td className="px-5 py-3 text-gray-300">
-                      {d.activeDeliveries ?? 0} / {d.maxDeliveries ?? 3}
+                    <td className="px-5 py-3 text-white font-medium">
+                      ${parseFloat(d.deliveryFee ?? 0).toLocaleString('es-MX')}
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className={`font-medium ${parseFloat(d.balance ?? 0) > 0 ? 'text-yellow-400' : 'text-gray-400'}`}>
+                        ${parseFloat(d.balance ?? 0).toLocaleString('es-MX')}
+                      </span>
+                      {parseFloat(d.balance ?? 0) > 0 && (
+                        <button
+                          onClick={() => { setPayingDriver(d.id); setPayAmount(parseFloat(d.balance ?? 0)); }}
+                          className="ml-2 text-[10px] text-green-400 hover:text-green-300 border border-green-600 rounded px-1.5 py-0.5"
+                        >Pagar</button>
+                      )}
                     </td>
                     <td className="px-5 py-3">
                       <button
@@ -243,6 +270,83 @@ export default function DeliveriesPage() {
       )}
 
       {/* History */}
+      {/* Assignments Tab */}
+      {tab === 'assignments' && (
+        <div className="rounded-xl border border-card-border bg-card overflow-hidden">
+          {assignments && assignments.length > 0 ? (
+            <table className="w-full text-sm">
+              <thead className="border-b border-gray-700">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Pedido</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Repartidor</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Estado</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Dirección</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Timeline</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-700/50">
+                {assignments.map((a: any) => (
+                  <tr key={a.id} className="hover:bg-gray-800/30">
+                    <td className="px-4 py-3">
+                      <p className="text-white font-medium">#{a.orderNumber}</p>
+                      <p className="text-xs text-gray-500">{a.customerName}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-white">{a.driverName ?? 'Sin asignar'}</p>
+                      <p className="text-xs text-gray-500">{a.driverPhone ?? ''}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${assignmentColors[a.status] ?? ''}`}>
+                        {assignmentLabels[a.status] ?? a.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-300 max-w-[150px] truncate">
+                      {typeof a.shippingAddress === 'object'
+                        ? `${a.shippingAddress?.street ?? ''} ${a.shippingAddress?.colony ?? ''}`
+                        : (a.shippingAddress ?? '—')}
+                    </td>
+                    <td className="px-4 py-3 text-[10px] text-gray-400 space-y-0.5">
+                      {a.offeredAt && <p>📨 {new Date(a.offeredAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</p>}
+                      {a.acceptedAt && <p>✅ {new Date(a.acceptedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</p>}
+                      {a.pickedUpAt && <p>📦 {new Date(a.pickedUpAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</p>}
+                      {a.deliveredAt && <p>🏠 {new Date(a.deliveredAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</p>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="p-8 text-center text-gray-500">Sin asignaciones de entrega</div>
+          )}
+        </div>
+      )}
+
+      {/* Pay Driver Modal */}
+      {payingDriver && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-gray-800 border border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Pagar repartidor</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-400">Monto a pagar ($)</label>
+                <input type="number" value={payAmount} onChange={e => setPayAmount(parseFloat(e.target.value) || 0)} min={0} className="w-full vspro-input" />
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setPayingDriver(null)} className="flex-1 rounded-lg border border-gray-600 py-2 text-sm text-gray-300">Cancelar</button>
+                <button
+                  onClick={async () => {
+                    await api.post(`/delivery/drivers/${payingDriver}/pay`, { amount: payAmount });
+                    setPayingDriver(null);
+                    refetchDrivers();
+                  }}
+                  className="flex-1 rounded-lg bg-green-600 py-2 text-sm text-white hover:bg-green-700"
+                >Confirmar pago</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {tab === 'history' && (
         <div className="rounded-xl border border-card-border bg-card overflow-hidden">
           {loadingHistory ? (
