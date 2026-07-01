@@ -190,9 +190,7 @@ export class OrdersService {
         `${itemsList}\n\n` +
         `💰 *Total: $${total.toLocaleString('es-MX')} MXN*\n` +
         `${paymentInfo}\n` +
-        `Para confirmar tu pedido:\n` +
-        `1️⃣ Realiza tu transferencia y envíanos el comprobante aquí 📸\n` +
-        `2️⃣ O paga en línea: https://app.vspro.app/pay/${order.orderNumber}\n\n` +
+        `Para confirmar tu pedido, realiza tu transferencia y envíanos el comprobante aquí. 📸\n\n` +
         `¡Gracias por tu preferencia! 🙏`;
 
       await this.messagingFactory.sendText(
