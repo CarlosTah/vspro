@@ -7,6 +7,11 @@ export class AiConfigService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getConfig(schemaName: string) {
+    // Ensure agent_config column exists
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schemaName}".ai_config ADD COLUMN IF NOT EXISTS agent_config JSONB DEFAULT '{}'`
+    );
+
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`
       SELECT
         id,
