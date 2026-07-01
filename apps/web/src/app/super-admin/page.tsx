@@ -53,6 +53,10 @@ export default function SuperAdminPage() {
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastResult, setBroadcastResult] = useState<any>(null);
 
+  // Test number state
+  const [testNumber, setTestNumber] = useState<any>(null);
+  const [assigningNumber, setAssigningNumber] = useState(false);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -65,8 +69,9 @@ export default function SuperAdminPage() {
       api.get('/super-admin/plans'),
       api.get('/super-admin/analytics'),
       api.get('/super-admin/broadcasts'),
+      api.get('/super-admin/test-number'),
     ])
-      .then(([s, t, p, a, b]) => { setStats(s); setTenants(t); setPlans(p); setAnalytics(a); setBroadcasts(b); })
+      .then(([s, t, p, a, b, tn]) => { setStats(s); setTenants(t); setPlans(p); setAnalytics(a); setBroadcasts(b); setTestNumber(tn); })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
@@ -170,6 +175,19 @@ export default function SuperAdminPage() {
     }
   };
 
+  const handleAssignTestNumber = async (slug: string) => {
+    setAssigningNumber(true);
+    try {
+      await api.post('/super-admin/test-number/assign', { tenantSlug: slug });
+      const tn = await api.get('/super-admin/test-number');
+      setTestNumber(tn);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setAssigningNumber(false);
+    }
+  };
+
   if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-gray-400">Cargando...</div>;
 
   // Calculate revenue metrics
@@ -237,11 +255,47 @@ export default function SuperAdminPage() {
 
         {/* Overview Tab */}
         {tab === 'overview' && stats && (
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard label="MRR" value={`$${mrr.toLocaleString('es-MX')}`} sub="MXN/mes" color="text-green-400" />
-            <StatCard label="Tenants activos" value={activeTenants.length} sub="pagando" color="text-blue-400" />
-            <StatCard label="En trial" value={trialTenants.length} sub="7 días gratis" color="text-yellow-400" />
-            <StatCard label="Total tenants" value={tenants.length} sub="registrados" color="text-purple-400" />
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <StatCard label="MRR" value={`$${mrr.toLocaleString('es-MX')}`} sub="MXN/mes" color="text-green-400" />
+              <StatCard label="Tenants activos" value={activeTenants.length} sub="pagando" color="text-blue-400" />
+              <StatCard label="En trial" value={trialTenants.length} sub="7 días gratis" color="text-yellow-400" />
+              <StatCard label="Total tenants" value={tenants.length} sub="registrados" color="text-purple-400" />
+            </div>
+
+            {/* Test Number Switcher */}
+            {testNumber && (
+              <div className="rounded-xl border border-yellow-700/50 bg-yellow-900/10 p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-yellow-300">📱 Número de prueba WhatsApp</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {testNumber.currentTenant
+                        ? `Asignado a: ${testNumber.currentTenant.businessName} (${testNumber.currentTenant.slug})`
+                        : 'Sin asignar'}
+                    </p>
+                  </div>
+                  <span className="text-xs text-gray-500 font-mono">{testNumber.phoneNumberId}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {testNumber.tenants?.map((t: any) => (
+                    <button
+                      key={t.slug}
+                      onClick={() => handleAssignTestNumber(t.slug)}
+                      disabled={assigningNumber || testNumber.currentTenant?.slug === t.slug}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                        testNumber.currentTenant?.slug === t.slug
+                          ? 'bg-yellow-600 text-white'
+                          : 'border border-gray-600 text-gray-300 hover:border-yellow-500 hover:text-yellow-300'
+                      } disabled:opacity-50`}
+                    >
+                      {testNumber.currentTenant?.slug === t.slug ? '✓ ' : ''}{t.businessName}
+                    </button>
+                  ))}
+                </div>
+                {assigningNumber && <p className="text-xs text-yellow-400 mt-2">Cambiando...</p>}
+              </div>
+            )}
           </div>
         )}
 

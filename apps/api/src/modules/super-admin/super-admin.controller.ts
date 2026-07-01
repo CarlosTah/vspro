@@ -233,4 +233,16 @@ export class SuperAdminController {
   getBroadcasts() {
     return this.superAdminService.getBroadcastHistory();
   }
+
+  // ─── Test Number Assignment ───────────────────────────────────
+
+  @Get('test-number')
+  getTestNumberAssignment() {
+    return this.superAdminService.getTestNumberAssignment();
+  }
+
+  @Post('test-number/assign')
+  assignTestNumber(@Body() dto: { tenantSlug: string }) {
+    return this.superAdminService.assignTestNumber(dto.tenantSlug);
+  }
 }

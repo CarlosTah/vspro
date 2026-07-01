@@ -617,4 +617,113 @@ export class SuperAdminService {
       return [];
     }
   }
+
+  // ─── Test Number Assignment ───────────────────────────────────
+
+  /**
+   * Get which tenant currently has the test WhatsApp number assigned.
+   * The test number is the one registered in Meta (phone_number_id from VSPRO's channel).
+   */
+  async getTestNumberAssignment() {
+    // Get the VSPRO phone number ID (the only verified one in Meta)
+    const vsproChannel = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT external_id, access_token FROM "tenant_vspro".channels
+      WHERE type = 'whatsapp' AND is_active = true LIMIT 1
+    `);
+
+    const phoneNumberId = vsproChannel[0]?.external_id;
+    const accessToken = vsproChannel[0]?.access_token;
+
+    if (!phoneNumberId) {
+      return { assigned: false, phoneNumberId: null, currentTenant: null, tenants: [] };
+    }
+
+    // Find which tenant currently has this phone_number_id
+    const tenants = await this.prisma.tenant.findMany({
+      where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+      select: { id: true, slug: true, schemaName: true, businessName: true },
+    });
+
+    let currentTenant: any = null;
+
+    for (const t of tenants) {
+      try {
+        const channels = await this.prisma.$queryRawUnsafe<any[]>(`
+          SELECT 1 FROM "${t.schemaName}".channels
+          WHERE external_id = $1 AND is_active = true LIMIT 1
+        `, phoneNumberId);
+        if (channels.length > 0) {
+          currentTenant = t;
+          break;
+        }
+      } catch {}
+    }
+
+    return {
+      assigned: !!currentTenant,
+      phoneNumberId,
+      currentTenant: currentTenant ? { slug: currentTenant.slug, businessName: currentTenant.businessName } : null,
+      tenants: tenants.map(t => ({ slug: t.slug, businessName: t.businessName })),
+    };
+  }
+
+  /**
+   * Move the test WhatsApp number to a different tenant.
+   * Removes from current tenant's channels and adds to the target tenant.
+   */
+  async assignTestNumber(tenantSlug: string) {
+    // Get the phone number ID and token from VSPRO
+    const vsproChannel = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT external_id, access_token FROM "tenant_vspro".channels
+      WHERE type = 'whatsapp' LIMIT 1
+    `);
+
+    if (!vsproChannel[0]) throw new NotFoundException('No hay número de WhatsApp configurado en VSPRO');
+
+    const phoneNumberId = vsproChannel[0].external_id;
+    const accessToken = vsproChannel[0].access_token;
+
+    // Find target tenant
+    const target = await this.prisma.tenant.findUnique({ where: { slug: tenantSlug } });
+    if (!target) throw new NotFoundException(`Tenant ${tenantSlug} no encontrado`);
+
+    // Remove from ALL tenants
+    const allTenants = await this.prisma.tenant.findMany({
+      where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+      select: { schemaName: true },
+    });
+
+    for (const t of allTenants) {
+      try {
+        await this.prisma.$executeRawUnsafe(`
+          DELETE FROM "${t.schemaName}".channels WHERE external_id = $1
+        `, phoneNumberId);
+      } catch {}
+    }
+
+    // Add to target tenant
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${target.schemaName}".channels (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        type VARCHAR(50) NOT NULL,
+        external_id VARCHAR(255) NOT NULL,
+        access_token TEXT NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        config JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await this.prisma.$executeRawUnsafe(`
+      INSERT INTO "${target.schemaName}".channels (type, external_id, access_token, is_active)
+      VALUES ('whatsapp', $1, $2, true)
+    `, phoneNumberId, accessToken);
+
+    return {
+      success: true,
+      message: `Número de prueba asignado a "${target.businessName}" (${tenantSlug})`,
+      phoneNumberId,
+      assignedTo: { slug: target.slug, businessName: target.businessName },
+    };
+  }
 }
