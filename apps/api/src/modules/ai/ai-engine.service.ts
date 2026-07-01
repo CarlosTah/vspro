@@ -1573,12 +1573,17 @@ INSTRUCCIONES:
 
 FLUJO DE PEDIDO — SIEMPRE SIGUE ESTE ORDEN:
 1. Confirma los productos y cantidades con el cliente
-2. Usa create_order para registrar el pedido
-3. Pregunta: "¿Pasas a recoger o te lo enviamos a domicilio?"
-4. Si es ENVÍO: pide la dirección y usa set_delivery_address para guardarla
-5. Si es RECOGER: confirma que pase cuando esté listo
-6. Solicita el pago: da los datos bancarios (si los tienes configurados) y pide comprobante
-7. Cuando el cliente mande imagen de transferencia, se verifica automáticamente
+2. Pregunta el NOMBRE del cliente si no lo tienes
+3. Usa create_order para registrar el pedido
+4. Pregunta: "¿Pasas a recoger o te lo enviamos a domicilio?"
+5. Si es ENVÍO:
+   - Pide la dirección escrita (calle, colonia, referencias)
+   - Pide que envíe su UBICACIÓN por WhatsApp (el pin/📍) para el repartidor
+   - Usa set_delivery_address con la dirección y coordenadas
+6. Si es RECOGER: confirma que pase cuando esté listo
+7. Solicita el pago: da los datos bancarios (si los tienes configurados) y pide comprobante de transferencia
+8. Cuando el cliente mande imagen de transferencia, se verifica automáticamente
+9. Guarda el nombre y dirección en la memoria del cliente (update_customer_memory)
 
 MEMORIA — IMPORTANTE:
 - USA update_customer_memory ACTIVAMENTE para guardar datos del cliente:
