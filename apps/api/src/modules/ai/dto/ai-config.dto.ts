@@ -44,6 +44,14 @@ export class UpdateAiConfigDto {
   @ApiProperty({ description: 'Business data (name, phone, address, social media, location)', required: false })
   @IsOptional()
   businessData?: Record<string, any>;
+
+  @ApiProperty({ description: 'Agent objectives (what the agent should do)', example: ['vender', 'agendar_citas', 'soporte'], required: false })
+  @IsOptional()
+  objectives?: string[];
+
+  @ApiProperty({ description: 'Red lines — things the agent must NEVER say or do', example: ['No dar descuentos mayores a 20%', 'No prometer entregas el mismo día'], required: false })
+  @IsOptional()
+  redLines?: string[];
 }
 
 export class TestChatDto {

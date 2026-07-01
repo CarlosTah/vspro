@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Param, Body,
+  Controller, Get, Post, Patch, Param, Body,
   Query, UseGuards, ParseUUIDPipe,
   UseInterceptors, UploadedFile,
 } from '@nestjs/common';
@@ -10,6 +10,7 @@ import { ConversationsService } from './conversations.service';
 import { TenantSchema } from '../../common/decorators/tenant.decorator';
 import { MessagingFactory } from '../messaging/messaging-factory.service';
 import { MessagingService } from '../messaging/messaging.service';
+import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { PrismaService } from '../../database/prisma.service';
 
 @ApiTags('conversations')
@@ -21,6 +22,7 @@ export class ConversationsController {
     private readonly conversationsService: ConversationsService,
     private readonly messagingFactory: MessagingFactory,
     private readonly messagingService: MessagingService,
+    private readonly knowledgeBase: KnowledgeBaseService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -143,5 +145,118 @@ export class ConversationsController {
     `, id);
 
     return { success: result.success, type: msgType, filename: file.originalname, error: result.error };
+  }
+
+  // ─── Message Rating & Correction (Layer 3: AI Maturation) ─────
+
+  /** Rate a message (thumbs up/down) */
+  @Patch('messages/:messageId/rate')
+  async rateMessage(
+    @Param('messageId', ParseUUIDPipe) messageId: string,
+    @Body() body: { rating: 'up' | 'down' },
+    @TenantSchema() schema: string,
+  ) {
+    await this.prisma.$executeRawUnsafe(`
+      ALTER TABLE "${schema}".messages ADD COLUMN IF NOT EXISTS rating VARCHAR(10)
+    `);
+    await this.prisma.$executeRawUnsafe(`
+      ALTER TABLE "${schema}".messages ADD COLUMN IF NOT EXISTS correction TEXT
+    `);
+    await this.prisma.$executeRawUnsafe(`
+      UPDATE "${schema}".messages SET rating = $1 WHERE id = $2::uuid
+    `, body.rating, messageId);
+    return { success: true };
+  }
+
+  /** Correct a message — saves correction AND auto-creates KB entry */
+  @Post('messages/:messageId/correct')
+  async correctMessage(
+    @Param('messageId', ParseUUIDPipe) messageId: string,
+    @Body() body: { correction: string },
+    @TenantSchema() schema: string,
+  ) {
+    // Ensure columns exist
+    await this.prisma.$executeRawUnsafe(`
+      ALTER TABLE "${schema}".messages ADD COLUMN IF NOT EXISTS rating VARCHAR(10)
+    `);
+    await this.prisma.$executeRawUnsafe(`
+      ALTER TABLE "${schema}".messages ADD COLUMN IF NOT EXISTS correction TEXT
+    `);
+
+    // Get the original message content
+    const msgs = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT content FROM "${schema}".messages WHERE id = $1::uuid
+    `, messageId);
+    const originalContent = msgs[0]?.content ?? '';
+
+    // Save correction and mark as thumbs down
+    await this.prisma.$executeRawUnsafe(`
+      UPDATE "${schema}".messages SET rating = 'down', correction = $1 WHERE id = $2::uuid
+    `, body.correction, messageId);
+
+    // Auto-create Knowledge Base entry with the correction
+    await this.knowledgeBase.create({
+      title: `Corrección: ${originalContent.slice(0, 80)}...`,
+      content: `Cuando el agente responda sobre este tema, la respuesta correcta es:\n\n${body.correction}\n\n(Respuesta original incorrecta: "${originalContent.slice(0, 200)}")`,
+      category: 'correction',
+    }, schema);
+
+    return { success: true, message: 'Corrección guardada y base de conocimiento actualizada' };
+  }
+
+  /** Get AI quality metrics */
+  @Get('quality/metrics')
+  async getQualityMetrics(@TenantSchema() schema: string) {
+    // Ensure columns exist
+    await this.prisma.$executeRawUnsafe(`
+      ALTER TABLE "${schema}".messages ADD COLUMN IF NOT EXISTS rating VARCHAR(10)
+    `);
+    await this.prisma.$executeRawUnsafe(`
+      ALTER TABLE "${schema}".messages ADD COLUMN IF NOT EXISTS correction TEXT
+    `);
+
+    const metrics = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT
+        COUNT(*) FILTER (WHERE direction = 'outbound' AND ai_processed = true)::int AS "totalAiMessages",
+        COUNT(*) FILTER (WHERE rating = 'up')::int AS "thumbsUp",
+        COUNT(*) FILTER (WHERE rating = 'down')::int AS "thumbsDown",
+        COUNT(*) FILTER (WHERE correction IS NOT NULL)::int AS "corrections"
+      FROM "${schema}".messages
+    `);
+
+    const m = metrics[0] ?? {};
+    const total = (m.thumbsUp ?? 0) + (m.thumbsDown ?? 0);
+    const satisfactionRate = total > 0 ? Math.round((m.thumbsUp / total) * 100) : 100;
+
+    // Get recent corrections
+    const recentCorrections = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT m.id, m.content AS "originalMessage", m.correction, m.created_at AS "createdAt",
+             c.customer_id
+      FROM "${schema}".messages m
+      JOIN "${schema}".conversations conv ON conv.id = m.conversation_id
+      LEFT JOIN "${schema}".customers c ON c.id = conv.customer_id
+      WHERE m.correction IS NOT NULL
+      ORDER BY m.created_at DESC
+      LIMIT 20
+    `);
+
+    // Get recent thumbs down without correction (need attention)
+    const needsAttention = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT m.id, m.content AS "message", m.created_at AS "createdAt"
+      FROM "${schema}".messages m
+      WHERE m.rating = 'down' AND m.correction IS NULL
+      ORDER BY m.created_at DESC
+      LIMIT 10
+    `);
+
+    return {
+      totalAiMessages: m.totalAiMessages ?? 0,
+      thumbsUp: m.thumbsUp ?? 0,
+      thumbsDown: m.thumbsDown ?? 0,
+      corrections: m.corrections ?? 0,
+      satisfactionRate,
+      recentCorrections,
+      needsAttention,
+    };
   }
 }

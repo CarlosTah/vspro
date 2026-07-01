@@ -1485,7 +1485,9 @@ export class AiEngineService {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`
       SELECT assistant_name AS "assistantName", tone, welcome_message AS "welcomeMessage",
              away_message AS "awayMessage", language, business_hours AS "businessHours",
-             custom_instructions AS "customInstructions"
+             custom_instructions AS "customInstructions",
+             agent_config->'objectives' AS "objectives",
+             agent_config->'redLines' AS "redLines"
       FROM "${schemaName}".ai_config
       LIMIT 1
     `);
@@ -1542,7 +1544,9 @@ MEMORIA — IMPORTANTE:
 CATÁLOGO DISPONIBLE:
 ${productList || 'No hay productos disponibles en este momento.'}
 
-${aiConfig.customInstructions ? `INSTRUCCIONES ADICIONALES:\n${aiConfig.customInstructions}` : ''}`.trim();
+${aiConfig.customInstructions ? `INSTRUCCIONES ADICIONALES:\n${aiConfig.customInstructions}` : ''}
+${aiConfig.objectives?.length ? `\nOBJETIVOS DEL AGENTE:\n${aiConfig.objectives.map((o: string) => `- ${o}`).join('\n')}` : ''}
+${aiConfig.redLines?.length ? `\nLÍNEAS ROJAS — NUNCA hagas esto:\n${aiConfig.redLines.map((r: string) => `❌ ${r}`).join('\n')}` : ''}`.trim();
   }
 
   /**

@@ -18,6 +18,8 @@ export class AiConfigService {
         business_hours AS "businessHours",
         custom_instructions AS "customInstructions",
         agent_config->'businessData' AS "businessData",
+        agent_config->'objectives' AS "objectives",
+        agent_config->'redLines' AS "redLines",
         updated_at AS "updatedAt"
       FROM "${schemaName}".ai_config
       LIMIT 1
@@ -64,6 +66,29 @@ export class AiConfigService {
         ), updated_at = NOW()
         WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
       `, JSON.stringify(dto.businessData));
+    }
+
+    // Store objectives and redLines in agent_config
+    if (dto.objectives !== undefined) {
+      await this.prisma.$executeRawUnsafe(`
+        ALTER TABLE "${schemaName}".ai_config ADD COLUMN IF NOT EXISTS agent_config JSONB DEFAULT '{}'
+      `);
+      await this.prisma.$executeRawUnsafe(`
+        UPDATE "${schemaName}".ai_config
+        SET agent_config = jsonb_set(COALESCE(agent_config, '{}'::jsonb), '{objectives}', $1::jsonb), updated_at = NOW()
+        WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
+      `, JSON.stringify(dto.objectives));
+    }
+
+    if (dto.redLines !== undefined) {
+      await this.prisma.$executeRawUnsafe(`
+        ALTER TABLE "${schemaName}".ai_config ADD COLUMN IF NOT EXISTS agent_config JSONB DEFAULT '{}'
+      `);
+      await this.prisma.$executeRawUnsafe(`
+        UPDATE "${schemaName}".ai_config
+        SET agent_config = jsonb_set(COALESCE(agent_config, '{}'::jsonb), '{redLines}', $1::jsonb), updated_at = NOW()
+        WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
+      `, JSON.stringify(dto.redLines));
     }
 
     return this.getConfig(schemaName);

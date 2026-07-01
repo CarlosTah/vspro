@@ -15,6 +15,8 @@ export default function ConversationsPage() {
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [correcting, setCorrecting] = useState<string | null>(null);
+  const [correctionText, setCorrectionText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -171,6 +173,61 @@ export default function ConversationsPage() {
                           </span>
                         )}
                       </div>
+                      {/* Rating buttons for AI outbound messages */}
+                      {msg.direction === 'outbound' && !msg.isManual && (
+                        <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-gray-700/50">
+                          {msg.rating === 'up' ? (
+                            <span className="text-xs text-green-400">👍 Correcta</span>
+                          ) : msg.rating === 'down' ? (
+                            <span className="text-xs text-red-400">👎 Corregida</span>
+                          ) : (
+                            <>
+                              <button
+                                onClick={async () => {
+                                  await api.patch(`/conversations/messages/${msg.id}/rate`, { rating: 'up' });
+                                  setMessages(messages.map((m: any) => m.id === msg.id ? { ...m, rating: 'up' } : m));
+                                }}
+                                className="text-xs text-gray-500 hover:text-green-400 transition-colors px-1"
+                                title="Respuesta correcta"
+                              >👍</button>
+                              <button
+                                onClick={() => setCorrecting(msg.id)}
+                                className="text-xs text-gray-500 hover:text-red-400 transition-colors px-1"
+                                title="Respuesta incorrecta — corregir"
+                              >👎</button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {/* Correction form */}
+                      {correcting === msg.id && (
+                        <div className="mt-2 pt-2 border-t border-gray-700/50 space-y-2">
+                          <p className="text-xs text-red-300">¿Qué debió responder?</p>
+                          <textarea
+                            value={correctionText}
+                            onChange={(e) => setCorrectionText(e.target.value)}
+                            placeholder="Escribe la respuesta correcta..."
+                            rows={2}
+                            className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-1.5 text-xs text-white resize-none focus:outline-none focus:ring-1 focus:ring-red-500"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={async () => {
+                                if (!correctionText.trim()) return;
+                                await api.post(`/conversations/messages/${msg.id}/correct`, { correction: correctionText });
+                                setMessages(messages.map((m: any) => m.id === msg.id ? { ...m, rating: 'down', correction: correctionText } : m));
+                                setCorrecting(null);
+                                setCorrectionText('');
+                              }}
+                              className="text-xs bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700"
+                            >Guardar corrección</button>
+                            <button
+                              onClick={() => { setCorrecting(null); setCorrectionText(''); }}
+                              className="text-xs text-gray-400 px-2"
+                            >Cancelar</button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))
