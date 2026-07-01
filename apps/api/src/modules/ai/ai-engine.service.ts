@@ -1374,6 +1374,19 @@ export class AiEngineService {
         try {
           const { ReservationsService } = await import('../reservations/reservations.service');
           const reservationsService = new ReservationsService(this.prisma);
+
+          // Check if tenant has multiple properties
+          let propertiesInfo = '';
+          try {
+            const props = await this.prisma.$queryRawUnsafe<any[]>(`
+              SELECT id, name, capacity, price_per_night AS "pricePerNight"
+              FROM "${schemaName}".properties WHERE is_active = true ORDER BY name
+            `);
+            if (props.length > 1) {
+              propertiesInfo = `\n\nPropiedades disponibles:\n${props.map(p => `• ${p.name} (${p.capacity} huéspedes, $${parseFloat(p.pricePerNight)}/noche)`).join('\n')}`;
+            }
+          } catch {}
+
           const result = await reservationsService.checkAvailability(args.checkIn, args.checkOut, schemaName);
 
           if (result.available) {
@@ -1386,13 +1399,13 @@ export class AiEngineService {
               nights,
               totalPrice: price,
               pricePerNight: nights > 0 ? Math.round(price / nights) : 0,
-              message: `¡Sí hay disponibilidad! Del ${args.checkIn} al ${args.checkOut} (${nights} noches) por $${price.toLocaleString('es-MX')} MXN${nights > 0 ? ` ($${Math.round(price / nights)}/noche)` : ''}.`,
+              message: `¡Sí hay disponibilidad! Del ${args.checkIn} al ${args.checkOut} (${nights} noches) por $${price.toLocaleString('es-MX')} MXN${nights > 0 ? ` ($${Math.round(price / nights)}/noche)` : ''}.${propertiesInfo}`,
             });
           } else {
             return JSON.stringify({
               available: false,
               conflicts: result.conflicts.length,
-              message: `Lo siento, esas fechas no están disponibles. Ya hay ${result.conflicts.length} reserva(s) en ese período. ¿Te gustaría consultar otras fechas?`,
+              message: `Lo siento, esas fechas no están disponibles. Ya hay ${result.conflicts.length} reserva(s) en ese período. ¿Te gustaría consultar otras fechas?${propertiesInfo}`,
             });
           }
         } catch (err: any) {
@@ -1426,27 +1439,61 @@ export class AiEngineService {
 
       case 'get_property_info': {
         try {
-          // Get property info from products and knowledge base
+          // Try to get from properties table first (inmobiliaria)
+          let props: any[] = [];
+          try {
+            props = await this.prisma.$queryRawUnsafe<any[]>(`
+              SELECT id, name, description, address, capacity, bedrooms, bathrooms,
+                     amenities, rules, images, price_per_night AS "pricePerNight",
+                     price_per_week AS "pricePerWeek", price_per_month AS "pricePerMonth",
+                     min_nights AS "minNights", lat, lng
+              FROM "${schemaName}".properties WHERE is_active = true
+            `);
+          } catch {}
+
+          if (props.length > 0) {
+            // Has rental properties
+            if (props.length === 1) {
+              const p = props[0];
+              const amenitiesList = (p.amenities ?? []).join(', ');
+              const rulesList = (p.rules ?? []).map((r: string) => `• ${r}`).join('\n');
+              const mapsLink = p.lat && p.lng ? `https://maps.google.com/?q=${p.lat},${p.lng}` : '';
+
+              return JSON.stringify({
+                success: true,
+                property: p,
+                message: `🏠 *${p.name}*\n\n${p.description ?? ''}\n\n` +
+                  `📍 ${p.address ?? 'Ubicación disponible al reservar'}${mapsLink ? ` (${mapsLink})` : ''}\n` +
+                  `👥 Hasta ${p.capacity} huéspedes | 🛏️ ${p.bedrooms} hab | 🚿 ${p.bathrooms} baños\n` +
+                  `💰 Desde $${parseFloat(p.pricePerNight)}/noche` +
+                  (p.pricePerWeek ? ` | $${parseFloat(p.pricePerWeek)}/semana` : '') +
+                  (p.pricePerMonth ? ` | $${parseFloat(p.pricePerMonth)}/mes` : '') +
+                  `\n📅 Mínimo ${p.minNights} noche(s)` +
+                  (amenitiesList ? `\n\n✨ Amenidades: ${amenitiesList}` : '') +
+                  (rulesList ? `\n\n📋 Reglas:\n${rulesList}` : ''),
+              });
+            } else {
+              // Multiple properties
+              const list = props.map(p =>
+                `• *${p.name}* — $${parseFloat(p.pricePerNight)}/noche, ${p.capacity} huéspedes, ${p.bedrooms} hab`
+              ).join('\n');
+              return JSON.stringify({
+                success: true,
+                properties: props.map(p => ({ id: p.id, name: p.name, price: p.pricePerNight, capacity: p.capacity })),
+                message: `Tenemos ${props.length} propiedades disponibles:\n\n${list}\n\n¿Cuál te interesa? Puedo darte más detalles de cualquiera.`,
+              });
+            }
+          }
+
+          // Fallback: use products + KB
           const products = await this.productsService.findAll(schemaName, true);
           const kbContext = await this.knowledgeBase.buildKnowledgeContext(schemaName);
-
-          const property = products[0]; // First product = main property
-          let info: any = { name: property?.name ?? 'Propiedad', price: property?.price };
-
-          // Get pricing rules
-          const { ReservationsService } = await import('../reservations/reservations.service');
-          const reservationsService = new ReservationsService(this.prisma);
-          const rules = await reservationsService.getPricingRules(schemaName);
-          const defaultPrice = rules.find((r: any) => r.isDefault);
-
-          info.pricePerNight = defaultPrice ? parseFloat(defaultPrice.pricePerNight) : (property?.price ?? 0);
-          info.description = property?.description ?? '';
-          info.knowledgeBase = kbContext;
+          const property = products[0];
 
           return JSON.stringify({
             success: true,
-            property: info,
-            message: `${info.name}: $${info.pricePerNight}/noche. ${info.description}`,
+            property: { name: property?.name ?? 'Propiedad', price: property?.price },
+            message: `${property?.name ?? 'Propiedad'}: $${property?.price ?? 0}/noche. ${property?.description ?? ''}`,
           });
         } catch (err: any) {
           return JSON.stringify({ success: false, message: `Error al obtener info: ${err.message}` });

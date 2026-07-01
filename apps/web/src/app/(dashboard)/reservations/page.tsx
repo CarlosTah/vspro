@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-type Tab = 'calendar' | 'list' | 'pricing';
+type Tab = 'calendar' | 'list' | 'pricing' | 'metrics';
 
 export default function ReservationsPage() {
   const now = new Date();
@@ -18,6 +18,9 @@ export default function ReservationsPage() {
   const [tab, setTab] = useState<Tab>('calendar');
   const [showNewReservation, setShowNewReservation] = useState(false);
   const [showNewPrice, setShowNewPrice] = useState(false);
+  const [showBlockDates, setShowBlockDates] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<string>('all');
+  const [properties, setProperties] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
 
   // New reservation form
@@ -25,18 +28,23 @@ export default function ReservationsPage() {
   // New pricing form
   const [priceForm, setPriceForm] = useState({ pricePerNight: 0, pricePerWeek: 0, pricePerMonth: 0, dateFrom: '', dateTo: '', label: '', minNights: 1 });
 
+  // Block dates form
+  const [blockForm, setBlockForm] = useState({ checkIn: '', checkOut: '', notes: 'Bloqueado' });
+
   useEffect(() => { loadData(); }, [year, month]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [cal, list, rules] = await Promise.all([
+      const [cal, list, rules, props] = await Promise.all([
         api.get(`/reservations/calendar?year=${year}&month=${month}`),
         api.get('/reservations'),
         api.get('/reservations/pricing'),
+        api.get('/properties-rental').catch(() => []),
       ]);
       setReservations(list);
       setPricing(rules);
+      setProperties(props);
     } catch {}
     setLoading(false);
   };
@@ -71,6 +79,18 @@ export default function ReservationsPage() {
     loadData();
   };
 
+  const handleBlockDates = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.post('/reservations', { guestName: 'BLOQUEADO', checkIn: blockForm.checkIn, checkOut: blockForm.checkOut, notes: blockForm.notes });
+      setShowBlockDates(false);
+      setBlockForm({ checkIn: '', checkOut: '', notes: 'Bloqueado' });
+      loadData();
+    } catch (err: any) { alert(err.message); }
+    finally { setSaving(false); }
+  };
+
   const handleDeletePrice = async (id: string) => {
     await api.delete(`/reservations/pricing/${id}`);
     loadData();
@@ -86,7 +106,10 @@ export default function ReservationsPage() {
     return reservations.filter(r => {
       const ci = r.checkIn?.split('T')[0] ?? r.checkIn;
       const co = r.checkOut?.split('T')[0] ?? r.checkOut;
-      return r.status !== 'cancelled' && ci <= date && co > date;
+      const inRange = r.status !== 'cancelled' && ci <= date && co > date;
+      if (!inRange) return false;
+      if (selectedProperty === 'all') return true;
+      return r.propertyId === selectedProperty || !r.propertyId;
     });
   };
 
@@ -116,12 +139,27 @@ export default function ReservationsPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg bg-gray-800 p-1 w-fit">
-        {([{ key: 'calendar', label: '📅 Calendario' }, { key: 'list', label: '📋 Lista' }, { key: 'pricing', label: '💰 Precios' }] as { key: Tab; label: string }[]).map(t => (
+        {([{ key: 'calendar', label: '📅 Calendario' }, { key: 'list', label: '📋 Lista' }, { key: 'pricing', label: '💰 Precios' }, { key: 'metrics', label: '📊 Ocupación' }] as { key: Tab; label: string }[]).map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === t.key ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>
             {t.label}
           </button>
         ))}
       </div>
+
+      {/* Property filter + Block dates */}
+      {(tab === 'calendar' || tab === 'list') && properties.length > 0 && (
+        <div className="flex items-center gap-3">
+          <select value={selectedProperty} onChange={e => setSelectedProperty(e.target.value)} className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-1.5 text-sm text-white">
+            <option value="all">Todas las propiedades</option>
+            {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          {tab === 'calendar' && (
+            <button onClick={() => setShowBlockDates(true)} className="rounded-lg border border-yellow-600 px-3 py-1.5 text-xs text-yellow-300 hover:bg-yellow-900/30">
+              🔒 Bloquear fechas
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Calendar Tab */}
       {tab === 'calendar' && (
@@ -275,6 +313,89 @@ export default function ReservationsPage() {
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowNewPrice(false)} className="flex-1 rounded-lg border border-gray-600 py-2 text-sm text-gray-300 hover:bg-gray-700">Cancelar</button>
                 <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-blue-600 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{saving ? 'Guardando...' : 'Guardar'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Metrics Tab */}
+      {tab === 'metrics' && (() => {
+        const confirmed = reservations.filter(r => r.status === 'confirmed' || r.status === 'completed');
+        const totalNights = confirmed.reduce((sum, r) => sum + (r.nights ?? 0), 0);
+        const totalRevenue = confirmed.reduce((sum, r) => sum + (parseFloat(r.totalPrice) || 0), 0);
+        const daysInCurrentMonth = new Date(year, month, 0).getDate();
+        const bookedDaysThisMonth = new Set<number>();
+        confirmed.forEach(r => {
+          const ci = new Date(r.checkIn);
+          const co = new Date(r.checkOut);
+          for (let d = new Date(ci); d < co; d.setDate(d.getDate() + 1)) {
+            if (d.getFullYear() === year && d.getMonth() + 1 === month) {
+              bookedDaysThisMonth.add(d.getDate());
+            }
+          }
+        });
+        const occupancyRate = Math.round((bookedDaysThisMonth.size / daysInCurrentMonth) * 100);
+        const upcoming = confirmed.filter(r => new Date(r.checkIn) > new Date()).sort((a, b) => new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime()).slice(0, 5);
+
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
+                <p className="text-3xl font-bold text-blue-400">{occupancyRate}%</p>
+                <p className="text-xs text-gray-400 mt-1">Ocupación {MONTHS[month-1]}</p>
+                <div className="mt-2 w-full bg-gray-700 rounded-full h-1.5">
+                  <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${occupancyRate}%` }} />
+                </div>
+              </div>
+              <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
+                <p className="text-3xl font-bold text-green-400">${totalRevenue.toLocaleString('es-MX')}</p>
+                <p className="text-xs text-gray-400 mt-1">Revenue total</p>
+              </div>
+              <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
+                <p className="text-3xl font-bold text-white">{confirmed.length}</p>
+                <p className="text-xs text-gray-400 mt-1">Reservas totales</p>
+              </div>
+              <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
+                <p className="text-3xl font-bold text-purple-400">{totalNights}</p>
+                <p className="text-xs text-gray-400 mt-1">Noches vendidas</p>
+              </div>
+            </div>
+
+            {upcoming.length > 0 && (
+              <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
+                <h3 className="text-sm font-semibold text-white mb-3">Próximas reservas</h3>
+                <div className="space-y-2">
+                  {upcoming.map(r => (
+                    <div key={r.id} className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0">
+                      <div>
+                        <p className="text-sm text-white">{r.guestName}</p>
+                        <p className="text-xs text-gray-400">{new Date(r.checkIn).toLocaleDateString('es-MX')} → {new Date(r.checkOut).toLocaleDateString('es-MX')}</p>
+                      </div>
+                      <span className="text-sm text-green-400 font-medium">${parseFloat(r.totalPrice).toLocaleString('es-MX')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Block Dates Modal */}
+      {showBlockDates && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-gray-800 border border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">🔒 Bloquear fechas</h2>
+            <form onSubmit={handleBlockDates} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-xs text-gray-400">Desde</label><input type="date" value={blockForm.checkIn} onChange={e => setBlockForm({ ...blockForm, checkIn: e.target.value })} required className="w-full vspro-input" /></div>
+                <div><label className="text-xs text-gray-400">Hasta</label><input type="date" value={blockForm.checkOut} onChange={e => setBlockForm({ ...blockForm, checkOut: e.target.value })} required className="w-full vspro-input" /></div>
+              </div>
+              <input value={blockForm.notes} onChange={e => setBlockForm({ ...blockForm, notes: e.target.value })} placeholder="Motivo (mantenimiento, uso personal...)" className="w-full vspro-input" />
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowBlockDates(false)} className="flex-1 rounded-lg border border-gray-600 py-2 text-sm text-gray-300 hover:bg-gray-700">Cancelar</button>
+                <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-yellow-600 py-2 text-sm text-white hover:bg-yellow-700 disabled:opacity-50">{saving ? 'Bloqueando...' : 'Bloquear'}</button>
               </div>
             </form>
           </div>

@@ -33,6 +33,7 @@ const navigation = [
   { name: 'Producción', href: '/production', icon: '🏭', industries: ['restaurante', 'ropa', 'taller', 'ecommerce'] },
   { name: 'Cocina', href: '/kitchen', icon: '🍳', industries: ['restaurante'] },
   { name: 'Productos', href: '/products', icon: '📦', industries: null },
+  { name: 'Propiedades', href: '/properties', icon: '🏠', industries: ['inmobiliaria'] },
   { name: 'Clientes', href: '/customers', icon: '👥', industries: null },
   { name: 'Conversaciones', href: '/conversations', icon: '💬', industries: null },
   { name: 'Escalaciones', href: '/escalations', icon: '⚠️', industries: null },
