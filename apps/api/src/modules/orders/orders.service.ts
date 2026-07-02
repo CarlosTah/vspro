@@ -151,6 +151,7 @@ export class OrdersService {
     try {
       const rows = await this.prisma.$queryRawUnsafe<any[]>(`
         SELECT o.order_number AS "orderNumber", o.channel_type AS "channelType",
+               o.status, o.delivery_type AS "deliveryType", o.shipping_address AS "shippingAddress",
                c.name AS "customerName", c.channel_id AS "channelId",
                c.channel_type AS "customerChannelType"
         FROM "${schemaName}".orders o
@@ -164,10 +165,27 @@ export class OrdersService {
       // Don't send for truly manual walk-in customers (auto-generated IDs)
       if (order.channelId.startsWith('manual-')) return;
 
+      // If already paid (cash/card), send a simpler confirmation
+      const isPaidAtCreation = order.status === 'payment_verified';
+
       const channelType = order.customerChannelType ?? 'whatsapp';
       const name = order.customerName?.split(' ')[0] ?? '';
 
       const itemsList = items.map((i: any) => `  • ${i.productName} x${i.quantity} — $${i.subtotal}`).join('\n');
+
+      if (isPaidAtCreation) {
+        // Cash/card — simple confirmation, no payment request
+        const isDelivery = order.deliveryType === 'delivery';
+        const msg = `✅ *Pedido confirmado #${order.orderNumber}*\n\n` +
+          `Hola${name ? ` ${name}` : ''}, tu pedido ya está pagado y en preparación:\n\n` +
+          `${itemsList}\n\n` +
+          `💰 Total: $${total.toLocaleString('es-MX')} MXN\n` +
+          (isDelivery ? `🛵 Te lo enviamos a domicilio. Te avisamos cuando salga.\n\n📌 Envíanos tu ubicación (📍) para que el repartidor te encuentre.\n` : `🏪 Recoger en local. Te avisamos cuando esté listo.\n`) +
+          `\n¡Gracias! 🙏`;
+
+        await this.messagingFactory.sendText(order.channelId, msg, channelType, schemaName);
+        return;
+      }
 
       // Get payment info if configured
       let paymentInfo = '';
@@ -185,13 +203,10 @@ export class OrdersService {
         }
       } catch {}
 
-      const message = `📋 *Nuevo pedido #${order.orderNumber}*\n\n` +
-        `Hola${name ? ` ${name}` : ''}, tu pedido ha sido registrado:\n\n` +
-        `${itemsList}\n\n` +
-        `💰 *Total: $${total.toLocaleString('es-MX')} MXN*\n` +
-        `${paymentInfo}\n` +
-        `Para confirmar tu pedido, realiza tu transferencia y envíanos el comprobante aquí. 📸\n\n` +
-        `¡Gracias por tu preferencia! 🙏`;
+      const message = this.buildOrderNotificationMessage(
+        order.orderNumber, name, itemsList, total, paymentInfo,
+        order.channelType, order.deliveryType, order.shippingAddress,
+      );
 
       await this.messagingFactory.sendText(
         order.channelId,
@@ -202,6 +217,42 @@ export class OrdersService {
     } catch {
       // Non-blocking
     }
+  }
+
+  private buildOrderNotificationMessage(
+    orderNumber: string, name: string, itemsList: string, total: number,
+    paymentInfo: string, channelType: string, deliveryType: string, shippingAddress: any,
+  ): string {
+    const isDelivery = deliveryType === 'delivery';
+    const isPaid = channelType === 'manual'; // If manual with cash/card, status is already payment_verified
+
+    let msg = `📋 *Nuevo pedido #${orderNumber}*\n\n`;
+    msg += `Hola${name ? ` ${name}` : ''}, tu pedido ha sido registrado:\n\n`;
+    msg += `${itemsList}\n\n`;
+    msg += `💰 *Total: $${total.toLocaleString('es-MX')} MXN*\n\n`;
+
+    // Delivery info
+    if (isDelivery) {
+      const addr = typeof shippingAddress === 'object'
+        ? `${shippingAddress?.street ?? ''} ${shippingAddress?.colony ?? ''}`.trim()
+        : (shippingAddress ?? '');
+      msg += `🛵 *Envío a domicilio*\n`;
+      if (addr) msg += `📍 ${addr}\n`;
+      msg += `\n📌 Si puedes, envíanos tu ubicación por WhatsApp (📍) para que el repartidor te encuentre más fácil.\n\n`;
+    } else {
+      msg += `🏪 *Recoger en local*\nTe avisamos cuando esté listo.\n\n`;
+    }
+
+    // Payment info (only if not already paid)
+    if (paymentInfo) {
+      msg += `${paymentInfo}\n`;
+      msg += `Para confirmar, realiza tu transferencia y envíanos el comprobante aquí. 📸\n\n`;
+    } else {
+      msg += `Para confirmar, envíanos tu comprobante de transferencia aquí. 📸\n\n`;
+    }
+
+    msg += `¡Gracias por tu preferencia! 🙏`;
+    return msg;
   }
 
   // ─── Transiciones de estado ───────────────────────────────────

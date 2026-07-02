@@ -51,4 +51,9 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   status?: string;
+
+  @ApiProperty({ enum: ['transfer', 'cash', 'card'], required: false })
+  @IsIn(['transfer', 'cash', 'card'])
+  @IsOptional()
+  paymentMethod?: string;
 }

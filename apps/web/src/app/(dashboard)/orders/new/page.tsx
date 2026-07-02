@@ -25,6 +25,7 @@ export default function NewOrderPage() {
   const [notes, setNotes] = useState('');
   const [deliveryType, setDeliveryType] = useState<'pickup' | 'delivery'>('pickup');
   const [address, setAddress] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'transfer' | 'cash' | 'card'>('transfer');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -90,6 +91,8 @@ export default function NewOrderPage() {
         items: cart.map(i => ({ productId: i.productId, quantity: i.quantity })),
         notes: notes || undefined,
         shippingAddress: deliveryType === 'delivery' && address ? { street: address } : undefined,
+        status: paymentMethod === 'cash' || paymentMethod === 'card' ? 'payment_verified' : 'new',
+        paymentMethod,
       });
 
       router.push(`/orders/${order.id}`);
@@ -225,9 +228,54 @@ export default function NewOrderPage() {
                   placeholder="Calle, número, colonia, referencias..."
                   className="w-full vspro-input"
                 />
-                <p className="text-xs text-gray-500 mt-1">Si no la tienes, el agente la pedirá por WhatsApp al cliente.</p>
+                <p className="text-xs text-gray-500 mt-1">El cliente también puede enviar su ubicación por WhatsApp.</p>
               </div>
             )}
+          </div>
+
+          {/* Payment Method */}
+          <div className="rounded-xl border border-card-border bg-card p-5">
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">💳 Método de pago</h3>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('transfer')}
+                className={`flex-1 rounded-lg border p-3 text-center text-xs transition-colors ${
+                  paymentMethod === 'transfer'
+                    ? 'border-blue-500 bg-blue-900/30 text-white'
+                    : 'border-gray-600 text-gray-400 hover:border-gray-500'
+                }`}
+              >
+                🏦 Transferencia
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('cash')}
+                className={`flex-1 rounded-lg border p-3 text-center text-xs transition-colors ${
+                  paymentMethod === 'cash'
+                    ? 'border-green-500 bg-green-900/30 text-white'
+                    : 'border-gray-600 text-gray-400 hover:border-gray-500'
+                }`}
+              >
+                💵 Efectivo
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('card')}
+                className={`flex-1 rounded-lg border p-3 text-center text-xs transition-colors ${
+                  paymentMethod === 'card'
+                    ? 'border-purple-500 bg-purple-900/30 text-white'
+                    : 'border-gray-600 text-gray-400 hover:border-gray-500'
+                }`}
+              >
+                💳 Tarjeta
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              {paymentMethod === 'transfer' ? 'El cliente recibirá datos bancarios y deberá enviar comprobante.' :
+               paymentMethod === 'cash' ? 'Pago en mostrador. El pedido se marca como pagado automáticamente.' :
+               'Pago con tarjeta en mostrador. El pedido se marca como pagado automáticamente.'}
+            </p>
           </div>
 
           {/* Notes */}
