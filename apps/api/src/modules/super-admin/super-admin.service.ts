@@ -726,4 +726,38 @@ export class SuperAdminService {
       assignedTo: { slug: target.slug, businessName: target.businessName },
     };
   }
+
+  // ─── Tenant Conversations ─────────────────────────────────────
+
+  async getTenantConversations(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('Tenant no encontrado');
+
+    try {
+      const conversations = await this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT c.id, c.status, c.channel_type AS "channelType",
+               c.last_message_at AS "lastMessageAt", c.created_at AS "createdAt",
+               cu.name AS "customerName", cu.channel_id AS "customerPhone"
+        FROM "${tenant.schemaName}".conversations c
+        JOIN "${tenant.schemaName}".customers cu ON cu.id = c.customer_id
+        ORDER BY c.last_message_at DESC NULLS LAST
+        LIMIT 50
+      `);
+
+      // Get last 5 messages for each conversation
+      for (const conv of conversations) {
+        conv.messages = await this.prisma.$queryRawUnsafe<any[]>(`
+          SELECT direction, type, content, created_at AS "createdAt"
+          FROM "${tenant.schemaName}".messages
+          WHERE conversation_id = $1::uuid
+          ORDER BY created_at DESC LIMIT 5
+        `, conv.id);
+        conv.messages.reverse();
+      }
+
+      return { tenant: { slug: tenant.slug, businessName: tenant.businessName }, conversations };
+    } catch {
+      return { tenant: { slug: tenant.slug, businessName: tenant.businessName }, conversations: [] };
+    }
+  }
 }

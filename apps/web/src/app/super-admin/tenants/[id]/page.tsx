@@ -14,7 +14,7 @@ export default function TenantDetailPage() {
   const [payments, setPayments] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'info' | 'usage' | 'payments' | 'products'>('info');
+  const [tab, setTab] = useState<'info' | 'usage' | 'payments' | 'products' | 'conversations'>('info');
 
   // Action states
   const [saving, setSaving] = useState(false);
@@ -32,6 +32,9 @@ export default function TenantDetailPage() {
 
   // Product form
   const [productForm, setProductForm] = useState({ name: '', price: 0, category: '', description: '' });
+
+  // Conversations
+  const [conversations, setConversations] = useState<any[]>([]);
 
   useEffect(() => {
     loadAll();
@@ -51,6 +54,9 @@ export default function TenantDetailPage() {
       setPayments(p);
       setPlans(pl);
       setEditForm({ businessName: t.businessName, ownerEmail: t.ownerEmail, ownerName: t.ownerName ?? '' });
+
+      // Load conversations
+      api.get(`/super-admin/tenants/${tenantId}/conversations`).then((c: any) => setConversations(c.conversations ?? [])).catch(() => {});
     } catch (err: any) {
       setMsg('Error cargando datos');
     } finally {
@@ -191,6 +197,7 @@ export default function TenantDetailPage() {
             { key: 'usage', label: 'Uso' },
             { key: 'payments', label: 'Pagos' },
             { key: 'products', label: 'Productos' },
+            { key: 'conversations', label: 'Conversaciones' },
           ] as { key: typeof tab; label: string }[]).map(t => (
             <button
               key={t.key}
@@ -466,6 +473,39 @@ export default function TenantDetailPage() {
                 Productos activos: <span className="text-white font-bold">{usage?.totalProducts ?? 0}</span>
               </p>
             </div>
+          </div>
+        )}
+
+        {/* Conversations Tab */}
+        {tab === 'conversations' && (
+          <div className="space-y-4">
+            {conversations.length > 0 ? (
+              conversations.map((conv: any) => (
+                <div key={conv.id} className="rounded-xl border border-gray-700 bg-gray-800 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-white font-medium">{conv.customerName ?? 'Sin nombre'}</p>
+                      <p className="text-xs text-gray-500">{conv.customerPhone} · {conv.channelType}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${conv.status === 'active' ? 'bg-green-900/40 text-green-300' : 'bg-gray-700 text-gray-400'}`}>{conv.status}</span>
+                      <p className="text-[10px] text-gray-500 mt-1">{conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleString('es-MX') : ''}</p>
+                    </div>
+                  </div>
+                  {conv.messages?.length > 0 && (
+                    <div className="space-y-1.5 bg-gray-900 rounded-lg p-3 max-h-40 overflow-y-auto">
+                      {conv.messages.map((m: any, i: number) => (
+                        <div key={i} className={`text-xs ${m.direction === 'outbound' ? 'text-blue-300' : 'text-gray-300'}`}>
+                          <span className="text-gray-600">{m.direction === 'outbound' ? '🤖' : '👤'}</span> {m.content?.slice(0, 200) ?? '[media]'}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-center text-gray-500 py-8">Sin conversaciones</p>
+            )}
           </div>
         )}
       </div>

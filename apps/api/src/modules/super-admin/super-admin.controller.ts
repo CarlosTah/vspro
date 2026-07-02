@@ -245,4 +245,11 @@ export class SuperAdminController {
   assignTestNumber(@Body() dto: { tenantSlug: string }) {
     return this.superAdminService.assignTestNumber(dto.tenantSlug);
   }
+
+  // ─── Tenant Conversations (view any tenant's chats) ───────────
+
+  @Get('tenants/:id/conversations')
+  async getTenantConversations(@Param('id', ParseUUIDPipe) id: string) {
+    return this.superAdminService.getTenantConversations(id);
+  }
 }

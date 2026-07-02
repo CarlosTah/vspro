@@ -43,6 +43,37 @@ export class AuthController {
       });
     } catch {}
 
+    // 2.6 Notify super admin about new registration
+    try {
+      const { MessagingFactory } = await import('../messaging/messaging-factory.service');
+      const prisma = this.tenantProvisioning['prisma'];
+      // Send to VSPRO admin phone if available
+      const admins = await prisma.$queryRawUnsafe<any[]>(`
+        SELECT phone FROM "tenant_vspro".users WHERE role = 'admin' AND phone IS NOT NULL LIMIT 1
+      `);
+      if (admins[0]?.phone) {
+        const msg = `🆕 *Nuevo registro en VSPRO*\n\n` +
+          `📋 Negocio: ${dto.businessName}\n` +
+          `👤 Dueño: ${dto.ownerName}\n` +
+          `📧 Email: ${dto.email}\n` +
+          `🏪 Giro: ${dto.industry}\n` +
+          `🔗 Slug: ${dto.slug}\n\n` +
+          `Ve a Super Admin para más detalles.`;
+        // Use messaging factory from VSPRO's channel
+        const channels = await prisma.$queryRawUnsafe<any[]>(`
+          SELECT external_id, access_token FROM "tenant_vspro".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1
+        `).catch(() => []);
+        if (channels[0]) {
+          const axios = (await import('axios')).default;
+          await axios.post(
+            `https://graph.facebook.com/v19.0/${channels[0].external_id}/messages`,
+            { messaging_product: 'whatsapp', to: admins[0].phone, type: 'text', text: { body: msg } },
+            { headers: { Authorization: `Bearer ${channels[0].access_token}` } },
+          ).catch(() => {});
+        }
+      }
+    } catch {}
+
     // 3. Auto-login: generate JWT
     const loginResult = await this.authService.login(dto.email, dto.password, tenant.slug);
 
