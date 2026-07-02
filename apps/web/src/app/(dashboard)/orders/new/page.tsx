@@ -74,11 +74,12 @@ export default function NewOrderPage() {
 
       // Create new customer if needed
       if (showNewCustomer && newCustomerName) {
+        const hasPhone = newCustomerPhone && newCustomerPhone.length >= 10;
         const newCust = await api.post<any>('/customers', {
           name: newCustomerName,
-          phone: newCustomerPhone,
-          channelType: 'manual',
-          channelId: `manual-${Date.now()}`,
+          phone: newCustomerPhone || undefined,
+          channelType: hasPhone ? 'whatsapp' : 'manual',
+          channelId: hasPhone ? newCustomerPhone.replace(/\D/g, '') : `manual-${Date.now()}`,
         });
         customerId = newCust.id;
       }
