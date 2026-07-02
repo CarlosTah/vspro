@@ -1,7 +1,31 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/sidebar';
 import { Header } from '@/components/header';
+import { useAuth } from '@/lib/auth-context';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.replace('/login');
+    }
+  }, [loading, isAuthenticated, router]);
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <p className="text-gray-400">Cargando...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) return null;
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
