@@ -131,15 +131,27 @@ export class DeliveryController {
   @Get('assignments')
   @Roles('admin', 'manager')
   async getAssignments(@TenantSchema() schema: string) {
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schema}".delivery_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        assignment_id UUID,
+        driver_id UUID,
+        direction VARCHAR(10) NOT NULL DEFAULT 'outbound',
+        content TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
     return this.prisma.$queryRawUnsafe<any[]>(`
       SELECT da.id, da.status, da.offered_at AS "offeredAt", da.accepted_at AS "acceptedAt",
              da.picked_up_at AS "pickedUpAt", da.delivered_at AS "deliveredAt",
              da.created_at AS "createdAt",
              o.order_number AS "orderNumber", o.total AS "orderTotal",
-             o.shipping_address AS "shippingAddress",
-             c.name AS "customerName",
+             o.shipping_address AS "shippingAddress", o.delivery_type AS "deliveryType",
+             o.items,
+             c.name AS "customerName", c.channel_id AS "customerPhone",
              COALESCE(d.name, da.external_phone) AS "driverName",
-             d.phone AS "driverPhone", d.delivery_fee AS "deliveryFee"
+             d.phone AS "driverPhone", d.delivery_fee AS "deliveryFee",
+             (SELECT COUNT(*)::int FROM "${schema}".delivery_messages dm WHERE dm.assignment_id = da.id) AS "messageCount"
       FROM "${schema}".delivery_assignments da
       JOIN "${schema}".orders o ON o.id = da.order_id
       JOIN "${schema}".customers c ON c.id = o.customer_id
@@ -147,6 +159,60 @@ export class DeliveryController {
       ORDER BY da.created_at DESC
       LIMIT 50
     `).catch(() => []);
+  }
+
+  /** Get messages for a specific assignment */
+  @Get('assignments/:id/messages')
+  @Roles('admin', 'manager')
+  async getAssignmentMessages(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schema}".delivery_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        assignment_id UUID,
+        driver_id UUID,
+        direction VARCHAR(10) NOT NULL DEFAULT 'outbound',
+        content TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    return this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT id, direction, content, created_at AS "createdAt"
+      FROM "${schema}".delivery_messages
+      WHERE assignment_id = $1::uuid
+      ORDER BY created_at ASC
+    `, id);
+  }
+
+  /** Send manual message to driver for a specific assignment */
+  @Post('assignments/:id/message')
+  @Roles('admin', 'manager')
+  async sendDriverMessage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { text: string },
+    @TenantSchema() schema: string,
+  ) {
+    // Get assignment + driver info
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT da.id, da.driver_id, d.phone AS "driverPhone"
+      FROM "${schema}".delivery_assignments da
+      LEFT JOIN "${schema}".delivery_drivers d ON d.id = da.driver_id
+      WHERE da.id = $1::uuid
+    `, id);
+
+    if (!rows[0] || !rows[0].driverPhone) return { success: false, error: 'No se encontró repartidor' };
+
+    // Send WhatsApp
+    const result = await this.delivery['messagingFactory'].sendText(
+      rows[0].driverPhone, body.text, 'whatsapp', schema,
+    );
+
+    // Save message
+    await this.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".delivery_messages (assignment_id, driver_id, direction, content)
+      VALUES ($1::uuid, $2::uuid, 'outbound', $3)
+    `, id, rows[0].driver_id, body.text);
+
+    return { success: result.success, error: result.error };
   }
 
   /** Get driver payment summary */

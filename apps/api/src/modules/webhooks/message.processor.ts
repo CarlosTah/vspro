@@ -314,13 +314,13 @@ export class MessageProcessor {
 
         this.logger.log(`[${schemaName}] Driver ${driver.name} accepted order ${assignment.orderNumber}`);
 
+        // Save inbound message
+        await this.saveDriverMessage(schemaName, assignment.id, driver.id, 'inbound', text);
+
         // Send confirmation to driver
-        await this.messagingService.sendText(
-          message.channelType,
-          message.senderId,
-          `✅ ¡Aceptado! Pedido #${assignment.orderNumber}. Ve a recogerlo y cuando lo tengas responde "RECOGIDO".`,
-          schemaName,
-        );
+        const reply = `✅ ¡Aceptado! Pedido #${assignment.orderNumber}. Ve a recogerlo y cuando lo tengas responde "RECOGIDO".`;
+        await this.messagingService.sendText(message.channelType, message.senderId, reply, schemaName);
+        await this.saveDriverMessage(schemaName, assignment.id, driver.id, 'outbound', reply);
         return true;
 
       } else if (isReject) {
@@ -333,12 +333,11 @@ export class MessageProcessor {
 
         this.logger.log(`[${schemaName}] Driver ${driver.name} rejected order ${assignment.orderNumber}`);
 
-        await this.messagingService.sendText(
-          message.channelType,
-          message.senderId,
-          `👍 Entendido. Se asignará a otro repartidor.`,
-          schemaName,
-        );
+        await this.saveDriverMessage(schemaName, assignment.id, driver.id, 'inbound', text);
+
+        const reply = `👍 Entendido. Se asignará a otro repartidor.`;
+        await this.messagingService.sendText(message.channelType, message.senderId, reply, schemaName);
+        await this.saveDriverMessage(schemaName, assignment.id, driver.id, 'outbound', reply);
         return true;
       }
 
@@ -365,12 +364,10 @@ export class MessageProcessor {
 
           this.logger.log(`[${schemaName}] Driver ${driver.name} picked up order ${a.orderNumber}`);
 
-          await this.messagingService.sendText(
-            message.channelType,
-            message.senderId,
-            `📦 Perfecto. Pedido #${a.orderNumber} en camino. Cuando lo entregues responde "ENTREGADO".`,
-            schemaName,
-          );
+          await this.saveDriverMessage(schemaName, a.id, driver.id, 'inbound', text);
+          const reply = `📦 Perfecto. Pedido #${a.orderNumber} en camino. Cuando lo entregues responde "ENTREGADO".`;
+          await this.messagingService.sendText(message.channelType, message.senderId, reply, schemaName);
+          await this.saveDriverMessage(schemaName, a.id, driver.id, 'outbound', reply);
           return true;
         }
       }
@@ -397,12 +394,10 @@ export class MessageProcessor {
 
           this.logger.log(`[${schemaName}] Driver ${driver.name} delivered order ${a.orderNumber}`);
 
-          await this.messagingService.sendText(
-            message.channelType,
-            message.senderId,
-            `✅ ¡Entrega confirmada! Pedido #${a.orderNumber} completado. ¡Gracias! 🙌`,
-            schemaName,
-          );
+          await this.saveDriverMessage(schemaName, a.id, driver.id, 'inbound', text);
+          const reply = `✅ ¡Entrega confirmada! Pedido #${a.orderNumber} completado. ¡Gracias! 🙌`;
+          await this.messagingService.sendText(message.channelType, message.senderId, reply, schemaName);
+          await this.saveDriverMessage(schemaName, a.id, driver.id, 'outbound', reply);
           return true;
         }
       }
@@ -411,6 +406,26 @@ export class MessageProcessor {
     }
 
     return false;
+  }
+
+  /**
+   * Save a message in the delivery_messages table for history tracking.
+   */
+  private async saveDriverMessage(schemaName: string, assignmentId: string, driverId: string, direction: string, content: string): Promise<void> {
+    try {
+      await this.prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${schemaName}".delivery_messages (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          assignment_id UUID, driver_id UUID,
+          direction VARCHAR(10) NOT NULL DEFAULT 'outbound',
+          content TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+      await this.prisma.$executeRawUnsafe(`
+        INSERT INTO "${schemaName}".delivery_messages (assignment_id, driver_id, direction, content)
+        VALUES ($1::uuid, $2::uuid, $3, $4)
+      `, assignmentId, driverId, direction, content);
+    } catch {}
   }
 
   /**

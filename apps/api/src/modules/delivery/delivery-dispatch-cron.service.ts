@@ -150,10 +150,12 @@ export class DeliveryDispatchCronService {
     const driver = drivers[0];
 
     // Create assignment
-    await this.prisma.$executeRawUnsafe(`
+    const assignRows = await this.prisma.$queryRawUnsafe<any[]>(`
       INSERT INTO "${schemaName}".delivery_assignments (order_id, driver_id, status, offered_at)
       VALUES ($1::uuid, $2::uuid, 'offered', NOW())
+      RETURNING id
     `, order.id, driver.id);
+    const assignmentId = assignRows[0]?.id;
 
     // Build message from template
     const address = typeof order.shippingAddress === 'object'
@@ -181,6 +183,21 @@ export class DeliveryDispatchCronService {
     const result = await this.messagingFactory.sendText(driver.phone, message, 'whatsapp', schemaName);
     if (result.success) {
       this.logger.log(`[${schemaName}] Dispatched ${order.orderNumber} to ${driver.name}`);
+      // Save outbound message
+      if (assignmentId) {
+        await this.prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS "${schemaName}".delivery_messages (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            assignment_id UUID, driver_id UUID,
+            direction VARCHAR(10) NOT NULL DEFAULT 'outbound',
+            content TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+        await this.prisma.$executeRawUnsafe(`
+          INSERT INTO "${schemaName}".delivery_messages (assignment_id, driver_id, direction, content)
+          VALUES ($1::uuid, $2::uuid, 'outbound', $3)
+        `, assignmentId, driver.id, message).catch(() => {});
+      }
     } else {
       this.logger.warn(`[${schemaName}] Failed to send to ${driver.name}: ${result.error}`);
     }

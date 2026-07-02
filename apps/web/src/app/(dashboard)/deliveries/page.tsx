@@ -41,6 +41,24 @@ export default function DeliveriesPage() {
   const [saving, setSaving] = useState(false);
   const [payingDriver, setPayingDriver] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState(0);
+  const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
+  const [assignmentMessages, setAssignmentMessages] = useState<any[]>([]);
+  const [driverMsg, setDriverMsg] = useState('');
+
+  const loadAssignmentMessages = async (assignment: any) => {
+    setSelectedAssignment(assignment);
+    try {
+      const msgs = await api.get(`/delivery/assignments/${assignment.id}/messages`);
+      setAssignmentMessages(msgs);
+    } catch { setAssignmentMessages([]); }
+  };
+
+  const sendDriverMsg = async () => {
+    if (!driverMsg.trim() || !selectedAssignment) return;
+    await api.post(`/delivery/assignments/${selectedAssignment.id}/message`, { text: driverMsg });
+    setDriverMsg('');
+    loadAssignmentMessages(selectedAssignment);
+  };
 
   const handleAddDriver = async () => {
     setSaving(true);
@@ -272,52 +290,99 @@ export default function DeliveriesPage() {
       {/* History */}
       {/* Assignments Tab */}
       {tab === 'assignments' && (
-        <div className="rounded-xl border border-card-border bg-card overflow-hidden">
-          {assignments && assignments.length > 0 ? (
-            <table className="w-full text-sm">
-              <thead className="border-b border-gray-700">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Pedido</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Repartidor</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Estado</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Dirección</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Timeline</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-700/50">
-                {assignments.map((a: any) => (
-                  <tr key={a.id} className="hover:bg-gray-800/30">
-                    <td className="px-4 py-3">
-                      <p className="text-white font-medium">#{a.orderNumber}</p>
-                      <p className="text-xs text-gray-500">{a.customerName}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-white">{a.driverName ?? 'Sin asignar'}</p>
-                      <p className="text-xs text-gray-500">{a.driverPhone ?? ''}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${assignmentColors[a.status] ?? ''}`}>
-                        {assignmentLabels[a.status] ?? a.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-300 max-w-[150px] truncate">
-                      {typeof a.shippingAddress === 'object'
-                        ? `${a.shippingAddress?.street ?? ''} ${a.shippingAddress?.colony ?? ''}`
-                        : (a.shippingAddress ?? '—')}
-                    </td>
-                    <td className="px-4 py-3 text-[10px] text-gray-400 space-y-0.5">
-                      {a.offeredAt && <p>📨 {new Date(a.offeredAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</p>}
-                      {a.acceptedAt && <p>✅ {new Date(a.acceptedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</p>}
-                      {a.pickedUpAt && <p>📦 {new Date(a.pickedUpAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</p>}
-                      {a.deliveredAt && <p>🏠 {new Date(a.deliveredAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</p>}
-                    </td>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Assignment List */}
+          <div className="lg:col-span-2 rounded-xl border border-card-border bg-card overflow-hidden">
+            {assignments && assignments.length > 0 ? (
+              <table className="w-full text-sm">
+                <thead className="border-b border-gray-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Pedido</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Repartidor</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Estado</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Timeline</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="p-8 text-center text-gray-500">Sin asignaciones de entrega</div>
-          )}
+                </thead>
+                <tbody className="divide-y divide-gray-700/50">
+                  {assignments.map((a: any) => (
+                    <tr key={a.id} className={`hover:bg-gray-800/30 cursor-pointer ${selectedAssignment?.id === a.id ? 'bg-blue-900/20' : ''}`}
+                        onClick={() => loadAssignmentMessages(a)}>
+                      <td className="px-4 py-3">
+                        <p className="text-white font-medium">#{a.orderNumber}</p>
+                        <p className="text-xs text-gray-500">{a.customerName}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-white">{a.driverName ?? 'Sin asignar'}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${assignmentColors[a.status] ?? ''}`}>
+                          {assignmentLabels[a.status] ?? a.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[10px] text-gray-400">
+                        {a.offeredAt && <span>📨 {new Date(a.offeredAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} </span>}
+                        {a.acceptedAt && <span>✅ {new Date(a.acceptedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} </span>}
+                        {a.pickedUpAt && <span>📦 {new Date(a.pickedUpAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} </span>}
+                        {a.deliveredAt && <span>🏠 {new Date(a.deliveredAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="p-8 text-center text-gray-500">Sin asignaciones de entrega</div>
+            )}
+          </div>
+
+          {/* Assignment Detail Panel */}
+          <div className="lg:col-span-1">
+            {selectedAssignment ? (
+              <div className="rounded-xl border border-gray-700 bg-gray-800 p-4 space-y-3 sticky top-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white">#{selectedAssignment.orderNumber}</h3>
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${assignmentColors[selectedAssignment.status]}`}>
+                    {assignmentLabels[selectedAssignment.status]}
+                  </span>
+                </div>
+
+                <div className="text-xs text-gray-400 space-y-1 border-b border-gray-700 pb-3">
+                  <p>👤 {selectedAssignment.customerName} · {selectedAssignment.customerPhone}</p>
+                  <p>🛵 {selectedAssignment.driverName} · {selectedAssignment.driverPhone}</p>
+                  {selectedAssignment.shippingAddress && (
+                    <p>📍 {typeof selectedAssignment.shippingAddress === 'object' ? selectedAssignment.shippingAddress.street : selectedAssignment.shippingAddress}</p>
+                  )}
+                  <p>💰 ${parseFloat(selectedAssignment.orderTotal).toLocaleString('es-MX')}</p>
+                </div>
+
+                {/* Messages */}
+                <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                  {assignmentMessages.map((m: any) => (
+                    <div key={m.id} className={`text-xs rounded-lg px-2 py-1.5 ${m.direction === 'outbound' ? 'bg-blue-900/30 text-blue-200' : 'bg-gray-900 text-gray-200'}`}>
+                      <span className="text-gray-500">{m.direction === 'outbound' ? '📤' : '📥'}</span> {m.content?.slice(0, 150)}
+                      <p className="text-[9px] text-gray-600 mt-0.5">{new Date(m.createdAt).toLocaleTimeString('es-MX')}</p>
+                    </div>
+                  ))}
+                  {assignmentMessages.length === 0 && <p className="text-xs text-gray-500 text-center">Sin mensajes</p>}
+                </div>
+
+                {/* Manual message */}
+                <div className="flex gap-2 pt-2 border-t border-gray-700">
+                  <input
+                    value={driverMsg}
+                    onChange={(e) => setDriverMsg(e.target.value)}
+                    placeholder="Mensaje al repartidor..."
+                    className="flex-1 rounded-lg border border-gray-600 bg-gray-900 px-2 py-1.5 text-xs text-white"
+                    onKeyDown={(e) => e.key === 'Enter' && sendDriverMsg()}
+                  />
+                  <button onClick={sendDriverMsg} className="rounded-lg bg-blue-600 px-2 py-1.5 text-xs text-white">Enviar</button>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-gray-700 bg-gray-800 p-8 text-center text-gray-500 text-sm">
+                Selecciona una asignación
+              </div>
+            )}
+          </div>
         </div>
       )}
 
