@@ -20,7 +20,10 @@ const statusActions: Record<string, { label: string; nextStatus: string; color: 
   payment_pending: [{ label: 'Verificar pago', nextStatus: 'payment_verified', color: 'green' }],
   payment_verified: [{ label: 'Enviar a producción', nextStatus: 'in_production', color: 'orange' }],
   in_production: [{ label: 'Marcar listo', nextStatus: 'ready', color: 'teal' }],
-  ready: [{ label: 'Enviar', nextStatus: 'shipped', color: 'indigo' }],
+  ready: [
+    { label: 'Entregar a repartidor', nextStatus: 'shipped', color: 'indigo' },
+    { label: 'Entregado en mostrador', nextStatus: 'delivered', color: 'green' },
+  ],
   shipped: [{ label: 'Confirmar entrega', nextStatus: 'delivered', color: 'green' }],
 };
 
