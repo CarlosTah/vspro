@@ -160,6 +160,10 @@ export class DeliveryDispatchCronService {
       ? `${order.shippingAddress.street ?? ''} ${order.shippingAddress.colony ?? ''} ${order.shippingAddress.city ?? ''}`.trim()
       : (order.shippingAddress ?? 'No especificada');
 
+    const reference = (typeof order.shippingAddress === 'object' && order.shippingAddress?.reference)
+      ? `\n📝 Ref: ${order.shippingAddress.reference}`
+      : '';
+
     // Append Google Maps link if coordinates available
     const mapsLink = (typeof order.shippingAddress === 'object' && order.shippingAddress?.lat && order.shippingAddress?.lng)
       ? `\n🗺️ https://maps.google.com/?q=${order.shippingAddress.lat},${order.shippingAddress.lng}`
@@ -167,11 +171,11 @@ export class DeliveryDispatchCronService {
         ? `\n🗺️ ${order.shippingAddress.mapsUrl}`
         : '';
 
-    const message = (settings.dispatchMessage || '📦 Pedido #{orderNumber} listo.\n📍 {address}\n💰 ${total}\n\n¿Puedes recogerlo? Responde SI o NO')
+    const message = (settings.dispatchMessage || '📦 Pedido #{orderNumber} listo.\n👤 Cliente: {customerName}\n📍 {address}\n💰 Total: ${total}\n\n¿Puedes recogerlo? Responde SI o NO')
       .replace('{orderNumber}', order.orderNumber)
-      .replace('{address}', address + mapsLink)
+      .replace('{address}', address + reference + mapsLink)
       .replace('{total}', parseFloat(order.total).toLocaleString('es-MX'))
-      .replace('{customerName}', order.customerName ?? '');
+      .replace('{customerName}', order.customerName ?? 'Cliente');
 
     // Send WhatsApp to driver
     const result = await this.messagingFactory.sendText(driver.phone, message, 'whatsapp', schemaName);
