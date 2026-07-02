@@ -58,7 +58,12 @@ export class MessageProcessor {
         `Procesando mensaje [${message.channelType}] de ${message.senderId} → ${tenantSlug}`,
       );
 
-      // 2.5. OWNER DETECTION: Check if this sender owns a registered tenant
+      // 2.5. DRIVER RESPONSE: Check if sender is a delivery driver with pending assignment
+      // Must run BEFORE owner detection so drivers can respond to dispatch messages
+      const driverHandled = await this.handleDriverResponse(schema, message);
+      if (driverHandled) return;
+
+      // 2.6. OWNER DETECTION: Check if this sender owns a registered tenant
       // Only applies when messaging the VSPRO platform number (tenantSlug === 'vspro')
       const ownerTenant = await this.detectTenantOwner(message.senderId, tenantSlug);
       if (ownerTenant && ownerTenant.slug !== tenantSlug) {
@@ -67,10 +72,6 @@ export class MessageProcessor {
         await this.processAsOwner(ownerTenant, tenant, message);
         return;
       }
-
-      // 2.6. DRIVER RESPONSE: Check if sender is a delivery driver with pending assignment
-      const driverHandled = await this.handleDriverResponse(schema, message);
-      if (driverHandled) return;
 
       // 3. Buscar o crear cliente
       const customer = await this.customersService.findOrCreateByChannel(
