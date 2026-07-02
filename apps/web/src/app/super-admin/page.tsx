@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { VsproLogo } from '@/components/vspro-logo';
 
 type Tab = 'overview' | 'revenue' | 'tenants' | 'plans' | 'analytics' | 'broadcast';
@@ -17,11 +19,20 @@ const INDUSTRIES = [
 ];
 
 export default function SuperAdminPage() {
+  const { isAuthenticated, tenant, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [stats, setStats] = useState<any>(null);
   const [tenants, setTenants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('overview');
   const [filter, setFilter] = useState('all');
+
+  // Protect: only tenant 'vspro' can access Super Admin
+  useEffect(() => {
+    if (!authLoading && (!isAuthenticated || (tenant?.slug && tenant.slug !== 'vspro'))) {
+      router.replace('/login');
+    }
+  }, [authLoading, isAuthenticated, tenant, router]);
 
   // Create tenant modal
   const [showCreate, setShowCreate] = useState(false);
@@ -85,6 +96,17 @@ export default function SuperAdminPage() {
   const handleReactivate = async (tenantId: string) => {
     await api.post(`/super-admin/tenants/${tenantId}/reactivate`);
     setTenants(tenants.map((t) => t.id === tenantId ? { ...t, status: 'ACTIVE' } : t));
+  };
+
+  const handleImpersonate = async (tenantId: string) => {
+    try {
+      const res = await api.post(`/super-admin/tenants/${tenantId}/impersonate`);
+      // Open new tab with impersonated session
+      const url = `/login?impersonate=${encodeURIComponent(res.token)}&slug=${encodeURIComponent(res.tenant.slug)}`;
+      window.open(url, '_blank');
+    } catch (err: any) {
+      alert(err.message);
+    }
   };
 
   const handleCreateTenant = async (e: React.FormEvent) => {
@@ -487,6 +509,7 @@ export default function SuperAdminPage() {
                     </td>
                     <td className="px-6 py-3 space-x-2">
                       <a href={`/super-admin/tenants/${t.id}`} className="text-xs text-blue-400 hover:text-blue-300">Ver</a>
+                      <button onClick={() => handleImpersonate(t.id)} className="text-xs text-purple-400 hover:text-purple-300">Entrar</button>
                       {t.status === 'ACTIVE' || t.status === 'TRIAL' ? (
                         <button onClick={() => handleSuspend(t.id)} className="text-xs text-red-400 hover:text-red-300">Suspender</button>
                       ) : t.status === 'SUSPENDED' ? (
