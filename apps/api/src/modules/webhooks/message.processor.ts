@@ -68,6 +68,10 @@ export class MessageProcessor {
         return;
       }
 
+      // 2.6. DRIVER RESPONSE: Check if sender is a delivery driver with pending assignment
+      const driverHandled = await this.handleDriverResponse(schema, message);
+      if (driverHandled) return;
+
       // 3. Buscar o crear cliente
       const customer = await this.customersService.findOrCreateByChannel(
         message.channelType,
@@ -254,6 +258,158 @@ export class MessageProcessor {
     `, customerId);
 
     return rows[0] ?? null;
+  }
+
+  /**
+   * Check if the sender is a delivery driver with a pending ('offered') assignment.
+   * If they respond with SI/YES → accept assignment.
+   * If they respond with NO → reject and trigger reassignment.
+   * Returns true if the message was handled as a driver response.
+   */
+  private async handleDriverResponse(schemaName: string, message: IncomingMessage): Promise<boolean> {
+    const text = (message.text ?? '').trim().toLowerCase();
+    if (!text) return false;
+
+    // Only handle short responses (SI, NO, ok, listo, etc.)
+    if (text.length > 20) return false;
+
+    const normalizedPhone = message.senderId.replace(/^\+/, '');
+
+    try {
+      // Check if this phone belongs to a driver in this tenant
+      const drivers = await this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT d.id, d.name FROM "${schemaName}".delivery_drivers d
+        WHERE d.phone = $1 OR d.phone = $2 OR d.phone = $3
+        LIMIT 1
+      `, message.senderId, normalizedPhone, `+${normalizedPhone}`);
+
+      if (drivers.length === 0) return false;
+
+      const driver = drivers[0];
+
+      // Check for active 'offered' assignment for this driver
+      const assignments = await this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT da.id, da.order_id AS "orderId", da.status,
+               o.order_number AS "orderNumber"
+        FROM "${schemaName}".delivery_assignments da
+        JOIN "${schemaName}".orders o ON o.id = da.order_id
+        WHERE da.driver_id = $1::uuid AND da.status = 'offered'
+        ORDER BY da.offered_at DESC LIMIT 1
+      `, driver.id);
+
+      if (assignments.length === 0) return false;
+
+      const assignment = assignments[0];
+      const isAccept = ['si', 'sí', 'yes', 'ok', 'va', 'listo', 'voy', 'acepto', 'claro', 'dale'].includes(text);
+      const isReject = ['no', 'nop', 'nel', 'no puedo', 'ocupado', 'paso'].includes(text);
+
+      if (isAccept) {
+        // Accept the assignment
+        await this.prisma.$executeRawUnsafe(`
+          UPDATE "${schemaName}".delivery_assignments
+          SET status = 'accepted', accepted_at = NOW()
+          WHERE id = $1::uuid
+        `, assignment.id);
+
+        this.logger.log(`[${schemaName}] Driver ${driver.name} accepted order ${assignment.orderNumber}`);
+
+        // Send confirmation to driver
+        await this.messagingService.sendText(
+          message.channelType,
+          message.senderId,
+          `✅ ¡Aceptado! Pedido #${assignment.orderNumber}. Ve a recogerlo y cuando lo tengas responde "RECOGIDO".`,
+          schemaName,
+        );
+        return true;
+
+      } else if (isReject) {
+        // Reject the assignment
+        await this.prisma.$executeRawUnsafe(`
+          UPDATE "${schemaName}".delivery_assignments
+          SET status = 'rejected'
+          WHERE id = $1::uuid
+        `, assignment.id);
+
+        this.logger.log(`[${schemaName}] Driver ${driver.name} rejected order ${assignment.orderNumber}`);
+
+        await this.messagingService.sendText(
+          message.channelType,
+          message.senderId,
+          `👍 Entendido. Se asignará a otro repartidor.`,
+          schemaName,
+        );
+        return true;
+      }
+
+      // Check for "RECOGIDO" / "lo tengo" — driver picked up
+      const isPickup = ['recogido', 'lo tengo', 'listo lo llevo', 'ya lo tengo', 'recogi'].includes(text);
+      if (isPickup) {
+        // Find accepted assignment
+        const acceptedAssignments = await this.prisma.$queryRawUnsafe<any[]>(`
+          SELECT da.id, da.order_id AS "orderId", o.order_number AS "orderNumber"
+          FROM "${schemaName}".delivery_assignments da
+          JOIN "${schemaName}".orders o ON o.id = da.order_id
+          WHERE da.driver_id = $1::uuid AND da.status = 'accepted'
+          ORDER BY da.accepted_at DESC LIMIT 1
+        `, driver.id);
+
+        if (acceptedAssignments.length > 0) {
+          const a = acceptedAssignments[0];
+          await this.prisma.$executeRawUnsafe(`
+            UPDATE "${schemaName}".delivery_assignments SET status = 'picked_up', picked_up_at = NOW() WHERE id = $1::uuid
+          `, a.id);
+          await this.prisma.$executeRawUnsafe(`
+            UPDATE "${schemaName}".orders SET status = 'shipped', updated_at = NOW() WHERE id = $1::uuid
+          `, a.orderId);
+
+          this.logger.log(`[${schemaName}] Driver ${driver.name} picked up order ${a.orderNumber}`);
+
+          await this.messagingService.sendText(
+            message.channelType,
+            message.senderId,
+            `📦 Perfecto. Pedido #${a.orderNumber} en camino. Cuando lo entregues responde "ENTREGADO".`,
+            schemaName,
+          );
+          return true;
+        }
+      }
+
+      // Check for "ENTREGADO" — driver delivered
+      const isDelivered = ['entregado', 'entregue', 'listo entregado', 'ya lo entregue', 'entregué'].includes(text);
+      if (isDelivered) {
+        const pickedUpAssignments = await this.prisma.$queryRawUnsafe<any[]>(`
+          SELECT da.id, da.order_id AS "orderId", o.order_number AS "orderNumber"
+          FROM "${schemaName}".delivery_assignments da
+          JOIN "${schemaName}".orders o ON o.id = da.order_id
+          WHERE da.driver_id = $1::uuid AND da.status = 'picked_up'
+          ORDER BY da.picked_up_at DESC LIMIT 1
+        `, driver.id);
+
+        if (pickedUpAssignments.length > 0) {
+          const a = pickedUpAssignments[0];
+          await this.prisma.$executeRawUnsafe(`
+            UPDATE "${schemaName}".delivery_assignments SET status = 'delivered', delivered_at = NOW() WHERE id = $1::uuid
+          `, a.id);
+          await this.prisma.$executeRawUnsafe(`
+            UPDATE "${schemaName}".orders SET status = 'delivered', updated_at = NOW() WHERE id = $1::uuid
+          `, a.orderId);
+
+          this.logger.log(`[${schemaName}] Driver ${driver.name} delivered order ${a.orderNumber}`);
+
+          await this.messagingService.sendText(
+            message.channelType,
+            message.senderId,
+            `✅ ¡Entrega confirmada! Pedido #${a.orderNumber} completado. ¡Gracias! 🙌`,
+            schemaName,
+          );
+          return true;
+        }
+      }
+    } catch {
+      // If tables don't exist, not a driver
+    }
+
+    return false;
   }
 
   /**
