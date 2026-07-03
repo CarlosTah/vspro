@@ -12,6 +12,8 @@ import { TenantProvisioningService } from '../tenants/tenant-provisioning.servic
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { BillingService } from '../billing/billing.service';
 import { OwnerNotificationService } from '../notifications/owner-notification.service';
+import { PromotionsService } from '../promotions/promotions.service';
+import { LoyaltyService } from '../loyalty/loyalty.service';
 import { IncomingMessage } from '@vspro/shared';
 
 export interface AiEngineResponse {
@@ -42,6 +44,8 @@ export class AiEngineService {
     private readonly knowledgeBase: KnowledgeBaseService,
     private readonly billingService: BillingService,
     private readonly ownerNotification: OwnerNotificationService,
+    private readonly promotionsService: PromotionsService,
+    private readonly loyaltyService: LoyaltyService,
     private readonly config: ConfigService,
   ) {
     this.openai = new OpenAI({
@@ -68,6 +72,17 @@ export class AiEngineService {
       // 2. Cargar configuración de IA del tenant
       const aiConfig = await this.getAiConfig(schemaName, tenant.businessName);
 
+      // 2.5. BLOQUEO POR HORARIO — si el negocio está cerrado, no tomar pedidos
+      const isOwnerCheck = (conversation.context as any)?.isOwner === true;
+      if (!isOwnerCheck) {
+        const scheduleCheck = this.checkBusinessHours(aiConfig.businessHours);
+        if (!scheduleCheck.isOpen) {
+          const awayMsg = aiConfig.awayMessage
+            || `¡Hola! En este momento estamos cerrados. ${scheduleCheck.nextOpen ? `Abrimos ${scheduleCheck.nextOpen}.` : 'Consulta nuestros horarios.'} ¡Te esperamos! 🙌`;
+          return { text: awayMsg };
+        }
+      }
+
       // 3. Cargar catálogo activo (para el contexto del prompt)
       const products = await this.productsService.findAll(schemaName, true);
 
@@ -80,8 +95,14 @@ export class AiEngineService {
       // 4.1. Inyectar knowledge base del tenant
       const kbContext = await this.knowledgeBase.buildKnowledgeContext(schemaName);
 
-      // 4.5. HOOK: Inyectar memoria del cliente antes de la llamada a IA
+      // 4.2. Inyectar promociones activas
+      const promosContext = await this.promotionsService.buildPromotionsContext(schemaName);
+
+      // 4.3. Inyectar programa de lealtad
       const customerId = (conversation.context as any)?.customerId;
+      const loyaltyContext = await this.loyaltyService.buildLoyaltyContext(customerId ?? null, schemaName);
+
+      // 4.5. HOOK: Inyectar memoria del cliente antes de la llamada a IA
       let memoryContext = '';
       if (customerId && message.text) {
         memoryContext = await this.customerMemory.buildMemoryContext(
@@ -100,7 +121,7 @@ export class AiEngineService {
       }
 
       const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-        { role: 'system', content: systemPrompt + kbContext + memoryContext + orderContext },
+        { role: 'system', content: systemPrompt + kbContext + promosContext + loyaltyContext + memoryContext + orderContext },
         ...history,
       ];
 
@@ -108,6 +129,7 @@ export class AiEngineService {
       if (message.mediaUrl && message.type === 'image') {
         // Download image from Meta and convert to base64 for GPT-4o Vision
         let imageUrl = message.mediaUrl;
+        let imageProcessed = false;
         try {
           const axios = (await import('axios')).default;
           // Get the channel access token
@@ -119,6 +141,7 @@ export class AiEngineService {
             // Get media download URL from Meta
             const mediaInfo = await axios.get(message.mediaUrl, {
               headers: { Authorization: `Bearer ${accessToken}` },
+              timeout: 10000,
             });
             const downloadUrl = mediaInfo.data?.url;
             if (downloadUrl) {
@@ -126,24 +149,45 @@ export class AiEngineService {
               const imgResponse = await axios.get(downloadUrl, {
                 headers: { Authorization: `Bearer ${accessToken}` },
                 responseType: 'arraybuffer',
+                timeout: 15000,
               });
               const base64 = Buffer.from(imgResponse.data).toString('base64');
               const mimeType = imgResponse.headers['content-type'] || 'image/jpeg';
               imageUrl = `data:${mimeType};base64,${base64}`;
+              imageProcessed = true;
             }
           }
         } catch (err: any) {
           this.logger.warn(`Could not download image from Meta: ${err.message}`);
-          // Fallback: try using the URL directly (might work for non-Meta images)
+          // Fallback: inform the AI that an image was sent but couldn't be processed
         }
 
-        messages.push({
-          role: 'user',
-          content: [
-            { type: 'text', text: message.text ?? 'Te envío una imagen' },
-            { type: 'image_url', image_url: { url: imageUrl, detail: 'high' } },
-          ],
-        });
+        if (imageProcessed) {
+          messages.push({
+            role: 'user',
+            content: [
+              { type: 'text', text: message.text ?? 'El cliente envió una imagen' },
+              { type: 'image_url', image_url: { url: imageUrl, detail: 'high' } },
+            ],
+          });
+        } else {
+          // Image couldn't be downloaded — tell the AI what happened
+          const convCtx2 = conversation.context as any;
+          let contextHint = 'El cliente envió una imagen pero no se pudo descargar.';
+          if (convCtx2?.lastOrderId) {
+            const orderCheck = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT status, delivery_type FROM "${schemaName}".orders WHERE id = $1::uuid`, convCtx2.lastOrderId,
+            );
+            const orderStatus = orderCheck[0]?.status;
+            const deliveryType = orderCheck[0]?.delivery_type;
+            if (orderStatus === 'payment_pending') {
+              contextHint = 'El cliente envió una imagen (probablemente COMPROBANTE DE PAGO) pero no se pudo procesar. Pídele que la reenvíe o confirma el pago manualmente.';
+            } else if (deliveryType === 'delivery') {
+              contextHint = 'El cliente envió una imagen (probablemente REFERENCIA VISUAL de su casa para el repartidor). Confirma que la recibiste como referencia para la entrega.';
+            }
+          }
+          messages.push({ role: 'user', content: message.text ? `${message.text}\n\n[${contextHint}]` : contextHint });
+        }
       } else {
         messages.push({ role: 'user', content: message.text ?? '' });
       }
@@ -243,13 +287,35 @@ export class AiEngineService {
         type: 'function',
         function: {
           name: 'request_payment',
-          description: 'Solicita el pago de un pedido y proporciona instrucciones de transferencia',
+          description: 'Solicita el pago de un pedido por transferencia y proporciona instrucciones bancarias. Usa SOLO cuando el cliente va a pagar por transferencia.',
           parameters: {
             type: 'object',
             properties: {
               orderId: { type: 'string' },
             },
             required: ['orderId'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'set_payment_method',
+          description: 'Establece el método de pago del pedido. Usa cuando el cliente dice que paga en efectivo al repartidor (contra entrega/COD). El pedido pasa directo a producción sin esperar comprobante.',
+          parameters: {
+            type: 'object',
+            properties: {
+              orderId: {
+                type: 'string',
+                description: 'ID del pedido',
+              },
+              method: {
+                type: 'string',
+                enum: ['cod', 'cash', 'card'],
+                description: 'Método de pago: cod=contra entrega (el repartidor cobra), cash=efectivo en local, card=tarjeta en local',
+              },
+            },
+            required: ['orderId', 'method'],
           },
         },
       },
@@ -688,6 +754,76 @@ export class AiEngineService {
           },
         },
       },
+      {
+        type: 'function',
+        function: {
+          name: 'apply_promotion',
+          description: 'Aplica una promoción o combo activo al pedido del cliente. Usa cuando el pedido coincide con una promo activa, o cuando el cliente la solicita. Incrementa el uso de la promo y ajusta el total del pedido.',
+          parameters: {
+            type: 'object',
+            properties: {
+              orderId: {
+                type: 'string',
+                description: 'ID del pedido al que aplicar la promoción',
+              },
+              promotionId: {
+                type: 'string',
+                description: 'ID de la promoción a aplicar (del listado de promociones activas)',
+              },
+              promotionName: {
+                type: 'string',
+                description: 'Nombre de la promoción (para contexto)',
+              },
+            },
+            required: ['orderId', 'promotionId'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'list_active_promotions',
+          description: 'Lista todas las promociones y combos activos del negocio. Usa cuando el cliente pregunta por ofertas, promos, descuentos o combos disponibles.',
+          parameters: {
+            type: 'object',
+            properties: {},
+            required: [],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'check_loyalty_points',
+          description: 'Consulta los puntos de lealtad del cliente actual. Usa cuando preguntan "¿cuántos puntos tengo?", "mi nivel", "mis recompensas". Muestra balance, nivel actual y recompensas disponibles.',
+          parameters: {
+            type: 'object',
+            properties: {},
+            required: [],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'redeem_loyalty_points',
+          description: 'Canjea puntos de lealtad del cliente por una recompensa. Usa cuando el cliente dice "quiero canjear mis puntos", "usar mis puntos", etc.',
+          parameters: {
+            type: 'object',
+            properties: {
+              points: {
+                type: 'number',
+                description: 'Cantidad de puntos a canjear',
+              },
+              rewardName: {
+                type: 'string',
+                description: 'Nombre de la recompensa que quiere canjear (del catálogo de rewards)',
+              },
+            },
+            required: ['points'],
+          },
+        },
+      },
     ];
   }
 
@@ -870,6 +1006,63 @@ export class AiEngineService {
           });
         } catch (error: any) {
           return JSON.stringify({ success: false, message: error.message });
+        }
+      }
+
+      case 'set_payment_method': {
+        try {
+          const orderId = args.orderId || (conversation.context as any)?.lastOrderId;
+          if (!orderId) {
+            return JSON.stringify({ success: false, message: 'No hay pedido activo.' });
+          }
+
+          const method = args.method; // cod, cash, card
+
+          // Add payment_method column if not exists
+          await this.prisma.$executeRawUnsafe(`
+            ALTER TABLE "${schemaName}".orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50)
+          `);
+
+          // Update payment method on the order
+          await this.prisma.$executeRawUnsafe(`
+            UPDATE "${schemaName}".orders
+            SET payment_method = $1, notes = COALESCE(notes, '') || E'\n' || $2, updated_at = NOW()
+            WHERE id = $3::uuid
+          `, method, `[PAGO] Método: ${method === 'cod' ? 'Contra entrega' : method === 'cash' ? 'Efectivo' : 'Tarjeta'}`, orderId);
+
+          // For COD/cash/card: skip payment_pending, go directly to in_production
+          if (method === 'cod' || method === 'cash' || method === 'card') {
+            try {
+              await this.ordersService.transition(orderId, 'in_production' as any, schemaName);
+            } catch {
+              // If transition fails (maybe already in another state), just mark payment_verified first
+              try {
+                await this.ordersService.transition(orderId, 'payment_verified' as any, schemaName);
+              } catch {}
+            }
+          }
+
+          const order = await this.ordersService.findById(orderId, schemaName);
+
+          if (method === 'cod') {
+            return JSON.stringify({
+              success: true,
+              method: 'cod',
+              orderNumber: order.orderNumber,
+              total: order.total,
+              message: `Pedido #${order.orderNumber} marcado como pago contra entrega. Total: $${parseFloat(order.total).toLocaleString('es-MX')}. El cliente paga en efectivo al repartidor.`,
+            });
+          }
+
+          return JSON.stringify({
+            success: true,
+            method,
+            orderNumber: order.orderNumber,
+            total: order.total,
+            message: `Método de pago: ${method}. Pedido en preparación.`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al configurar método de pago: ${err.message}` });
         }
       }
 
@@ -1327,11 +1520,27 @@ export class AiEngineService {
           await this.prisma.$executeRawUnsafe(`
             ALTER TABLE "${schemaName}".orders ADD COLUMN IF NOT EXISTS delivery_type VARCHAR(20) DEFAULT 'pickup'
           `);
+
+          // Get delivery cost from agent_config or default to 30
+          let deliveryCost = 30;
+          try {
+            const configRows = await this.prisma.$queryRawUnsafe<any[]>(`
+              SELECT agent_config->'delivery_cost' AS "deliveryCost"
+              FROM "${schemaName}".ai_config LIMIT 1
+            `);
+            const cfgCost = configRows[0]?.deliveryCost;
+            if (cfgCost && !isNaN(parseFloat(cfgCost))) {
+              deliveryCost = parseFloat(cfgCost);
+            }
+          } catch {}
+
+          // Update order: set address, delivery type, and add shipping cost
           await this.prisma.$executeRawUnsafe(`
             UPDATE "${schemaName}".orders
-            SET shipping_address = $1::jsonb, delivery_type = 'delivery', updated_at = NOW()
-            WHERE id = $2::uuid
-          `, JSON.stringify(address), orderId);
+            SET shipping_address = $1::jsonb, delivery_type = 'delivery',
+                shipping_cost = $2, total = subtotal + $2, updated_at = NOW()
+            WHERE id = $3::uuid
+          `, JSON.stringify(address), deliveryCost, orderId);
 
           const readable = [
             args.street,
@@ -1339,10 +1548,15 @@ export class AiEngineService {
             args.city,
           ].filter(Boolean).join(', ') || 'Ubicación guardada';
 
+          // Get updated order total
+          const updatedOrder = await this.ordersService.findById(orderId, schemaName);
+
           return JSON.stringify({
             success: true,
             address,
-            message: `Dirección de entrega guardada: ${readable}${address.mapsUrl ? ` 📍 ${address.mapsUrl}` : ''}`,
+            deliveryCost,
+            newTotal: updatedOrder.total,
+            message: `Dirección guardada: ${readable}${address.mapsUrl ? ` 📍` : ''}. Envío: $${deliveryCost}. Total con envío: $${parseFloat(updatedOrder.total).toLocaleString('es-MX')}`,
           });
         } catch (err: any) {
           return JSON.stringify({ success: false, message: `Error al guardar dirección: ${err.message}` });
@@ -1620,39 +1834,107 @@ export class AiEngineService {
           }
 
           if (assets.length === 0) {
-            return JSON.stringify({ success: false, message: `No hay material de tipo "${args.mediaType}" configurado.` });
+            return JSON.stringify({ success: false, message: `No hay material de tipo "${args.mediaType}" configurado. El dueño debe subir imágenes en Configuración → Media.` });
           }
 
-          // Send the first image via WhatsApp
-          const customerChannelId = (conversation.context as any)?.senderPhone;
-          if (customerChannelId) {
-            const axios = (await import('axios')).default;
-            const channelRows = await this.prisma.$queryRawUnsafe<any[]>(
-              `SELECT external_id, access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`
-            );
-
-            if (channelRows[0] && assets[0].url && !assets[0].url.startsWith('data:')) {
-              // Send image via Meta API with URL
-              await axios.post(
-                `https://graph.facebook.com/v19.0/${channelRows[0].external_id}/messages`,
-                {
-                  messaging_product: 'whatsapp',
-                  to: customerChannelId,
-                  type: 'image',
-                  image: { link: assets[0].url, caption: assets[0].title ?? '' },
-                },
-                { headers: { Authorization: `Bearer ${channelRows[0].access_token}` } },
-              ).catch(() => {});
+          // Get customer phone — try multiple sources
+          let customerPhone = (conversation.context as any)?.senderPhone;
+          if (!customerPhone) {
+            const custId = (conversation.context as any)?.customerId;
+            if (custId) {
+              const custRows = await this.prisma.$queryRawUnsafe<any[]>(
+                `SELECT channel_id FROM "${schemaName}".customers WHERE id = $1::uuid`, custId,
+              );
+              customerPhone = custRows[0]?.channel_id;
             }
+          }
+
+          if (!customerPhone) {
+            return JSON.stringify({ success: true, sent: 0, message: `Material encontrado pero no se pudo obtener el teléfono del cliente para enviarlo. Describe el contenido al cliente.` });
+          }
+
+          // Get WhatsApp channel config
+          const channelRows = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT external_id, access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`
+          );
+
+          if (!channelRows[0]) {
+            return JSON.stringify({ success: true, sent: 0, message: 'Canal de WhatsApp no configurado. Describe el material al cliente.' });
+          }
+
+          const { external_id: phoneNumberId, access_token: accessToken } = channelRows[0];
+          const axios = (await import('axios')).default;
+          let sentCount = 0;
+
+          for (const asset of assets.slice(0, 3)) {
+            try {
+              if (asset.url.startsWith('data:')) {
+                // Base64 image — upload to Meta first, then send by media ID
+                const matches = asset.url.match(/^data:(.+?);base64,(.+)$/);
+                if (matches) {
+                  const mimeType = matches[1];
+                  const base64Data = matches[2];
+                  const buffer = Buffer.from(base64Data, 'base64');
+
+                  // Upload media to Meta
+                  const FormData = (await import('form-data')).default;
+                  const form = new FormData();
+                  form.append('messaging_product', 'whatsapp');
+                  form.append('type', 'image');
+                  form.append('file', buffer, { filename: 'image.jpg', contentType: mimeType });
+
+                  const uploadResp = await axios.post(
+                    `https://graph.facebook.com/v19.0/${phoneNumberId}/media`,
+                    form,
+                    { headers: { Authorization: `Bearer ${accessToken}`, ...form.getHeaders() } },
+                  );
+
+                  const mediaId = uploadResp.data?.id;
+                  if (mediaId) {
+                    await axios.post(
+                      `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,
+                      {
+                        messaging_product: 'whatsapp',
+                        to: customerPhone,
+                        type: 'image',
+                        image: { id: mediaId, caption: asset.title ?? '' },
+                      },
+                      { headers: { Authorization: `Bearer ${accessToken}` } },
+                    );
+                    sentCount++;
+                  }
+                }
+              } else {
+                // Regular URL — send directly via link
+                await axios.post(
+                  `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,
+                  {
+                    messaging_product: 'whatsapp',
+                    to: customerPhone,
+                    type: 'image',
+                    image: { link: asset.url, caption: asset.title ?? '' },
+                  },
+                  { headers: { Authorization: `Bearer ${accessToken}` } },
+                );
+                sentCount++;
+              }
+            } catch (sendErr: any) {
+              this.logger.warn(`Failed to send media asset: ${sendErr.message}`);
+            }
+          }
+
+          if (sentCount === 0) {
+            return JSON.stringify({ success: false, message: 'No se pudo enviar el material. Puede que las imágenes no sean accesibles. Describe el contenido al cliente.' });
           }
 
           return JSON.stringify({
             success: true,
-            sent: assets.length,
-            message: `Material enviado: ${assets[0].title ?? args.mediaType}`,
+            sent: sentCount,
+            message: `Material enviado: ${assets[0].title ?? args.mediaType} (${sentCount} imagen${sentCount > 1 ? 'es' : ''})`,
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al enviar material: ${err.message}` });
+          this.logger.error(`send_media_to_customer error: ${err.message}`);
+          return JSON.stringify({ success: false, message: `Error al enviar material: ${err.message}. Describe el material al cliente.` });
         }
       }
 
@@ -1729,6 +2011,200 @@ export class AiEngineService {
           });
         } catch (err: any) {
           return JSON.stringify({ success: false, message: `Error al repetir pedido: ${err.message}` });
+        }
+      }
+
+      case 'apply_promotion': {
+        try {
+          const orderId = args.orderId || (conversation.context as any)?.lastOrderId;
+          if (!orderId) {
+            return JSON.stringify({ success: false, message: 'No hay pedido activo para aplicar la promoción.' });
+          }
+
+          const promo = await this.promotionsService.findById(args.promotionId, schemaName);
+          if (!promo) {
+            return JSON.stringify({ success: false, message: 'Promoción no encontrada.' });
+          }
+
+          const rules = promo.rules as any;
+          let discount = 0;
+          let description = '';
+
+          // Get order to calculate discount
+          const orderRows = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT total, subtotal FROM "${schemaName}".orders WHERE id = $1::uuid`, orderId,
+          );
+          const order = orderRows[0];
+          if (!order) {
+            return JSON.stringify({ success: false, message: 'Pedido no encontrado.' });
+          }
+
+          const orderTotal = parseFloat(order.total);
+
+          switch (promo.type) {
+            case 'combo':
+            case 'bundle':
+              discount = orderTotal - (rules.comboPrice ?? rules.bundlePrice ?? orderTotal);
+              description = `Combo "${promo.name}" aplicado`;
+              break;
+            case 'discount':
+              if (rules.discountType === 'percentage') {
+                discount = orderTotal * (rules.discountValue / 100);
+              } else {
+                discount = rules.discountValue;
+              }
+              description = `Descuento "${promo.name}" aplicado`;
+              break;
+            case 'bogo':
+              // For BOGO, the free items value would be added to the order differently
+              description = `Promo "${promo.name}" — producto gratis aplicado`;
+              break;
+          }
+
+          if (discount > 0) {
+            const newTotal = Math.max(0, orderTotal - discount);
+            await this.prisma.$executeRawUnsafe(`
+              UPDATE "${schemaName}".orders
+              SET total = $1, notes = COALESCE(notes, '') || E'\n' || $2, updated_at = NOW()
+              WHERE id = $3::uuid
+            `, newTotal, `[PROMO] ${description} (-$${discount.toFixed(2)})`, orderId);
+          }
+
+          // Increment promotion usage
+          await this.promotionsService.incrementUses(args.promotionId, schemaName);
+
+          return JSON.stringify({
+            success: true,
+            promotionName: promo.name,
+            discount: discount.toFixed(2),
+            newTotal: (orderTotal - discount).toFixed(2),
+            message: `${description}. Descuento: $${discount.toFixed(2)}. Nuevo total: $${(orderTotal - discount).toFixed(2)}`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al aplicar promoción: ${err.message}` });
+        }
+      }
+
+      case 'list_active_promotions': {
+        try {
+          const promos = await this.promotionsService.findActive(schemaName);
+          if (promos.length === 0) {
+            return JSON.stringify({ success: true, promotions: [], message: 'No hay promociones activas en este momento.' });
+          }
+
+          const formatted = promos.map((p: any) => {
+            const rules = p.rules as any;
+            let details = '';
+            switch (p.type) {
+              case 'combo':
+                details = `Combo por $${rules.comboPrice}`;
+                if (rules.products?.length) {
+                  details += ` — incluye: ${rules.products.map((pr: any) => `${pr.quantity}x ${pr.productName ?? 'producto'}`).join(', ')}`;
+                }
+                break;
+              case 'discount':
+                details = rules.discountType === 'percentage'
+                  ? `${rules.discountValue}% de descuento`
+                  : `$${rules.discountValue} de descuento`;
+                if (rules.minOrderTotal) details += ` (mínimo $${rules.minOrderTotal})`;
+                break;
+              case 'bogo':
+                details = `Compra ${rules.buyQuantity} y lleva ${rules.getQuantity} gratis`;
+                break;
+              case 'bundle':
+                details = `Paquete por $${rules.bundlePrice} (ahorras $${rules.savings ?? '?'})`;
+                break;
+            }
+            return { id: p.id, name: p.name, type: p.type, description: p.description, details };
+          });
+
+          return JSON.stringify({
+            success: true,
+            promotions: formatted,
+            message: `Tenemos ${formatted.length} promoción(es) activa(s).`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al listar promociones: ${err.message}` });
+        }
+      }
+
+      case 'check_loyalty_points': {
+        try {
+          const custId = (conversation.context as any)?.customerId;
+          if (!custId) {
+            return JSON.stringify({ success: false, message: 'No se pudo identificar al cliente.' });
+          }
+
+          const loyalty = await this.loyaltyService.getCustomerLoyalty(custId, schemaName);
+          if (!loyalty) {
+            return JSON.stringify({ success: true, message: 'El programa de lealtad no está activo en este negocio.' });
+          }
+
+          const config = await this.loyaltyService.getConfig(schemaName);
+          const availableRewards = config.rewards.filter(r => loyalty.totalPoints >= r.pointsCost);
+
+          return JSON.stringify({
+            success: true,
+            points: loyalty.totalPoints,
+            tier: loyalty.currentTier,
+            nextTier: loyalty.nextTier,
+            pointsToNextTier: loyalty.pointsToNextTier,
+            totalEarned: loyalty.totalEarned,
+            totalRedeemed: loyalty.totalRedeemed,
+            availableRewards: availableRewards.map(r => ({ name: r.name, cost: r.pointsCost })),
+            message: `Tienes ${loyalty.totalPoints} puntos (nivel ${loyalty.currentTier}).${loyalty.nextTier ? ` Te faltan ${loyalty.pointsToNextTier} para ${loyalty.nextTier}.` : ''}${availableRewards.length > 0 ? ` Puedes canjear: ${availableRewards.map(r => `${r.name} (${r.pointsCost} pts)`).join(', ')}.` : ''}`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al consultar puntos: ${err.message}` });
+        }
+      }
+
+      case 'redeem_loyalty_points': {
+        try {
+          const custId = (conversation.context as any)?.customerId;
+          if (!custId) {
+            return JSON.stringify({ success: false, message: 'No se pudo identificar al cliente.' });
+          }
+
+          const orderId = (conversation.context as any)?.lastOrderId;
+          const description = args.rewardName
+            ? `Canje: ${args.rewardName}`
+            : `Canje de ${args.points} puntos`;
+
+          const result = await this.loyaltyService.redeemPoints(
+            custId,
+            args.points,
+            description,
+            schemaName,
+            orderId,
+          );
+
+          if (!result) {
+            const balance = await this.loyaltyService.getCustomerBalance(custId, schemaName);
+            return JSON.stringify({
+              success: false,
+              message: `No tienes suficientes puntos. Tu balance actual es ${balance} puntos.`,
+            });
+          }
+
+          // If there's an active order, apply the discount
+          if (orderId && result.discountValue > 0) {
+            await this.prisma.$executeRawUnsafe(`
+              UPDATE "${schemaName}".orders
+              SET total = GREATEST(0, total - $1), notes = COALESCE(notes, '') || E'\n' || $2, updated_at = NOW()
+              WHERE id = $3::uuid
+            `, result.discountValue, `[LEALTAD] -$${result.discountValue.toFixed(2)} (${args.points} pts canjeados)`, orderId);
+          }
+
+          return JSON.stringify({
+            success: true,
+            redeemed: result.redeemed,
+            discountValue: result.discountValue,
+            newBalance: result.newBalance,
+            message: `¡Canjeaste ${result.redeemed} puntos! ${result.discountValue > 0 ? `Descuento de $${result.discountValue.toFixed(2)} aplicado.` : ''} Tu nuevo balance: ${result.newBalance} puntos.`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al canjear puntos: ${err.message}` });
         }
       }
 
@@ -1817,16 +2293,24 @@ FLUJO DE PEDIDO — SIEMPRE SIGUE ESTE ORDEN:
 3. Usa create_order para registrar el pedido
 4. Pregunta: "¿Pasas a recoger o te lo enviamos a domicilio?"
 5. Si es ENVÍO:
-   - Informa que el envío tiene un costo adicional (según configuración del negocio)
+   - INFORMA EL COSTO DE ENVÍO: "$XX de envío adicional" (consulta el monto configurado del negocio o usa $30 si no está configurado)
    - Pide la dirección escrita (calle, colonia, referencias)
    - Pide que envíe su UBICACIÓN por WhatsApp (el pin/📍) para el repartidor
    - Usa set_delivery_address con la dirección y coordenadas (usa el orderId del pedido que acabas de crear)
    - Si el cliente envía una IMAGEN después de dar la dirección, es una referencia visual de su casa — menciona que la guardaste como referencia
    - El costo de envío se suma automáticamente al total
 6. Si es RECOGER: confirma que pase cuando esté listo
-7. Solicita el pago: da los datos bancarios (si los tienes configurados) y pide comprobante de transferencia
-8. Cuando el cliente mande imagen de transferencia, se verifica automáticamente
-9. Guarda el nombre y dirección en la memoria del cliente (update_customer_memory)
+7. Pregunta forma de pago: "¿Pagas por transferencia o en efectivo contra entrega?"
+8. Si dice TRANSFERENCIA:
+   - Usa request_payment para poner el pedido en pago pendiente
+   - Da los datos bancarios (si los tienes configurados) y pide comprobante
+   - Cuando el cliente mande imagen de transferencia, se verifica automáticamente
+9. Si dice EFECTIVO / CONTRA ENTREGA / EN LA ENTREGA:
+   - Usa set_payment_method con method "cod" (cash on delivery)
+   - El pedido pasa DIRECTO a producción sin esperar comprobante
+   - Informa: "Perfecto, pagas $XX en efectivo al repartidor cuando llegue"
+   - El repartidor cobrará al entregar
+10. Guarda el nombre y dirección en la memoria del cliente (update_customer_memory)
 
 MANEJO DE ERRORES:
 - Si set_delivery_address falla: intenta de nuevo con el orderId del pedido activo. Si sigue fallando, usa escalate_complaint.
@@ -1841,6 +2325,12 @@ MEMORIA — IMPORTANTE:
 - Si la MEMORIA DEL CLIENTE ya tiene su nombre/dirección, NO lo pidas de nuevo. Usa los datos que ya tienes.
 - Guarda la memoria DURANTE la conversación, no esperes al final.
 - SIEMPRE que el cliente dé información nueva (nombre, dirección, preferencia), guárdala inmediatamente.
+
+COSTOS Y ENVÍO:
+- Costo de envío a domicilio: $30 (se suma al total cuando se establece la dirección)
+- SIEMPRE informa el costo de envío ANTES de pedir la dirección: "El envío tiene un costo de $30 adicional"
+- Al preguntar forma de pago, ofrece: transferencia o efectivo contra entrega
+- Si es contra entrega, usa set_payment_method con method "cod"
 
 CATÁLOGO DISPONIBLE:
 ${productList || 'No hay productos disponibles en este momento.'}
@@ -1863,6 +2353,9 @@ CLIENTE FRECUENTE — PEDIDO HABITUAL:
 - Si el cliente dice "lo mismo de siempre", "mi pedido habitual", "repite mi pedido" → usa repeat_last_order
 - Si reconoces al cliente (está en la memoria), salúdalo por nombre y ofrece: "¿Te mando tu pedido habitual?"
 - Esto acelera la compra y mejora la experiencia.
+
+HORARIO DE ATENCIÓN:
+${this.formatScheduleForPrompt(aiConfig.businessHours)}
 
 ${aiConfig.customInstructions ? `INSTRUCCIONES ADICIONALES:\n${aiConfig.customInstructions}` : ''}
 ${aiConfig.objectives?.length ? `\nOBJETIVOS DEL AGENTE:\n${aiConfig.objectives.map((o: string) => `- ${o}`).join('\n')}` : ''}
@@ -1908,6 +2401,121 @@ CATÁLOGO ACTUAL DEL NEGOCIO (${products.length} productos):
 ${productList || 'Sin productos aún — ayuda al dueño a agregar su catálogo.'}
 
 Siempre confirma antes de agregar productos. Si no estás seguro del precio, pregunta.`.trim();
+  }
+
+  /** Formatea el horario para incluirlo en el system prompt */
+  private formatScheduleForPrompt(businessHours: any): string {
+    if (!businessHours) return '- No configurado (atención 24/7)';
+
+    const schedule = businessHours.schedule ?? businessHours;
+    const timezone = businessHours.timezone ?? 'America/Mexico_City';
+    const dayNames: Record<string, string> = {
+      mon: 'Lunes', tue: 'Martes', wed: 'Miércoles', thu: 'Jueves',
+      fri: 'Viernes', sat: 'Sábado', sun: 'Domingo',
+    };
+    const daysOrder = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+    const lines = daysOrder.map(day => {
+      const hours = schedule[day];
+      if (!hours || !hours.open) return `- ${dayNames[day]}: Cerrado`;
+      return `- ${dayNames[day]}: ${hours.open} - ${hours.close}`;
+    });
+
+    lines.push(`- Zona horaria: ${timezone}`);
+    lines.push('- Si un cliente pregunta horarios, responde con esta información exacta. NUNCA inventes horarios.');
+    return lines.join('\n');
+  }
+
+  /** Verifica si el negocio está dentro de su horario de atención */
+  private checkBusinessHours(businessHours: any): { isOpen: boolean; nextOpen?: string } {
+    if (!businessHours) return { isOpen: true }; // Sin horario configurado = siempre abierto
+
+    // Parse format: could be {timezone, schedule: {mon: {open, close}}} or {mon: {open, close}}
+    let timezone = 'America/Mexico_City';
+    let schedule = businessHours;
+
+    if (businessHours.timezone) {
+      timezone = businessHours.timezone;
+      schedule = businessHours.schedule ?? businessHours;
+    }
+
+    // Get current time in business timezone
+    const now = new Date();
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    };
+    const dayOptions: Intl.DateTimeFormatOptions = {
+      timeZone: timezone,
+      weekday: 'short',
+    };
+
+    const currentTime = new Intl.DateTimeFormat('en-US', options).format(now);
+    const currentDay = new Intl.DateTimeFormat('en-US', dayOptions).format(now).toLowerCase();
+
+    // Map English day abbreviations to our keys
+    const dayMap: Record<string, string> = {
+      mon: 'mon', tue: 'tue', wed: 'wed', thu: 'thu', fri: 'fri', sat: 'sat', sun: 'sun',
+    };
+    const dayKey = dayMap[currentDay] ?? currentDay;
+
+    const todayHours = schedule[dayKey];
+
+    // If day is null/undefined = closed today
+    if (!todayHours || !todayHours.open || !todayHours.close) {
+      // Find next open day
+      const daysOrder = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+      const todayIdx = daysOrder.indexOf(dayKey);
+      for (let i = 1; i <= 7; i++) {
+        const nextIdx = (todayIdx + i) % 7;
+        const nextDay = daysOrder[nextIdx];
+        if (schedule[nextDay]?.open) {
+          const dayNames: Record<string, string> = {
+            mon: 'lunes', tue: 'martes', wed: 'miércoles', thu: 'jueves',
+            fri: 'viernes', sat: 'sábado', sun: 'domingo',
+          };
+          return { isOpen: false, nextOpen: `el ${dayNames[nextDay]} a las ${schedule[nextDay].open}` };
+        }
+      }
+      return { isOpen: false };
+    }
+
+    // Parse times: "09:00" → "09:00", handle "HH:MM" format
+    const [currentH, currentM] = currentTime.split(':').map(Number);
+    const currentMinutes = currentH * 60 + currentM;
+
+    const [openH, openM] = todayHours.open.split(':').map(Number);
+    const openMinutes = openH * 60 + openM;
+
+    const [closeH, closeM] = todayHours.close.split(':').map(Number);
+    const closeMinutes = closeH * 60 + closeM;
+
+    if (currentMinutes >= openMinutes && currentMinutes < closeMinutes) {
+      return { isOpen: true };
+    }
+
+    // Closed — determine if before opening or after closing
+    if (currentMinutes < openMinutes) {
+      return { isOpen: false, nextOpen: `hoy a las ${todayHours.open}` };
+    }
+
+    // After closing — find next open
+    const daysOrder = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+    const todayIdx = daysOrder.indexOf(dayKey);
+    for (let i = 1; i <= 7; i++) {
+      const nextIdx = (todayIdx + i) % 7;
+      const nextDay = daysOrder[nextIdx];
+      if (schedule[nextDay]?.open) {
+        const dayNames: Record<string, string> = {
+          mon: 'lunes', tue: 'martes', wed: 'miércoles', thu: 'jueves',
+          fri: 'viernes', sat: 'sábado', sun: 'domingo',
+        };
+        return { isOpen: false, nextOpen: `el ${dayNames[nextDay]} a las ${schedule[nextDay].open}` };
+      }
+    }
+    return { isOpen: false };
   }
 
   /** Respuesta de desarrollo cuando no hay API key de OpenAI */

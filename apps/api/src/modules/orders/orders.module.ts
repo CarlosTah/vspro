@@ -4,9 +4,10 @@ import { DashboardController } from './dashboard.controller';
 import { OrdersService } from './orders.service';
 import { OrderNotificationsService } from './order-notifications.service';
 import { MessagingModule } from '../messaging/messaging.module';
+import { LoyaltyModule } from '../loyalty/loyalty.module';
 
 @Module({
-  imports: [MessagingModule],
+  imports: [MessagingModule, LoyaltyModule],
   controllers: [OrdersController, DashboardController],
   providers: [OrdersService, OrderNotificationsService],
   exports: [OrdersService],

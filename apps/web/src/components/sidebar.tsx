@@ -41,6 +41,9 @@ const navigation = [
   { name: 'Pagos', href: '/payments', icon: '💰', industries: null },
   { name: 'Entregas', href: '/deliveries', icon: '🛵', industries: ['restaurante', 'ropa', 'ecommerce', 'barberia', 'taller'] },
   { name: 'Reportes', href: '/reports', icon: '📈', industries: null },
+  { name: 'Analytics', href: '/analytics', icon: '📉', industries: null },
+  { name: 'Promociones', href: '/promotions', icon: '🎉', industries: null },
+  { name: 'Lealtad', href: '/loyalty', icon: '🏆', industries: null },
   { name: 'Reservaciones', href: '/reservations', icon: '📅', industries: ['inmobiliaria'] },
 ];
 

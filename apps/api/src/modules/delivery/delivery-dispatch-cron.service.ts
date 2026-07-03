@@ -173,11 +173,24 @@ export class DeliveryDispatchCronService {
         ? `\n🗺️ ${order.shippingAddress.mapsUrl}`
         : '';
 
-    const message = (settings.dispatchMessage || '📦 Pedido #{orderNumber} listo.\n👤 Cliente: {customerName}\n📍 {address}\n💰 Total: ${total}\n\n¿Puedes recogerlo? Responde SI o NO')
+    // Check if order is COD (cash on delivery)
+    let paymentMethodInfo = '';
+    try {
+      const pmRows = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT payment_method FROM "${schemaName}".orders WHERE id = $1::uuid`, order.id,
+      );
+      const pm = pmRows[0]?.payment_method;
+      if (pm === 'cod') {
+        paymentMethodInfo = `\n💵 *COBRAR AL CLIENTE: $${parseFloat(order.total).toLocaleString('es-MX')} en efectivo*`;
+      }
+    } catch {}
+
+    const message = (settings.dispatchMessage || '📦 Pedido #{orderNumber} listo.\n👤 Cliente: {customerName}\n📍 {address}\n💰 Total: ${total}{paymentInfo}\n\n¿Puedes recogerlo? Responde SI o NO')
       .replace('{orderNumber}', order.orderNumber)
       .replace('{address}', address + reference + mapsLink)
       .replace('{total}', parseFloat(order.total).toLocaleString('es-MX'))
-      .replace('{customerName}', order.customerName ?? 'Cliente');
+      .replace('{customerName}', order.customerName ?? 'Cliente')
+      .replace('{paymentInfo}', paymentMethodInfo);
 
     // Send WhatsApp to driver
     const result = await this.messagingFactory.sendText(driver.phone, message, 'whatsapp', schemaName);

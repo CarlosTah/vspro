@@ -9,6 +9,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { isValidTransition, OrderStatus } from '@vspro/shared';
 import { OrderNotificationsService } from './order-notifications.service';
 import { MessagingFactory } from '../messaging/messaging-factory.service';
+import { LoyaltyService } from '../loyalty/loyalty.service';
 
 @Injectable()
 export class OrdersService {
@@ -16,6 +17,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly notifications: OrderNotificationsService,
     private readonly messagingFactory: MessagingFactory,
+    private readonly loyaltyService: LoyaltyService,
   ) {}
 
   // ─── Consultas ────────────────────────────────────────────────
@@ -296,6 +298,12 @@ export class OrdersService {
 
     // AUTO-TRANSITION: payment_verified → in_production (automático)
     if (newStatus === 'payment_verified') {
+      // Earn loyalty points (non-blocking)
+      const orderTotal = parseFloat(order.total ?? '0');
+      if (orderTotal > 0 && order.customerId) {
+        this.loyaltyService.earnPoints(order.customerId, id, orderTotal, schemaName).catch(() => {});
+      }
+
       // Small delay to let the payment notification send first, then auto-move to production
       setTimeout(async () => {
         try {

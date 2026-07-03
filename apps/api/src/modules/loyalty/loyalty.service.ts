@@ -1,219 +1,419 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 
-/**
- * Loyalty Service — Customer segmentation & re-engagement engine.
- *
- * Features:
- * - customer-segmentation: Classifies customers by purchase behavior
- * - re-engagement-engine: Identifies at-risk/churned customers for outreach
- * - whatsapp-template-sender: Sends approved templates outside 24h window
- *
- * Segments:
- * - VIP: 5+ orders AND avg < 20 days between purchases
- * - Active: 2+ orders in last 60 days
- * - At-risk: Last order 30-60 days ago
- * - Churned: Last order > 60 days ago
- * - New: Only 1 order ever
- *
- * Schema tables: customers, orders, conversations
- */
+export interface LoyaltyConfig {
+  id: string;
+  isEnabled: boolean;
+  pointsPerCurrency: number;
+  redemptionRate: number;
+  welcomeBonus: number;
+  tiers: LoyaltyTier[];
+  rewards: LoyaltyReward[];
+}
+
+export interface LoyaltyTier {
+  name: string;
+  minPoints: number;
+  multiplier: number;
+}
+
+export interface LoyaltyReward {
+  name: string;
+  pointsCost: number;
+  type: 'discount_fixed' | 'discount_percent' | 'free_product' | 'free_shipping';
+  value: number; // $ amount, % amount, or product qty
+  productName?: string;
+}
+
+export interface CustomerLoyalty {
+  customerId: string;
+  customerName: string;
+  totalPoints: number;
+  currentTier: string;
+  nextTier: string | null;
+  pointsToNextTier: number;
+  totalEarned: number;
+  totalRedeemed: number;
+}
+
 @Injectable()
 export class LoyaltyService {
   private readonly logger = new Logger(LoyaltyService.name);
 
   constructor(private readonly prisma: PrismaService) {}
 
-  // ─── Customer Segmentation ────────────────────────────────────
+  async ensureTables(schemaName: string) {
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}".loyalty_config (
+        id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        is_enabled            BOOLEAN NOT NULL DEFAULT false,
+        points_per_currency   DECIMAL(5,2) NOT NULL DEFAULT 1,
+        redemption_rate       DECIMAL(5,2) NOT NULL DEFAULT 10,
+        welcome_bonus         INTEGER NOT NULL DEFAULT 0,
+        tiers                 JSONB NOT NULL DEFAULT '[{"name":"Bronce","minPoints":0,"multiplier":1},{"name":"Plata","minPoints":500,"multiplier":1.5},{"name":"Oro","minPoints":2000,"multiplier":2}]',
+        rewards               JSONB NOT NULL DEFAULT '[]',
+        updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}".loyalty_transactions (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        customer_id     UUID NOT NULL REFERENCES "${schemaName}".customers(id),
+        type            VARCHAR(50) NOT NULL,
+        points          INTEGER NOT NULL,
+        balance_after   INTEGER NOT NULL DEFAULT 0,
+        description     TEXT,
+        order_id        UUID,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await this.prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS idx_loyalty_customer ON "${schemaName}".loyalty_transactions(customer_id)
+    `);
+  }
 
-  /**
-   * Segment all customers for a tenant.
-   */
-  async segmentCustomers(schemaName: string): Promise<SegmentationResult> {
-    const customers = await this.prisma.$queryRawUnsafe<any[]>(`
-      SELECT
-        c.id, c.name, c.phone, c.channel_type, c.channel_id,
-        COUNT(o.id) AS order_count,
-        COALESCE(SUM(o.total), 0) AS lifetime_value,
-        MAX(o.created_at) AS last_order_at,
-        MIN(o.created_at) AS first_order_at
-      FROM "${schemaName}".customers c
-      LEFT JOIN "${schemaName}".orders o ON o.customer_id = c.id AND o.status != 'cancelled'
-      GROUP BY c.id, c.name, c.phone, c.channel_type, c.channel_id
+  // ─── Config ─────────────────────────────────────────────────────
+
+  async getConfig(schemaName: string): Promise<LoyaltyConfig> {
+    await this.ensureTables(schemaName);
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT id, is_enabled AS "isEnabled", points_per_currency AS "pointsPerCurrency",
+             redemption_rate AS "redemptionRate", welcome_bonus AS "welcomeBonus",
+             tiers, rewards, updated_at AS "updatedAt"
+      FROM "${schemaName}".loyalty_config LIMIT 1
     `);
 
-    const now = Date.now();
-    const segments: Record<CustomerSegment, SegmentedCustomer[]> = {
-      vip: [], active: [], at_risk: [], churned: [], new: [], inactive: [],
-    };
+    if (!rows[0]) {
+      // Create default config
+      const created = await this.prisma.$queryRawUnsafe<any[]>(`
+        INSERT INTO "${schemaName}".loyalty_config (is_enabled) VALUES (false)
+        RETURNING id, is_enabled AS "isEnabled", points_per_currency AS "pointsPerCurrency",
+                  redemption_rate AS "redemptionRate", welcome_bonus AS "welcomeBonus",
+                  tiers, rewards
+      `);
+      return this.parseConfig(created[0]);
+    }
+    return this.parseConfig(rows[0]);
+  }
 
-    for (const c of customers) {
-      const orderCount = parseInt(c.order_count ?? '0');
-      const ltv = parseFloat(c.lifetime_value ?? '0');
-      const lastOrderAt = c.last_order_at ? new Date(c.last_order_at).getTime() : 0;
-      const daysSinceLastOrder = lastOrderAt ? (now - lastOrderAt) / 86400000 : Infinity;
-      const firstOrderAt = c.first_order_at ? new Date(c.first_order_at).getTime() : 0;
-      const customerAge = firstOrderAt ? (now - firstOrderAt) / 86400000 : 0;
-      const avgDaysBetween = orderCount > 1 ? customerAge / (orderCount - 1) : Infinity;
+  async updateConfig(schemaName: string, updates: Partial<LoyaltyConfig>) {
+    await this.ensureTables(schemaName);
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
 
-      let segment: CustomerSegment;
+    if (updates.isEnabled !== undefined) { fields.push(`is_enabled = $${idx++}`); values.push(updates.isEnabled); }
+    if (updates.pointsPerCurrency !== undefined) { fields.push(`points_per_currency = $${idx++}`); values.push(updates.pointsPerCurrency); }
+    if (updates.redemptionRate !== undefined) { fields.push(`redemption_rate = $${idx++}`); values.push(updates.redemptionRate); }
+    if (updates.welcomeBonus !== undefined) { fields.push(`welcome_bonus = $${idx++}`); values.push(updates.welcomeBonus); }
+    if (updates.tiers !== undefined) { fields.push(`tiers = $${idx++}::jsonb`); values.push(JSON.stringify(updates.tiers)); }
+    if (updates.rewards !== undefined) { fields.push(`rewards = $${idx++}::jsonb`); values.push(JSON.stringify(updates.rewards)); }
 
-      if (orderCount >= 5 && avgDaysBetween < 20) {
-        segment = 'vip';
-      } else if (orderCount >= 2 && daysSinceLastOrder <= 60) {
-        segment = 'active';
-      } else if (orderCount >= 1 && daysSinceLastOrder > 30 && daysSinceLastOrder <= 60) {
-        segment = 'at_risk';
-      } else if (orderCount >= 1 && daysSinceLastOrder > 60) {
-        segment = 'churned';
-      } else if (orderCount === 1) {
-        segment = 'new';
-      } else {
-        segment = 'inactive';
+    if (fields.length === 0) return this.getConfig(schemaName);
+
+    fields.push('updated_at = NOW()');
+
+    // Upsert: update if exists, insert if not
+    const existing = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id FROM "${schemaName}".loyalty_config LIMIT 1`,
+    );
+
+    if (existing.length > 0) {
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE "${schemaName}".loyalty_config SET ${fields.join(', ')} WHERE id = '${existing[0].id}'`,
+        ...values,
+      );
+    } else {
+      await this.prisma.$executeRawUnsafe(
+        `INSERT INTO "${schemaName}".loyalty_config (is_enabled) VALUES (false)`,
+      );
+      const newRow = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id FROM "${schemaName}".loyalty_config LIMIT 1`,
+      );
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE "${schemaName}".loyalty_config SET ${fields.join(', ')} WHERE id = '${newRow[0].id}'`,
+        ...values,
+      );
+    }
+
+    return this.getConfig(schemaName);
+  }
+
+  // ─── Points Operations ──────────────────────────────────────────
+
+  async getCustomerBalance(customerId: string, schemaName: string): Promise<number> {
+    await this.ensureTables(schemaName);
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT COALESCE(SUM(points), 0) AS balance
+      FROM "${schemaName}".loyalty_transactions
+      WHERE customer_id = $1::uuid
+    `, customerId);
+    return parseInt(rows[0]?.balance ?? '0');
+  }
+
+  async getCustomerLoyalty(customerId: string, schemaName: string): Promise<CustomerLoyalty | null> {
+    await this.ensureTables(schemaName);
+    const config = await this.getConfig(schemaName);
+    if (!config.isEnabled) return null;
+
+    const balance = await this.getCustomerBalance(customerId, schemaName);
+
+    // Get customer name
+    const custRows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT name FROM "${schemaName}".customers WHERE id = $1::uuid`, customerId,
+    );
+    const customerName = custRows[0]?.name ?? 'Cliente';
+
+    // Totals
+    const totals = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT
+        COALESCE(SUM(points) FILTER (WHERE points > 0), 0) AS earned,
+        COALESCE(ABS(SUM(points) FILTER (WHERE points < 0)), 0) AS redeemed
+      FROM "${schemaName}".loyalty_transactions
+      WHERE customer_id = $1::uuid
+    `, customerId);
+
+    // Determine tier
+    const tiers = config.tiers.sort((a, b) => b.minPoints - a.minPoints);
+    let currentTier = tiers[tiers.length - 1]?.name ?? 'Sin tier';
+    let nextTier: string | null = null;
+    let pointsToNextTier = 0;
+
+    // Total earned determines tier (not current balance)
+    const totalEarned = parseInt(totals[0]?.earned ?? '0');
+
+    for (let i = 0; i < tiers.length; i++) {
+      if (totalEarned >= tiers[i].minPoints) {
+        currentTier = tiers[i].name;
+        if (i > 0) {
+          nextTier = tiers[i - 1].name;
+          pointsToNextTier = tiers[i - 1].minPoints - totalEarned;
+        }
+        break;
       }
-
-      segments[segment].push({
-        id: c.id,
-        name: c.name,
-        phone: c.phone,
-        channelType: c.channel_type,
-        channelId: c.channel_id,
-        orderCount,
-        lifetimeValue: ltv,
-        daysSinceLastOrder: Math.round(daysSinceLastOrder),
-        segment,
-      });
     }
 
     return {
-      total: customers.length,
-      segments: {
-        vip: segments.vip.length,
-        active: segments.active.length,
-        at_risk: segments.at_risk.length,
-        churned: segments.churned.length,
-        new: segments.new.length,
-        inactive: segments.inactive.length,
-      },
-      customers: segments,
+      customerId,
+      customerName,
+      totalPoints: balance,
+      currentTier,
+      nextTier,
+      pointsToNextTier: Math.max(0, pointsToNextTier),
+      totalEarned,
+      totalRedeemed: parseInt(totals[0]?.redeemed ?? '0'),
     };
   }
 
-  /**
-   * Get customers needing re-engagement (at_risk + churned).
-   */
-  async getReEngagementTargets(schemaName: string): Promise<ReEngagementTarget[]> {
-    const result = await this.segmentCustomers(schemaName);
-    const targets: ReEngagementTarget[] = [];
+  async earnPoints(
+    customerId: string,
+    orderId: string,
+    orderTotal: number,
+    schemaName: string,
+  ): Promise<{ earned: number; newBalance: number } | null> {
+    const config = await this.getConfig(schemaName);
+    if (!config.isEnabled) return null;
 
-    // At-risk: send "we miss you" message
-    for (const c of result.customers.at_risk) {
-      targets.push({
-        ...c,
-        action: 'soft_reminder',
-        templateName: 're_engagement_miss_you',
-        message: this.buildReEngagementMessage(c, 'at_risk'),
-      });
+    // Calculate points based on order total and tier multiplier
+    const loyalty = await this.getCustomerLoyalty(customerId, schemaName);
+    const tierMultiplier = config.tiers
+      .sort((a, b) => b.minPoints - a.minPoints)
+      .find(t => (loyalty?.totalEarned ?? 0) >= t.minPoints)?.multiplier ?? 1;
+
+    const basePoints = Math.floor(orderTotal * parseFloat(String(config.pointsPerCurrency)));
+    const earnedPoints = Math.floor(basePoints * tierMultiplier);
+
+    if (earnedPoints <= 0) return null;
+
+    const currentBalance = await this.getCustomerBalance(customerId, schemaName);
+    const newBalance = currentBalance + earnedPoints;
+
+    await this.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schemaName}".loyalty_transactions
+        (customer_id, type, points, balance_after, description, order_id)
+      VALUES ($1::uuid, 'earn', $2, $3, $4, $5::uuid)
+    `,
+      customerId,
+      earnedPoints,
+      newBalance,
+      `+${earnedPoints} pts por pedido $${orderTotal.toFixed(2)}${tierMultiplier > 1 ? ` (x${tierMultiplier} tier bonus)` : ''}`,
+      orderId,
+    );
+
+    return { earned: earnedPoints, newBalance };
+  }
+
+  async redeemPoints(
+    customerId: string,
+    points: number,
+    description: string,
+    schemaName: string,
+    orderId?: string,
+  ): Promise<{ redeemed: number; newBalance: number; discountValue: number } | null> {
+    const config = await this.getConfig(schemaName);
+    if (!config.isEnabled) return null;
+
+    const currentBalance = await this.getCustomerBalance(customerId, schemaName);
+    if (currentBalance < points) {
+      return null; // Not enough points
     }
 
-    // Churned: send special offer
-    for (const c of result.customers.churned) {
-      targets.push({
-        ...c,
-        action: 'win_back_offer',
-        templateName: 're_engagement_offer',
-        message: this.buildReEngagementMessage(c, 'churned'),
-      });
+    const newBalance = currentBalance - points;
+    const discountValue = points / parseFloat(String(config.redemptionRate));
+
+    await this.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schemaName}".loyalty_transactions
+        (customer_id, type, points, balance_after, description, order_id)
+      VALUES ($1::uuid, 'redeem', $2, $3, $4, $5)
+    `,
+      customerId,
+      -points,
+      newBalance,
+      description,
+      orderId ?? null,
+    );
+
+    return { redeemed: points, newBalance, discountValue };
+  }
+
+  async giveWelcomeBonus(customerId: string, schemaName: string): Promise<number> {
+    const config = await this.getConfig(schemaName);
+    if (!config.isEnabled || config.welcomeBonus <= 0) return 0;
+
+    // Check if already received welcome bonus
+    const existing = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT id FROM "${schemaName}".loyalty_transactions
+      WHERE customer_id = $1::uuid AND type = 'bonus' AND description LIKE '%bienvenida%'
+      LIMIT 1
+    `, customerId);
+
+    if (existing.length > 0) return 0;
+
+    const currentBalance = await this.getCustomerBalance(customerId, schemaName);
+    const newBalance = currentBalance + config.welcomeBonus;
+
+    await this.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schemaName}".loyalty_transactions
+        (customer_id, type, points, balance_after, description)
+      VALUES ($1::uuid, 'bonus', $2, $3, 'Puntos de bienvenida')
+    `, customerId, config.welcomeBonus, newBalance);
+
+    return config.welcomeBonus;
+  }
+
+  // ─── Leaderboard / Top Customers ──────────────────────────────
+
+  async getTopCustomers(schemaName: string, limit = 20) {
+    await this.ensureTables(schemaName);
+    return this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT
+        c.id AS "customerId",
+        c.name AS "customerName",
+        c.phone,
+        COALESCE(SUM(lt.points), 0) AS "totalPoints",
+        COALESCE(SUM(lt.points) FILTER (WHERE lt.points > 0), 0) AS "totalEarned",
+        COALESCE(ABS(SUM(lt.points) FILTER (WHERE lt.points < 0)), 0) AS "totalRedeemed",
+        COUNT(DISTINCT lt.order_id) FILTER (WHERE lt.type = 'earn') AS "orderCount"
+      FROM "${schemaName}".customers c
+      JOIN "${schemaName}".loyalty_transactions lt ON lt.customer_id = c.id
+      GROUP BY c.id, c.name, c.phone
+      ORDER BY "totalPoints" DESC
+      LIMIT $1
+    `, limit);
+  }
+
+  // ─── AI Context Builder ─────────────────────────────────────────
+
+  async buildLoyaltyContext(customerId: string | null, schemaName: string): Promise<string> {
+    const config = await this.getConfig(schemaName);
+    if (!config.isEnabled) return '';
+
+    let ctx = '\n\nPROGRAMA DE LEALTAD:\n';
+    ctx += `- El negocio tiene un programa de puntos activo.\n`;
+    ctx += `- Se ganan ${config.pointsPerCurrency} punto(s) por cada $1 gastado.\n`;
+    ctx += `- ${config.redemptionRate} puntos = $1 de descuento.\n`;
+
+    if (config.tiers.length > 0) {
+      ctx += `- Niveles: ${config.tiers.map(t => `${t.name} (${t.minPoints}+ pts, x${t.multiplier})`).join(', ')}\n`;
     }
 
-    // VIP without recent order (> 15 days): gentle check-in
-    for (const c of result.customers.vip) {
-      if (c.daysSinceLastOrder > 15) {
-        targets.push({
-          ...c,
-          action: 'vip_check_in',
-          templateName: 're_engagement_vip',
-          message: this.buildReEngagementMessage(c, 'vip_inactive'),
-        });
+    if (config.rewards.length > 0) {
+      ctx += `- Recompensas canjeables:\n`;
+      for (const r of config.rewards) {
+        ctx += `  • ${r.name}: ${r.pointsCost} pts`;
+        if (r.type === 'discount_fixed') ctx += ` → $${r.value} de descuento`;
+        if (r.type === 'discount_percent') ctx += ` → ${r.value}% de descuento`;
+        if (r.type === 'free_product') ctx += ` → ${r.productName ?? 'producto'} gratis`;
+        if (r.type === 'free_shipping') ctx += ` → envío gratis`;
+        ctx += '\n';
       }
     }
 
-    return targets;
+    if (customerId) {
+      const loyalty = await this.getCustomerLoyalty(customerId, schemaName);
+      if (loyalty) {
+        ctx += `\nPUNTOS DEL CLIENTE ACTUAL:\n`;
+        ctx += `- Balance: ${loyalty.totalPoints} puntos\n`;
+        ctx += `- Nivel: ${loyalty.currentTier}\n`;
+        if (loyalty.nextTier) {
+          ctx += `- Siguiente nivel: ${loyalty.nextTier} (faltan ${loyalty.pointsToNextTier} pts)\n`;
+        }
+        ctx += `- Si pregunta por sus puntos, usa check_loyalty_points.\n`;
+        ctx += `- Si quiere canjear puntos, usa redeem_loyalty_points.\n`;
+      }
+    }
+
+    return ctx;
   }
 
-  /**
-   * Get loyalty stats for dashboard.
-   */
-  async getLoyaltyStats(schemaName: string): Promise<LoyaltyStats> {
-    const result = await this.segmentCustomers(schemaName);
+  // ─── Re-Engagement / Retention ───────────────────────────────────
 
-    const vipRevenue = result.customers.vip.reduce((s, c) => s + c.lifetimeValue, 0);
-    const totalRevenue = Object.values(result.customers).flat().reduce((s, c) => s + c.lifetimeValue, 0);
+  async getReEngagementTargets(schemaName: string): Promise<any[]> {
+    try {
+      await this.ensureTables(schemaName);
+      // Find customers who haven't ordered in 7+ days but have ordered before
+      const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT
+          c.id, c.name, c.channel_type AS "channelType", c.channel_id AS "channelId",
+          MAX(o.created_at) AS "lastOrderAt",
+          EXTRACT(DAY FROM NOW() - MAX(o.created_at)) AS "daysSinceLastOrder",
+          COUNT(o.id) AS "orderCount"
+        FROM "${schemaName}".customers c
+        JOIN "${schemaName}".orders o ON o.customer_id = c.id
+        WHERE o.status NOT IN ('cancelled')
+        GROUP BY c.id, c.name, c.channel_type, c.channel_id
+        HAVING MAX(o.created_at) < NOW() - INTERVAL '7 days'
+          AND MAX(o.created_at) > NOW() - INTERVAL '60 days'
+        ORDER BY "daysSinceLastOrder" ASC
+        LIMIT 50
+      `);
 
-    return {
-      totalCustomers: result.total,
-      segments: result.segments,
-      vipRevenueShare: totalRevenue > 0 ? Math.round((vipRevenue / totalRevenue) * 100) : 0,
-      atRiskCount: result.segments.at_risk,
-      churnedCount: result.segments.churned,
-      reEngagementOpportunities: result.segments.at_risk + result.segments.churned,
-    };
-  }
-
-  // ─── Message Builders ─────────────────────────────────────────
-
-  private buildReEngagementMessage(customer: SegmentedCustomer, type: string): string {
-    const name = customer.name?.split(' ')[0] ?? 'Cliente';
-
-    switch (type) {
-      case 'at_risk':
-        return `Hola ${name} 👋\n\n¡Te extrañamos! Hace ${customer.daysSinceLastOrder} días que no nos visitas.\n\nTenemos novedades que te van a encantar. ¿Te muestro lo nuevo? 🛍️`;
-
-      case 'churned':
-        return `Hola ${name} 👋\n\n¡Ha pasado tiempo! Queremos darte un 15% de descuento en tu próxima compra como agradecimiento por ser parte de nuestra comunidad.\n\nUsa el código: VUELVE15\n\n¿Te interesa ver nuestro catálogo? ✨`;
-
-      case 'vip_inactive':
-        return `Hola ${name} 🌟\n\n¡Eres de nuestros clientes favoritos! Tenemos productos nuevos que creemos te van a encantar.\n\n¿Quieres que te muestre las novedades? 💜`;
-
-      default:
-        return `Hola ${name}, tenemos algo especial para ti. ¿Platicamos? 😊`;
+      return rows.map(r => ({
+        ...r,
+        daysSinceLastOrder: parseInt(r.daysSinceLastOrder ?? '0'),
+        orderCount: parseInt(r.orderCount ?? '0'),
+        action: 'send_message',
+        segment: parseInt(r.daysSinceLastOrder ?? '0') > 30 ? 'at_risk' : 'inactive',
+        templateName: 'customer_reengagement',
+        message: `¡Hola${r.name ? ` ${r.name}` : ''}! Te extrañamos. ¿Qué se te antoja hoy? 😊`,
+      }));
+    } catch (err: any) {
+      this.logger.warn(`getReEngagementTargets failed: ${err.message}`);
+      return [];
     }
   }
-}
 
-// ─── Types ──────────────────────────────────────────────────────
+  // ─── Helpers ────────────────────────────────────────────────────
 
-export type CustomerSegment = 'vip' | 'active' | 'at_risk' | 'churned' | 'new' | 'inactive';
-
-export interface SegmentedCustomer {
-  id: string;
-  name: string;
-  phone: string;
-  channelType: string;
-  channelId: string;
-  orderCount: number;
-  lifetimeValue: number;
-  daysSinceLastOrder: number;
-  segment: CustomerSegment;
-}
-
-export interface ReEngagementTarget extends SegmentedCustomer {
-  action: string;
-  templateName: string;
-  message: string;
-}
-
-export interface SegmentationResult {
-  total: number;
-  segments: Record<CustomerSegment, number>;
-  customers: Record<CustomerSegment, SegmentedCustomer[]>;
-}
-
-export interface LoyaltyStats {
-  totalCustomers: number;
-  segments: Record<CustomerSegment, number>;
-  vipRevenueShare: number;
-  atRiskCount: number;
-  churnedCount: number;
-  reEngagementOpportunities: number;
+  private parseConfig(row: any): LoyaltyConfig {
+    return {
+      id: row.id,
+      isEnabled: row.isEnabled,
+      pointsPerCurrency: parseFloat(row.pointsPerCurrency ?? '1'),
+      redemptionRate: parseFloat(row.redemptionRate ?? '10'),
+      welcomeBonus: parseInt(row.welcomeBonus ?? '0'),
+      tiers: typeof row.tiers === 'string' ? JSON.parse(row.tiers) : (row.tiers ?? []),
+      rewards: typeof row.rewards === 'string' ? JSON.parse(row.rewards) : (row.rewards ?? []),
+    };
+  }
 }

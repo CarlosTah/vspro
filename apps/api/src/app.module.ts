@@ -51,6 +51,8 @@ import { EscalationsModule } from './modules/escalations/escalations.module';
 import { TicketsModule } from './modules/tickets/tickets.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
 import { MediaAssetsModule } from './modules/media-assets/media-assets.module';
+import { PromotionsModule } from './modules/promotions/promotions.module';
+import { LoyaltyModule } from './modules/loyalty/loyalty.module';
 
 @Module({
   imports: [
@@ -133,6 +135,8 @@ import { MediaAssetsModule } from './modules/media-assets/media-assets.module';
     TicketsModule,
     ReservationsModule,
     MediaAssetsModule,
+    PromotionsModule,
+    LoyaltyModule,
   ],
 })
 export class AppModule implements NestModule {

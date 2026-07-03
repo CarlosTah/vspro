@@ -158,6 +158,173 @@ export class AnalyticsReportsService {
     };
   }
 
+  // ─── Conversion Analytics (Range-based) ────────────────────────
+
+  async getConversionAnalytics(
+    schema: string,
+    from?: string,
+    to?: string,
+    period?: string,
+  ): Promise<ConversionAnalytics> {
+    // Default period: last 7 days
+    const now = new Date();
+    let fromDate: string;
+    let toDate: string;
+
+    if (from && to) {
+      fromDate = from;
+      toDate = to;
+    } else if (period === 'month') {
+      fromDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      toDate = new Date(now.getTime() + 86400000).toISOString().split('T')[0];
+    } else if (period === 'today') {
+      fromDate = now.toISOString().split('T')[0];
+      toDate = new Date(now.getTime() + 86400000).toISOString().split('T')[0];
+    } else {
+      // Default: week
+      fromDate = new Date(now.getTime() - 7 * 86400000).toISOString().split('T')[0];
+      toDate = new Date(now.getTime() + 86400000).toISOString().split('T')[0];
+    }
+
+    const [funnel, dailyBreakdown, channelBreakdown, timing] = await Promise.all([
+      this.getConversionFunnel(schema, fromDate, toDate),
+      this.getDailyConversionBreakdown(schema, fromDate, toDate),
+      this.getChannelConversion(schema, fromDate, toDate),
+      this.getConversionTiming(schema, fromDate, toDate),
+    ]);
+
+    return {
+      period: period ?? 'week',
+      from: fromDate,
+      to: toDate,
+      funnel,
+      dailyBreakdown,
+      channelBreakdown,
+      avgResponseTime: timing.avgResponseTime,
+      avgOrderCompletionTime: timing.avgOrderCompletionTime,
+    };
+  }
+
+  private async getDailyConversionBreakdown(
+    schema: string,
+    from: string,
+    to: string,
+  ): Promise<Array<{ date: string; conversations: number; orders: number; paid: number; convRate: number }>> {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      WITH daily_convs AS (
+        SELECT DATE(created_at) AS d, COUNT(*) AS c
+        FROM "${schema}".conversations
+        WHERE created_at >= $1::date AND created_at < $2::date
+        GROUP BY DATE(created_at)
+      ),
+      daily_orders AS (
+        SELECT DATE(created_at) AS d, COUNT(*) AS c
+        FROM "${schema}".orders
+        WHERE created_at >= $1::date AND created_at < $2::date
+        GROUP BY DATE(created_at)
+      ),
+      daily_paid AS (
+        SELECT DATE(created_at) AS d, COUNT(*) AS c
+        FROM "${schema}".orders
+        WHERE created_at >= $1::date AND created_at < $2::date
+          AND status IN ('paid','in_production','ready','shipped','delivered')
+        GROUP BY DATE(created_at)
+      )
+      SELECT
+        COALESCE(dc.d, do2.d, dp.d) AS date,
+        COALESCE(dc.c, 0) AS conversations,
+        COALESCE(do2.c, 0) AS orders,
+        COALESCE(dp.c, 0) AS paid
+      FROM daily_convs dc
+      FULL OUTER JOIN daily_orders do2 ON dc.d = do2.d
+      FULL OUTER JOIN daily_paid dp ON COALESCE(dc.d, do2.d) = dp.d
+      ORDER BY date
+    `, from, to);
+
+    return rows.map(r => {
+      const convs = parseInt(r.conversations ?? '0');
+      const orders = parseInt(r.orders ?? '0');
+      return {
+        date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date),
+        conversations: convs,
+        orders,
+        paid: parseInt(r.paid ?? '0'),
+        convRate: convs > 0 ? Math.round((orders / convs) * 100) : 0,
+      };
+    });
+  }
+
+  private async getChannelConversion(
+    schema: string,
+    from: string,
+    to: string,
+  ): Promise<Array<{ channel: string; conversations: number; orders: number; convRate: number }>> {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT
+        c.channel_type AS channel,
+        COUNT(DISTINCT c.id) AS conversations,
+        COUNT(DISTINCT o.id) AS orders
+      FROM "${schema}".conversations c
+      LEFT JOIN "${schema}".orders o
+        ON o.customer_id = c.customer_id
+        AND o.created_at >= $1::date AND o.created_at < $2::date
+      WHERE c.created_at >= $1::date AND c.created_at < $2::date
+      GROUP BY c.channel_type
+      ORDER BY conversations DESC
+    `, from, to);
+
+    return rows.map(r => {
+      const convs = parseInt(r.conversations ?? '0');
+      const orders = parseInt(r.orders ?? '0');
+      return {
+        channel: r.channel ?? 'unknown',
+        conversations: convs,
+        orders,
+        convRate: convs > 0 ? Math.round((orders / convs) * 100) : 0,
+      };
+    });
+  }
+
+  private async getConversionTiming(
+    schema: string,
+    from: string,
+    to: string,
+  ): Promise<{ avgResponseTime: number; avgOrderCompletionTime: number }> {
+    // Avg time between first inbound message and first outbound (response time)
+    const responseRows = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT AVG(EXTRACT(EPOCH FROM (first_out.t - first_in.t))) AS avg_sec
+      FROM (
+        SELECT conversation_id, MIN(created_at) AS t
+        FROM "${schema}".messages
+        WHERE direction = 'inbound' AND created_at >= $1::date AND created_at < $2::date
+        GROUP BY conversation_id
+      ) first_in
+      JOIN (
+        SELECT conversation_id, MIN(created_at) AS t
+        FROM "${schema}".messages
+        WHERE direction = 'outbound' AND created_at >= $1::date AND created_at < $2::date
+        GROUP BY conversation_id
+      ) first_out ON first_in.conversation_id = first_out.conversation_id
+      WHERE first_out.t > first_in.t
+    `, from, to);
+
+    // Avg time from conversation start to order creation (minutes)
+    const completionRows = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT AVG(EXTRACT(EPOCH FROM (o.created_at - c.created_at)) / 60) AS avg_min
+      FROM "${schema}".orders o
+      JOIN "${schema}".conversations c ON c.customer_id = o.customer_id
+        AND c.created_at >= $1::date AND c.created_at < $2::date
+        AND o.created_at >= c.created_at
+        AND o.created_at < c.created_at + INTERVAL '24 hours'
+      WHERE o.created_at >= $1::date AND o.created_at < $2::date
+    `, from, to);
+
+    return {
+      avgResponseTime: Math.round(parseFloat(responseRows[0]?.avg_sec ?? '0')),
+      avgOrderCompletionTime: Math.round(parseFloat(completionRows[0]?.avg_min ?? '0')),
+    };
+  }
+
   /**
    * Format report as WhatsApp message for the owner.
    */
@@ -237,4 +404,26 @@ interface FunnelMetrics {
   ordersPaid: number;
   convToOrderRate: number;
   orderToPayRate: number;
+}
+
+export interface ConversionAnalytics {
+  period: string;
+  from: string;
+  to: string;
+  funnel: FunnelMetrics;
+  dailyBreakdown: Array<{
+    date: string;
+    conversations: number;
+    orders: number;
+    paid: number;
+    convRate: number;
+  }>;
+  channelBreakdown: Array<{
+    channel: string;
+    conversations: number;
+    orders: number;
+    convRate: number;
+  }>;
+  avgResponseTime: number; // seconds
+  avgOrderCompletionTime: number; // minutes from first message to order created
 }

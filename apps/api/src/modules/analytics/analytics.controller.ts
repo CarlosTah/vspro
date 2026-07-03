@@ -31,6 +31,18 @@ export class AnalyticsController {
     return this.reports.generateDailyReport(schema);
   }
 
+  /** Get conversion funnel for a date range */
+  @Get('conversion')
+  @Roles('admin', 'manager')
+  getConversionRate(
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('period') period: string,
+    @TenantSchema() schema: string,
+  ) {
+    return this.reports.getConversionAnalytics(schema, from, to, period);
+  }
+
   /** Manually trigger report generation + push */
   @Post('trigger')
   @Roles('admin')

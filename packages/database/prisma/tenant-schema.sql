@@ -155,6 +155,53 @@ CREATE TABLE IF NOT EXISTS "{{schema}}".accounting_entries (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Promociones y Combos
+CREATE TABLE IF NOT EXISTS "{{schema}}".promotions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name            VARCHAR(255) NOT NULL,
+  description     TEXT,
+  type            VARCHAR(50) NOT NULL DEFAULT 'combo',  -- combo | discount | bogo | bundle
+  status          VARCHAR(50) NOT NULL DEFAULT 'active', -- active | inactive | scheduled
+  rules           JSONB NOT NULL DEFAULT '{}',
+  -- rules structure:
+  -- combo:    { products: [{productId, quantity}], comboPrice: 99.00 }
+  -- discount: { discountType: "percentage"|"fixed", discountValue: 15, minOrderTotal: 200, appliesTo: "all"|"category"|"product", categoryOrProductId?: "..." }
+  -- bogo:     { buyProductId: "...", buyQuantity: 2, getProductId: "...", getQuantity: 1 }
+  -- bundle:   { products: [{productId, quantity}], bundlePrice: 150, savings: 30 }
+  starts_at       TIMESTAMPTZ,
+  ends_at         TIMESTAMPTZ,
+  max_uses        INTEGER,           -- null = unlimited
+  current_uses    INTEGER NOT NULL DEFAULT 0,
+  days_active     JSONB DEFAULT '["mon","tue","wed","thu","fri","sat","sun"]', -- days when promo is active
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Programa de Lealtad
+CREATE TABLE IF NOT EXISTS "{{schema}}".loyalty_config (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  is_enabled            BOOLEAN NOT NULL DEFAULT false,
+  points_per_currency   DECIMAL(5,2) NOT NULL DEFAULT 1,  -- puntos ganados por cada $1 gastado
+  redemption_rate       DECIMAL(5,2) NOT NULL DEFAULT 10, -- cuántos puntos = $1 de descuento
+  welcome_bonus         INTEGER NOT NULL DEFAULT 0,        -- puntos de bienvenida
+  tiers                 JSONB NOT NULL DEFAULT '[{"name":"Bronce","minPoints":0,"multiplier":1},{"name":"Plata","minPoints":500,"multiplier":1.5},{"name":"Oro","minPoints":2000,"multiplier":2}]',
+  rewards               JSONB NOT NULL DEFAULT '[]',       -- [{name, pointsCost, type, value}]
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "{{schema}}".loyalty_transactions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id     UUID NOT NULL REFERENCES "{{schema}}".customers(id),
+  type            VARCHAR(50) NOT NULL,  -- earn | redeem | bonus | expire | adjust
+  points          INTEGER NOT NULL,      -- positive for earn, negative for redeem
+  balance_after   INTEGER NOT NULL DEFAULT 0,
+  description     TEXT,
+  order_id        UUID REFERENCES "{{schema}}".orders(id),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_loyalty_customer ON "{{schema}}".loyalty_transactions(customer_id);
+
 -- Configuración de IA
 CREATE TABLE IF NOT EXISTS "{{schema}}".ai_config (
   id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),

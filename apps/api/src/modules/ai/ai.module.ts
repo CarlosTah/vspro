@@ -14,9 +14,11 @@ import { TenantsModule } from '../tenants/tenants.module';
 import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
 import { BillingModule } from '../billing/billing.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PromotionsModule } from '../promotions/promotions.module';
+import { LoyaltyModule } from '../loyalty/loyalty.module';
 
 @Module({
-  imports: [ProductsModule, OrdersModule, CustomersModule, forwardRef(() => ProactivityModule), forwardRef(() => TenantsModule), KnowledgeBaseModule, BillingModule, NotificationsModule],
+  imports: [ProductsModule, OrdersModule, CustomersModule, forwardRef(() => ProactivityModule), forwardRef(() => TenantsModule), KnowledgeBaseModule, BillingModule, NotificationsModule, PromotionsModule, LoyaltyModule],
   controllers: [AiController, CustomerMemoryController],
   providers: [
     AiEngineService,

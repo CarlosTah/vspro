@@ -1,9 +1,8 @@
-import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Body, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { LoyaltyService } from './loyalty.service';
-import { RetentionCronGateway } from './retention-cron.gateway';
-import { TenantSchema, CurrentTenant } from '../../common/decorators/tenant.decorator';
+import { TenantSchema } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 
@@ -12,38 +11,29 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller('loyalty')
 export class LoyaltyController {
-  constructor(
-    private readonly loyalty: LoyaltyService,
-    private readonly retentionCron: RetentionCronGateway,
-  ) {}
+  constructor(private readonly loyaltyService: LoyaltyService) {}
 
-  /** Get customer segmentation breakdown */
-  @Get('segments')
+  @Get('config')
   @Roles('admin', 'manager')
-  getSegments(@TenantSchema() schema: string) {
-    return this.loyalty.getLoyaltyStats(schema);
+  getConfig(@TenantSchema() schema: string) {
+    return this.loyaltyService.getConfig(schema);
   }
 
-  /** Get full segmentation with customer lists */
-  @Get('segmentation')
+  @Patch('config')
   @Roles('admin')
-  getFullSegmentation(@TenantSchema() schema: string) {
-    return this.loyalty.segmentCustomers(schema);
+  updateConfig(@Body() body: any, @TenantSchema() schema: string) {
+    return this.loyaltyService.updateConfig(schema, body);
   }
 
-  /** Get re-engagement targets (at-risk + churned) */
-  @Get('re-engagement')
-  @Roles('admin')
-  getReEngagementTargets(@TenantSchema() schema: string) {
-    return this.loyalty.getReEngagementTargets(schema);
+  @Get('leaderboard')
+  @Roles('admin', 'manager')
+  getLeaderboard(@TenantSchema() schema: string) {
+    return this.loyaltyService.getTopCustomers(schema);
   }
 
-  /** Manually trigger retention campaign */
-  @Post('trigger-retention')
-  @Roles('admin')
-  async triggerRetention(@CurrentTenant() tenant: any, @TenantSchema() schema: string) {
-    // Direct call to process retention for this tenant
-    await this.retentionCron.scheduleDailyRetention();
-    return { success: true, message: 'Retention campaign triggered' };
+  @Get('customer/:customerId')
+  @Roles('admin', 'manager', 'operator')
+  getCustomerLoyalty(@Param('customerId') customerId: string, @TenantSchema() schema: string) {
+    return this.loyaltyService.getCustomerLoyalty(customerId, schema);
   }
 }
