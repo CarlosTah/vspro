@@ -296,6 +296,15 @@ export class OrdersService {
     // Notificar al cliente automáticamente (non-blocking)
     this.notifications.notify(id, newStatus, schemaName).catch(() => {});
 
+    // Close delivery assignment when order is delivered/shipped
+    if (newStatus === 'delivered' || newStatus === 'shipped') {
+      this.prisma.$executeRawUnsafe(`
+        UPDATE "${schemaName}".delivery_assignments
+        SET status = '${newStatus === 'delivered' ? 'delivered' : 'picked_up'}'
+        WHERE order_id = $1::uuid AND status IN ('accepted', 'picked_up', 'offered')
+      `, id).catch(() => {});
+    }
+
     // AUTO-TRANSITION: payment_verified → in_production (automático)
     if (newStatus === 'payment_verified') {
       // Earn loyalty points (non-blocking)
