@@ -671,6 +671,23 @@ export class AiEngineService {
           },
         },
       },
+      {
+        type: 'function',
+        function: {
+          name: 'repeat_last_order',
+          description: 'Repite el último pedido del cliente (mismos productos y cantidades). Usa cuando el cliente dice "lo mismo de siempre", "mi pedido habitual", "repite mi último pedido", o similar. Crea un nuevo pedido con los mismos items.',
+          parameters: {
+            type: 'object',
+            properties: {
+              confirmFirst: {
+                type: 'boolean',
+                description: 'Si es true, solo muestra qué fue el último pedido sin crearlo. Si es false, crea el pedido directamente.',
+              },
+            },
+            required: [],
+          },
+        },
+      },
     ];
   }
 
@@ -1639,6 +1656,82 @@ export class AiEngineService {
         }
       }
 
+      case 'repeat_last_order': {
+        try {
+          const customerId = (conversation.context as any)?.customerId;
+          if (!customerId) {
+            return JSON.stringify({ success: false, message: 'No se pudo identificar al cliente.' });
+          }
+
+          // Find last delivered/completed order for this customer
+          const lastOrders = await this.prisma.$queryRawUnsafe<any[]>(`
+            SELECT id, order_number AS "orderNumber", items, total, shipping_address AS "shippingAddress"
+            FROM "${schemaName}".orders
+            WHERE customer_id = $1::uuid AND status IN ('delivered', 'payment_verified', 'ready', 'shipped')
+            ORDER BY created_at DESC LIMIT 1
+          `, customerId);
+
+          if (lastOrders.length === 0) {
+            return JSON.stringify({ success: false, message: 'Este cliente no tiene pedidos anteriores.' });
+          }
+
+          const lastOrder = lastOrders[0];
+          const items = typeof lastOrder.items === 'string' ? JSON.parse(lastOrder.items) : lastOrder.items;
+          const itemsSummary = items.map((i: any) => `${i.productName} x${i.quantity}`).join(', ');
+
+          if (args.confirmFirst !== false) {
+            // Just show what the last order was
+            return JSON.stringify({
+              success: true,
+              action: 'confirm',
+              lastOrderNumber: lastOrder.orderNumber,
+              items: items.map((i: any) => ({ productName: i.productName, quantity: i.quantity })),
+              total: lastOrder.total,
+              message: `Tu último pedido fue: ${itemsSummary} (Total: $${parseFloat(lastOrder.total).toLocaleString('es-MX')}). ¿Te lo repito igual?`,
+            });
+          }
+
+          // Create the repeat order
+          const resolvedItems: { productId: string; quantity: number }[] = [];
+          for (const item of items) {
+            if (item.productId) {
+              resolvedItems.push({ productId: item.productId, quantity: item.quantity });
+            } else if (item.productName) {
+              const found = await this.productsService.search(item.productName, schemaName);
+              if (found.length > 0) resolvedItems.push({ productId: found[0].id, quantity: item.quantity });
+            }
+          }
+
+          if (resolvedItems.length === 0) {
+            return JSON.stringify({ success: false, message: 'No se pudieron resolver los productos del pedido anterior.' });
+          }
+
+          const order = await this.ordersService.create(
+            { customerId, channelType: 'whatsapp', items: resolvedItems, notes: 'Repetición de pedido anterior' },
+            schemaName,
+          );
+
+          // Persist orderId in context
+          const updatedCtx = { ...(conversation.context as any), lastOrderId: order.id, lastOrderNumber: order.orderNumber };
+          await this.prisma.$executeRawUnsafe(`
+            UPDATE "${schemaName}".conversations SET context = $1::jsonb WHERE id = $2::uuid
+          `, JSON.stringify(updatedCtx), conversation.id);
+          (conversation.context as any).lastOrderId = order.id;
+          (conversation.context as any).lastOrderNumber = order.orderNumber;
+
+          return JSON.stringify({
+            success: true,
+            action: 'created',
+            orderNumber: order.orderNumber,
+            total: order.total,
+            items: itemsSummary,
+            message: `¡Pedido repetido! #${order.orderNumber}: ${itemsSummary}. Total: $${parseFloat(order.total).toLocaleString('es-MX')}`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al repetir pedido: ${err.message}` });
+        }
+      }
+
       default:
         return JSON.stringify({ error: `Herramienta desconocida: ${name}` });
     }
@@ -1758,6 +1851,18 @@ MATERIAL GRÁFICO:
 - Si quiere ver la FOTO de un producto específico, usa send_media_to_customer con mediaType "product" y productName
 - Si pide el CATÁLOGO completo, usa send_media_to_customer con mediaType "catalog"
 - SIEMPRE envía el material si está disponible. Si no hay material configurado, infórmale al cliente.
+
+UPSELLING — INCREMENTA EL TICKET:
+- Después de que el cliente confirme su pedido, SIEMPRE sugiere UN complemento lógico.
+- Ejemplos: Si pide tacos → sugiere guacamole o bebida. Si pide pizza → sugiere refresco o postre.
+- Sé natural y breve: "¿Te agrego un guacamole por $40 más?" o "¿Una horchata para acompañar?"
+- NO insistas si dice que no. Una sola sugerencia por pedido.
+- Elige el complemento basándote en el catálogo disponible y lo que pidió.
+
+CLIENTE FRECUENTE — PEDIDO HABITUAL:
+- Si el cliente dice "lo mismo de siempre", "mi pedido habitual", "repite mi pedido" → usa repeat_last_order
+- Si reconoces al cliente (está en la memoria), salúdalo por nombre y ofrece: "¿Te mando tu pedido habitual?"
+- Esto acelera la compra y mejora la experiencia.
 
 ${aiConfig.customInstructions ? `INSTRUCCIONES ADICIONALES:\n${aiConfig.customInstructions}` : ''}
 ${aiConfig.objectives?.length ? `\nOBJETIVOS DEL AGENTE:\n${aiConfig.objectives.map((o: string) => `- ${o}`).join('\n')}` : ''}
