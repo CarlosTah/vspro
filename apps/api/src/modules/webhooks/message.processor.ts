@@ -377,9 +377,11 @@ export class MessageProcessor {
       if (isPickup) {
         // Find accepted assignment
         const acceptedAssignments = await this.prisma.$queryRawUnsafe<any[]>(`
-          SELECT da.id, da.order_id AS "orderId", o.order_number AS "orderNumber"
+          SELECT da.id, da.order_id AS "orderId", o.order_number AS "orderNumber",
+                 c.channel_id AS "customerChannelId", c.name AS "customerName"
           FROM "${schemaName}".delivery_assignments da
           JOIN "${schemaName}".orders o ON o.id = da.order_id
+          JOIN "${schemaName}".customers c ON c.id = o.customer_id
           WHERE da.driver_id = $1::uuid AND da.status = 'accepted'
           ORDER BY da.accepted_at DESC LIMIT 1
         `, driver.id);
@@ -399,6 +401,14 @@ export class MessageProcessor {
           const reply = `📦 Perfecto. Pedido #${a.orderNumber} en camino. Cuando lo entregues responde "ENTREGADO".`;
           await this.messagingService.sendText(message.channelType, message.senderId, reply, schemaName);
           await this.saveDriverMessage(schemaName, a.id, driver.id, 'outbound', reply);
+
+          // NOTIFY CUSTOMER that order is on its way
+          if (a.customerChannelId) {
+            const customerName = a.customerName?.split(' ')[0] ?? '';
+            const customerMsg = `🛵 *¡Tu pedido va en camino!*\n\n${customerName ? `${customerName}, ` : ''}tu pedido *#${a.orderNumber}* ya salió con el repartidor ${driver.name}. ¡Llega pronto! 🙌`;
+            await this.messagingService.sendText('whatsapp', a.customerChannelId, customerMsg, schemaName).catch(() => {});
+          }
+
           return true;
         }
       }
@@ -407,9 +417,11 @@ export class MessageProcessor {
       const isDelivered = ['entregado', 'entregue', 'listo entregado', 'ya lo entregue', 'entregué'].includes(text);
       if (isDelivered) {
         const pickedUpAssignments = await this.prisma.$queryRawUnsafe<any[]>(`
-          SELECT da.id, da.order_id AS "orderId", o.order_number AS "orderNumber"
+          SELECT da.id, da.order_id AS "orderId", o.order_number AS "orderNumber",
+                 c.channel_id AS "customerChannelId", c.name AS "customerName"
           FROM "${schemaName}".delivery_assignments da
           JOIN "${schemaName}".orders o ON o.id = da.order_id
+          JOIN "${schemaName}".customers c ON c.id = o.customer_id
           WHERE da.driver_id = $1::uuid AND da.status = 'picked_up'
           ORDER BY da.picked_up_at DESC LIMIT 1
         `, driver.id);
@@ -429,6 +441,14 @@ export class MessageProcessor {
           const reply = `✅ ¡Entrega confirmada! Pedido #${a.orderNumber} completado. ¡Gracias! 🙌`;
           await this.messagingService.sendText(message.channelType, message.senderId, reply, schemaName);
           await this.saveDriverMessage(schemaName, a.id, driver.id, 'outbound', reply);
+
+          // NOTIFY CUSTOMER that their order was delivered
+          if (a.customerChannelId) {
+            const customerName = a.customerName?.split(' ')[0] ?? '';
+            const customerMsg = `🎉 *¡Pedido entregado!*\n\n${customerName ? `${customerName}, ` : ''}tu pedido *#${a.orderNumber}* ha sido entregado. ¡Que lo disfrutes! 😋\n\n¿Todo bien? Cuéntanos cómo estuvo. ⭐`;
+            await this.messagingService.sendText('whatsapp', a.customerChannelId, customerMsg, schemaName).catch(() => {});
+          }
+
           return true;
         }
       }
