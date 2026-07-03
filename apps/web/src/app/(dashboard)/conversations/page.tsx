@@ -1,14 +1,19 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useApi } from '@/hooks/use-api';
 import { api } from '@/lib/api';
 import { AudioRecorder } from '@/components/audio-recorder';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
+type Tab = 'clientes' | 'repartidores';
+
 export default function ConversationsPage() {
-  const { data: conversations, loading } = useApi<any[]>('/conversations');
+  const [tab, setTab] = useState<Tab>('clientes');
+  const { data: conversations, loading, refetch: refetchConversations } = useApi<any[]>('/conversations');
+  const [driverMessages, setDriverMessages] = useState<any[]>([]);
+  const [loadingDrivers, setLoadingDrivers] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -19,18 +24,67 @@ export default function ConversationsPage() {
   const [correctionText, setCorrectionText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const listPollRef = useRef<NodeJS.Timeout | null>(null);
 
   const selectedConv = conversations?.find((c: any) => c.id === selectedId);
+
+  // POLLING: Refresh conversation list every 5 seconds
+  useEffect(() => {
+    listPollRef.current = setInterval(() => {
+      if (tab === 'clientes') {
+        refetchConversations();
+      } else {
+        loadDriverMessages();
+      }
+    }, 5000);
+    return () => { if (listPollRef.current) clearInterval(listPollRef.current); };
+  }, [tab]);
+
+  // POLLING: Refresh messages every 3 seconds when a conversation is selected
+  useEffect(() => {
+    if (!selectedId || tab !== 'clientes') {
+      if (pollRef.current) clearInterval(pollRef.current);
+      return;
+    }
+
+    const fetchMessages = () => {
+      api.get<any[]>(`/conversations/${selectedId}/messages?limit=100`)
+        .then((newMsgs) => {
+          if (newMsgs && newMsgs.length !== messages.length) {
+            setMessages(newMsgs);
+          }
+        })
+        .catch(() => {});
+    };
+
+    pollRef.current = setInterval(fetchMessages, 3000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [selectedId, tab, messages.length]);
 
   // Load messages when conversation selected
   useEffect(() => {
     if (!selectedId) return;
     setLoadingMessages(true);
-    api.get<any[]>(`/conversations/${selectedId}/messages`)
+    api.get<any[]>(`/conversations/${selectedId}/messages?limit=100`)
       .then(setMessages)
       .catch(() => setMessages([]))
       .finally(() => setLoadingMessages(false));
   }, [selectedId]);
+
+  // Load driver messages
+  const loadDriverMessages = useCallback(async () => {
+    setLoadingDrivers(true);
+    try {
+      const data = await api.get<any[]>('/delivery/messages');
+      setDriverMessages(data ?? []);
+    } catch { setDriverMessages([]); }
+    finally { setLoadingDrivers(false); }
+  }, []);
+
+  useEffect(() => {
+    if (tab === 'repartidores') loadDriverMessages();
+  }, [tab]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -74,7 +128,69 @@ export default function ConversationsPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-4">
+    <div className="flex flex-col h-[calc(100vh-8rem)] gap-3">
+      {/* Tabs: Clientes / Repartidores */}
+      <div className="flex gap-1 rounded-lg bg-gray-800 p-1 w-fit">
+        <button
+          onClick={() => setTab('clientes')}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            tab === 'clientes' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          💬 Clientes
+        </button>
+        <button
+          onClick={() => setTab('repartidores')}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            tab === 'repartidores' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          🛵 Repartidores
+        </button>
+      </div>
+
+      {/* Driver Messages Tab */}
+      {tab === 'repartidores' && (
+        <div className="flex-1 rounded-xl border border-card-border bg-card overflow-hidden flex flex-col">
+          <div className="border-b border-gray-700 px-5 py-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-white">Mensajes con Repartidores</h2>
+              <p className="text-xs text-gray-500">Historial de comunicación de entregas</p>
+            </div>
+            <span className="text-xs text-gray-500">Auto-refresh cada 5s</span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {loadingDrivers && driverMessages.length === 0 ? (
+              <p className="text-center text-gray-500 text-sm py-8">Cargando...</p>
+            ) : driverMessages.length === 0 ? (
+              <p className="text-center text-gray-500 text-sm py-8">Sin mensajes de repartidores aún</p>
+            ) : (
+              driverMessages.map((msg: any, i: number) => (
+                <div key={msg.id ?? i} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[70%] rounded-2xl px-4 py-2.5 ${
+                    msg.direction === 'outbound'
+                      ? 'bg-accent/20 border border-accent/30 rounded-br-md'
+                      : 'bg-gray-800 border border-gray-700 rounded-bl-md'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-medium text-yellow-300">{msg.driverName ?? 'Repartidor'}</span>
+                      <span className="text-xs text-gray-500">#{msg.orderNumber ?? ''}</span>
+                    </div>
+                    <p className="text-sm text-white whitespace-pre-wrap">{msg.content}</p>
+                    <span className="text-xs text-gray-500 mt-1 block">
+                      {msg.createdAt ? new Date(msg.createdAt).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Clients Conversations Tab */}
+      {tab === 'clientes' && (
+      <div className="flex flex-1 gap-4 min-h-0">
       {/* Conversation list */}
       <div className="w-80 flex-shrink-0 rounded-xl border border-card-border bg-card overflow-hidden flex flex-col">
         <div className="border-b border-gray-700 px-4 py-3">
@@ -357,6 +473,8 @@ export default function ConversationsPage() {
           </>
         )}
       </div>
+    </div>
+    )}
     </div>
   );
 }

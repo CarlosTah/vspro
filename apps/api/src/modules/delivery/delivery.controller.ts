@@ -288,4 +288,29 @@ export class DeliveryController {
     `, JSON.stringify(body.cost));
     return { success: true, shippingCost: body.cost };
   }
+
+  /** Get all delivery messages (for the Repartidores tab in conversations) */
+  @Get('messages')
+  @Roles('admin', 'manager', 'operator')
+  async getAllDriverMessages(@TenantSchema() schema: string) {
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schema}".delivery_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        assignment_id UUID, driver_id UUID,
+        direction VARCHAR(10) NOT NULL DEFAULT 'outbound',
+        content TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    return this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT dm.id, dm.direction, dm.content, dm.created_at AS "createdAt",
+             d.name AS "driverName", d.phone AS "driverPhone",
+             o.order_number AS "orderNumber"
+      FROM "${schema}".delivery_messages dm
+      LEFT JOIN "${schema}".delivery_drivers d ON d.id = dm.driver_id
+      LEFT JOIN "${schema}".delivery_assignments da ON da.id = dm.assignment_id
+      LEFT JOIN "${schema}".orders o ON o.id = da.order_id
+      ORDER BY dm.created_at DESC
+      LIMIT 100
+    `).catch(() => []);
+  }
 }
