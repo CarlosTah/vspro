@@ -50,6 +50,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { EscalationsModule } from './modules/escalations/escalations.module';
 import { TicketsModule } from './modules/tickets/tickets.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
+import { MediaAssetsModule } from './modules/media-assets/media-assets.module';
 
 @Module({
   imports: [
@@ -131,6 +132,7 @@ import { ReservationsModule } from './modules/reservations/reservations.module';
     EscalationsModule,
     TicketsModule,
     ReservationsModule,
+    MediaAssetsModule,
   ],
 })
 export class AppModule implements NestModule {

@@ -649,6 +649,28 @@ export class AiEngineService {
           },
         },
       },
+      {
+        type: 'function',
+        function: {
+          name: 'send_media_to_customer',
+          description: 'Envía una imagen o material gráfico al cliente (menú, promociones, catálogo, fotos de productos). Usa cuando el cliente pregunte por el menú, las promociones, fotos del producto, o cualquier material visual.',
+          parameters: {
+            type: 'object',
+            properties: {
+              mediaType: {
+                type: 'string',
+                enum: ['menu', 'promo', 'catalog', 'product', 'general'],
+                description: 'Tipo de material: menu=carta/menú, promo=promociones, catalog=catálogo completo, product=foto de producto específico, general=otro material',
+              },
+              productName: {
+                type: 'string',
+                description: 'Nombre del producto específico (solo si mediaType es "product")',
+              },
+            },
+            required: ['mediaType'],
+          },
+        },
+      },
     ];
   }
 
@@ -1551,6 +1573,72 @@ export class AiEngineService {
         }
       }
 
+      case 'send_media_to_customer': {
+        try {
+          // Get media assets of the requested type
+          let assets: any[] = [];
+          await this.prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "${schemaName}".media_assets (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              type VARCHAR(50) NOT NULL DEFAULT 'general',
+              title VARCHAR(255), url TEXT NOT NULL,
+              is_active BOOLEAN NOT NULL DEFAULT true,
+              sort_order INTEGER NOT NULL DEFAULT 0,
+              created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+          `);
+
+          if (args.mediaType === 'product' && args.productName) {
+            // Get product images
+            const products = await this.productsService.search(args.productName, schemaName);
+            if (products[0]?.images?.length > 0) {
+              assets = products[0].images.map((url: string) => ({ url, title: products[0].name }));
+            }
+          } else {
+            assets = await this.prisma.$queryRawUnsafe<any[]>(`
+              SELECT url, title FROM "${schemaName}".media_assets
+              WHERE type = $1 AND is_active = true
+              ORDER BY sort_order ASC, created_at DESC LIMIT 5
+            `, args.mediaType);
+          }
+
+          if (assets.length === 0) {
+            return JSON.stringify({ success: false, message: `No hay material de tipo "${args.mediaType}" configurado.` });
+          }
+
+          // Send the first image via WhatsApp
+          const customerChannelId = (conversation.context as any)?.senderPhone;
+          if (customerChannelId) {
+            const axios = (await import('axios')).default;
+            const channelRows = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT external_id, access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`
+            );
+
+            if (channelRows[0] && assets[0].url && !assets[0].url.startsWith('data:')) {
+              // Send image via Meta API with URL
+              await axios.post(
+                `https://graph.facebook.com/v19.0/${channelRows[0].external_id}/messages`,
+                {
+                  messaging_product: 'whatsapp',
+                  to: customerChannelId,
+                  type: 'image',
+                  image: { link: assets[0].url, caption: assets[0].title ?? '' },
+                },
+                { headers: { Authorization: `Bearer ${channelRows[0].access_token}` } },
+              ).catch(() => {});
+            }
+          }
+
+          return JSON.stringify({
+            success: true,
+            sent: assets.length,
+            message: `Material enviado: ${assets[0].title ?? args.mediaType}`,
+          });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al enviar material: ${err.message}` });
+        }
+      }
+
       default:
         return JSON.stringify({ error: `Herramienta desconocida: ${name}` });
     }
@@ -1663,6 +1751,13 @@ MEMORIA — IMPORTANTE:
 
 CATÁLOGO DISPONIBLE:
 ${productList || 'No hay productos disponibles en este momento.'}
+
+MATERIAL GRÁFICO:
+- Si el cliente pide el MENÚ, usa send_media_to_customer con mediaType "menu"
+- Si pregunta por PROMOCIONES, usa send_media_to_customer con mediaType "promo"
+- Si quiere ver la FOTO de un producto específico, usa send_media_to_customer con mediaType "product" y productName
+- Si pide el CATÁLOGO completo, usa send_media_to_customer con mediaType "catalog"
+- SIEMPRE envía el material si está disponible. Si no hay material configurado, infórmale al cliente.
 
 ${aiConfig.customInstructions ? `INSTRUCCIONES ADICIONALES:\n${aiConfig.customInstructions}` : ''}
 ${aiConfig.objectives?.length ? `\nOBJETIVOS DEL AGENTE:\n${aiConfig.objectives.map((o: string) => `- ${o}`).join('\n')}` : ''}

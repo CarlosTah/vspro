@@ -54,6 +54,13 @@ const sections = [
     industries: null,
   },
   {
+    title: 'Material gráfico',
+    description: 'Menú, promociones, catálogo para el agente IA',
+    href: '/settings/media',
+    icon: '🖼️',
+    industries: null,
+  },
+  {
     title: 'Entregas y repartidores',
     description: 'Auto-despacho, tiempos, notificaciones',
     href: '/settings/delivery',
