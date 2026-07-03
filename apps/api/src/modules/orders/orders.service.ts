@@ -348,8 +348,8 @@ export class OrdersService {
         throw new BadRequestException(`El producto "${product.name}" está inactivo. Actívalo en la sección de productos o genera stock.`);
       }
 
-      // Auto-create inventory if missing
-      if (product.stockAvailable === 0) {
+      // Auto-create or replenish inventory if missing/depleted
+      if (product.stockAvailable === 0 || product.stockAvailable < item.quantity) {
         const hasInventory = await this.prisma.$queryRawUnsafe<any[]>(
           `SELECT 1 FROM "${schemaName}".inventory WHERE product_id = $1::uuid`, item.productId,
         );
@@ -357,6 +357,12 @@ export class OrdersService {
           await this.prisma.$executeRawUnsafe(`
             INSERT INTO "${schemaName}".inventory (product_id, stock_available, stock_minimum)
             VALUES ($1::uuid, 9999, 5)
+          `, item.productId);
+          product.stockAvailable = 9999;
+        } else if (product.stockAvailable < item.quantity) {
+          // Auto-replenish (restaurants/services make products on demand)
+          await this.prisma.$executeRawUnsafe(`
+            UPDATE "${schemaName}".inventory SET stock_available = 9999 WHERE product_id = $1::uuid
           `, item.productId);
           product.stockAvailable = 9999;
         }

@@ -92,8 +92,15 @@ export class AiEngineService {
       }
 
       // 5. Construir mensajes para la API (con memoria inyectada)
+      // Inject active order context if exists
+      let orderContext = '';
+      const convCtx = conversation.context as any;
+      if (convCtx?.lastOrderId) {
+        orderContext = `\n\nPEDIDO ACTIVO EN ESTA CONVERSACIÓN:\n- Order ID: ${convCtx.lastOrderId}\n- Número: ${convCtx.lastOrderNumber ?? 'N/A'}\nUsa este orderId para set_delivery_address y request_payment sin pedir al cliente.\n`;
+      }
+
       const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-        { role: 'system', content: systemPrompt + kbContext + memoryContext },
+        { role: 'system', content: systemPrompt + kbContext + memoryContext + orderContext },
         ...history,
       ];
 
@@ -686,16 +693,42 @@ export class AiEngineService {
     }
 
     // Segunda llamada a GPT con los resultados de las herramientas
+    // Allow second round of tool calls (e.g., memory saves after order creation)
     const finalResponse = await this.openai.chat.completions.create({
       model: 'gpt-4o',
       messages,
+      tools: this.getTools(),
+      tool_choice: 'auto',
       temperature: 0.3,
       max_tokens: 800,
     });
 
-    const text = finalResponse.choices[0]?.message?.content
-      ?? 'Procesé tu solicitud correctamente.';
+    const finalChoice = finalResponse.choices[0];
 
+    // If GPT wants MORE tool calls (e.g., save memory), execute them
+    if (finalChoice.finish_reason === 'tool_calls' && finalChoice.message.tool_calls) {
+      messages.push({ role: 'assistant', tool_calls: finalChoice.message.tool_calls, content: null });
+      for (const toolCall of finalChoice.message.tool_calls) {
+        const args2 = JSON.parse(toolCall.function.arguments);
+        let result2: string;
+        try {
+          result2 = await this.executeTool(toolCall.function.name, args2, conversation, tenant, schemaName);
+        } catch (e: any) {
+          result2 = `Error: ${e.message}`;
+        }
+        messages.push({ role: 'tool', tool_call_id: toolCall.id, content: result2 });
+      }
+      // Third call — text only, no more tools
+      const thirdResponse = await this.openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages,
+        temperature: 0.3,
+        max_tokens: 800,
+      });
+      return { text: thirdResponse.choices[0]?.message?.content ?? 'Procesé tu solicitud correctamente.' };
+    }
+
+    const text = finalChoice.message.content ?? 'Procesé tu solicitud correctamente.';
     return { text };
   }
 
@@ -768,6 +801,15 @@ export class AiEngineService {
           },
           schemaName,
         );
+
+        // IMPORTANT: Persist orderId in conversation context for subsequent tool calls
+        const updatedContext = { ...(conversation.context as any), lastOrderId: order.id, lastOrderNumber: order.orderNumber };
+        await this.prisma.$executeRawUnsafe(`
+          UPDATE "${schemaName}".conversations SET context = $1::jsonb WHERE id = $2::uuid
+        `, JSON.stringify(updatedContext), conversation.id);
+        // Update local reference too
+        (conversation.context as any).lastOrderId = order.id;
+        (conversation.context as any).lastOrderNumber = order.orderNumber;
 
         return JSON.stringify({
           success: true,
@@ -1226,6 +1268,12 @@ export class AiEngineService {
 
       case 'set_delivery_address': {
         try {
+          // Use orderId from args, or fallback to lastOrderId from conversation context
+          const orderId = args.orderId || (conversation.context as any)?.lastOrderId;
+          if (!orderId) {
+            return JSON.stringify({ success: false, message: 'No hay pedido activo. Primero crea un pedido.' });
+          }
+
           const address: Record<string, any> = {};
           if (args.street) address.street = args.street;
           if (args.colony) address.colony = args.colony;
@@ -1238,10 +1286,13 @@ export class AiEngineService {
           }
 
           await this.prisma.$executeRawUnsafe(`
+            ALTER TABLE "${schemaName}".orders ADD COLUMN IF NOT EXISTS delivery_type VARCHAR(20) DEFAULT 'pickup'
+          `);
+          await this.prisma.$executeRawUnsafe(`
             UPDATE "${schemaName}".orders
-            SET shipping_address = $1::jsonb, updated_at = NOW()
+            SET shipping_address = $1::jsonb, delivery_type = 'delivery', updated_at = NOW()
             WHERE id = $2::uuid
-          `, JSON.stringify(address), args.orderId);
+          `, JSON.stringify(address), orderId);
 
           const readable = [
             args.street,
@@ -1571,29 +1622,44 @@ INSTRUCCIONES:
 - Si el cliente está frustrado o tiene una queja que no puedes resolver, usa escalate_complaint
 - Si el cliente quiere cancelar un pedido, usa cancel_order (pide el motivo primero)
 
+REGLAS CRÍTICAS — NUNCA las violes:
+1. NUNCA digas "voy a contactar a un humano" sin EJECUTAR la tool escalate_complaint. Si dices que escalarás, DEBES ejecutar la herramienta.
+2. NUNCA inventes información (precios, productos, horarios) que no esté en el catálogo o knowledge base.
+3. NUNCA pierdas el contexto del pedido actual. Si ya tienes el nombre del cliente, NO lo pidas de nuevo.
+4. Si una tool falla, informa al cliente del error técnico y EJECUTA escalate_complaint para que el dueño intervenga.
+5. Si el cliente envía una IMAGEN durante el flujo de entrega/dirección, es una REFERENCIA VISUAL de su casa/ubicación. Guárdala como referencia, NO comentes la foto de forma casual.
+6. Si el cliente envía una imagen y hay un pedido con status payment_pending, es un COMPROBANTE DE PAGO. No es una foto casual.
+
 FLUJO DE PEDIDO — SIEMPRE SIGUE ESTE ORDEN:
 1. Confirma los productos y cantidades con el cliente
-2. Pregunta el NOMBRE del cliente si no lo tienes
+2. Pregunta el NOMBRE del cliente si no lo tienes (si ya está en la memoria, NO lo pidas)
 3. Usa create_order para registrar el pedido
 4. Pregunta: "¿Pasas a recoger o te lo enviamos a domicilio?"
 5. Si es ENVÍO:
    - Informa que el envío tiene un costo adicional (según configuración del negocio)
    - Pide la dirección escrita (calle, colonia, referencias)
    - Pide que envíe su UBICACIÓN por WhatsApp (el pin/📍) para el repartidor
-   - Usa set_delivery_address con la dirección y coordenadas
+   - Usa set_delivery_address con la dirección y coordenadas (usa el orderId del pedido que acabas de crear)
+   - Si el cliente envía una IMAGEN después de dar la dirección, es una referencia visual de su casa — menciona que la guardaste como referencia
    - El costo de envío se suma automáticamente al total
 6. Si es RECOGER: confirma que pase cuando esté listo
 7. Solicita el pago: da los datos bancarios (si los tienes configurados) y pide comprobante de transferencia
 8. Cuando el cliente mande imagen de transferencia, se verifica automáticamente
 9. Guarda el nombre y dirección en la memoria del cliente (update_customer_memory)
 
+MANEJO DE ERRORES:
+- Si set_delivery_address falla: intenta de nuevo con el orderId del pedido activo. Si sigue fallando, usa escalate_complaint.
+- Si create_order falla: informa al cliente y usa escalate_complaint.
+- NUNCA digas "contactaré a un humano" sin ejecutar escalate_complaint inmediatamente.
+- Si no puedes resolver algo en 2 intentos, escala con escalate_complaint.
+
 MEMORIA — IMPORTANTE:
 - USA update_customer_memory ACTIVAMENTE para guardar datos del cliente:
-  - memory_type "profile": cuando el cliente diga su nombre, dirección, preferencias, tallas, gustos, fechas importantes
-  - memory_type "episode": cuando detectes intereses, quejas, contexto relevante de la conversación
-- Guarda la memoria DURANTE la conversación, no esperes al final
-- Ejemplos: si dice "me gusta el chocolate", guarda preferencia. Si da su nombre y dirección, guarda en profile.
-- Si menciona un problema o producto que le interesa, guarda como episode.
+  - memory_type "profile", category "addresses": cuando el cliente dé su nombre, dirección, preferencias
+  - memory_type "episode": cuando detectes intereses, quejas, contexto relevante
+- Si la MEMORIA DEL CLIENTE ya tiene su nombre/dirección, NO lo pidas de nuevo. Usa los datos que ya tienes.
+- Guarda la memoria DURANTE la conversación, no esperes al final.
+- SIEMPRE que el cliente dé información nueva (nombre, dirección, preferencia), guárdala inmediatamente.
 
 CATÁLOGO DISPONIBLE:
 ${productList || 'No hay productos disponibles en este momento.'}
