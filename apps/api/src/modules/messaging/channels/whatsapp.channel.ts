@@ -49,10 +49,76 @@ export class WhatsAppChannel implements MessagingChannel {
 
       return { success: true, messageId };
     } catch (err: any) {
-      const error = err.response?.data?.error?.message ?? err.message;
-      this.logger.error(`WhatsApp send failed to ${recipientId}: ${error}`);
-      return { success: false, error };
+      const errorCode = err.response?.data?.error?.code;
+      const errorMsg = err.response?.data?.error?.message ?? err.message;
+
+      // Error 131026 = outside 24h window, try template fallback
+      if (errorCode === 131026 || errorMsg.includes('24')) {
+        this.logger.warn(`WhatsApp 24h window expired for ${recipientId}, attempting template fallback`);
+        return this.sendUtilityTemplate(recipientId, text, channelConfig);
+      }
+
+      this.logger.error(`WhatsApp send failed to ${recipientId}: ${errorMsg}`);
+      return { success: false, error: errorMsg };
     }
+  }
+
+  /**
+   * Fallback: send a utility template when outside the 24h conversation window.
+   * Uses the 'vspro_notification' template with the message as body parameter.
+   * If no custom template exists, tries 'hello_world' (Meta's default approved template).
+   */
+  private async sendUtilityTemplate(
+    recipientId: string,
+    text: string,
+    channelConfig: ChannelConfig,
+  ): Promise<SendResult> {
+    const url = `${this.baseUrl}/${this.apiVersion}/${channelConfig.externalId}/messages`;
+
+    // Try custom utility template first
+    const templatesToTry = ['vspro_notification', 'vspro_alert', 'hello_world'];
+
+    for (const templateName of templatesToTry) {
+      try {
+        // For vspro templates, pass the message text as variable {{1}}
+        const components = templateName.startsWith('vspro')
+          ? [{ type: 'body', parameters: [{ type: 'text', text: text.substring(0, 1024) }] }]
+          : [];
+
+        const response = await axios.post(url, {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: recipientId,
+          type: 'template',
+          template: {
+            name: templateName,
+            language: { code: 'es_MX' },
+            components,
+          },
+        }, {
+          headers: {
+            Authorization: `Bearer ${channelConfig.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const messageId = response.data?.messages?.[0]?.id;
+        this.logger.log(`WhatsApp template '${templateName}' sent to ${recipientId}: ${messageId}`);
+        return { success: true, messageId, templateUsed: templateName };
+      } catch (err: any) {
+        const errMsg = err.response?.data?.error?.message ?? '';
+        // Template not found — try next one
+        if (errMsg.includes('template') || errMsg.includes('not found') || errMsg.includes('does not exist')) {
+          continue;
+        }
+        // Other error — break
+        this.logger.error(`WhatsApp template '${templateName}' failed: ${errMsg}`);
+        break;
+      }
+    }
+
+    // All templates failed — return original error
+    return { success: false, error: 'Outside 24h window and no approved templates available. Create templates in Meta Business Manager.' };
   }
 
   async sendTemplate(params: SendTemplateParams): Promise<SendResult> {

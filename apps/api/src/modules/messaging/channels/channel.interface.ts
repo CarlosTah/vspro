@@ -55,4 +55,5 @@ export interface SendResult {
   success: boolean;
   messageId?: string;
   error?: string;
+  templateUsed?: string; // If message was sent via template fallback (24h window expired)
 }
