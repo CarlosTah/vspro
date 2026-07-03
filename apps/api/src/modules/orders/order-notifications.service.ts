@@ -113,6 +113,29 @@ export class OrderNotificationsService {
       // Non-blocking: log and continue
       this.logger.error(`Notification error for order ${orderId}: ${err.message}`);
     }
+
+    // Schedule post-delivery survey (5 min after delivery)
+    if (newStatus === 'delivered') {
+      setTimeout(async () => {
+        try {
+          const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+            SELECT o.order_number AS "orderNumber", c.channel_id AS "channelId",
+                   c.channel_type AS "customerChannelType", c.name AS "customerName"
+            FROM "${schemaName}".orders o
+            JOIN "${schemaName}".customers c ON c.id = o.customer_id
+            WHERE o.id = $1::uuid
+          `, orderId);
+          const o = rows[0];
+          if (!o?.channelId || o.channelId.startsWith('manual-')) return;
+
+          const name = o.customerName?.split(' ')[0] ?? '';
+          const survey = `⭐ *¿Cómo estuvo tu pedido?*\n\n${name}, nos encantaría saber tu opinión sobre el pedido *${o.orderNumber}*.\n\nResponde con un número del 1 al 5:\n1️⃣ Malo\n2️⃣ Regular\n3️⃣ Bueno\n4️⃣ Muy bueno\n5️⃣ Excelente\n\nTu opinión nos ayuda a mejorar. ¡Gracias! 🙏`;
+
+          await this.messagingFactory.sendText(o.channelId, survey, o.customerChannelType ?? 'whatsapp', schemaName);
+          this.logger.log(`[${schemaName}] Post-delivery survey sent for ${o.orderNumber}`);
+        } catch {}
+      }, 5 * 60 * 1000); // 5 minutes
+    }
   }
 
   // ─── Message Templates ────────────────────────────────────────

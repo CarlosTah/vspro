@@ -100,6 +100,37 @@ export class MessageProcessor {
         schema,
       );
 
+      // 5.5. SURVEY RESPONSE: If client sends 1-5 and has a recently delivered order
+      if (message.text && /^[1-5]$/.test(message.text.trim())) {
+        const recentDelivered = await this.prisma.$queryRawUnsafe<any[]>(`
+          SELECT id, order_number AS "orderNumber" FROM "${schema}".orders
+          WHERE customer_id = $1::uuid AND status = 'delivered'
+            AND updated_at > NOW() - INTERVAL '30 minutes'
+          ORDER BY updated_at DESC LIMIT 1
+        `, customer.id).catch(() => []);
+
+        if (recentDelivered.length > 0) {
+          const rating = parseInt(message.text.trim());
+          // Save rating
+          await this.prisma.$executeRawUnsafe(`
+            ALTER TABLE "${schema}".orders ADD COLUMN IF NOT EXISTS customer_rating INTEGER
+          `);
+          await this.prisma.$executeRawUnsafe(`
+            UPDATE "${schema}".orders SET customer_rating = $1 WHERE id = $2::uuid
+          `, rating, recentDelivered[0].id);
+
+          // Send thank you
+          const thankYou = rating >= 4
+            ? `¡Gracias por tu calificación! ⭐${rating} Nos alegra que te haya gustado. ¡Te esperamos pronto! 🙌`
+            : `Gracias por tu opinión. Lamentamos que no fue perfecto. Trabajaremos para mejorar. Si tienes algún comentario adicional, escríbenos.`;
+
+          await this.messagingService.sendText(message.channelType, message.senderId, thankYou, schema);
+          await this.conversationsService.saveMessage(conversation.id, 'outbound', 'text', thankYou, null, null, schema);
+          this.logger.log(`[${schema}] Survey rating ${rating}/5 for ${recentDelivered[0].orderNumber}`);
+          return;
+        }
+      }
+
       // 5.5. AUTO-VERIFICACIÓN DE PAGO: Si es imagen y hay pedido pendiente
       if (message.type === 'image' && message.mediaUrl) {
         const pendingOrder = await this.findPendingPaymentOrder(customer.id, schema);
