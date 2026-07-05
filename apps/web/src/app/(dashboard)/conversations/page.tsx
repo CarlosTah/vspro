@@ -12,8 +12,6 @@ type Tab = 'clientes' | 'repartidores';
 export default function ConversationsPage() {
   const [tab, setTab] = useState<Tab>('clientes');
   const { data: conversations, loading, refetch: refetchConversations } = useApi<any[]>('/conversations');
-  const [driverMessages, setDriverMessages] = useState<any[]>([]);
-  const [loadingDrivers, setLoadingDrivers] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -26,6 +24,13 @@ export default function ConversationsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const listPollRef = useRef<NodeJS.Timeout | null>(null);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+  const [driverChatMessages, setDriverChatMessages] = useState<any[]>([]);
+  const [loadingDriverMsgs, setLoadingDriverMsgs] = useState(false);
+  const [driverReplyText, setDriverReplyText] = useState('');
+  const [sendingDriverMsg, setSendingDriverMsg] = useState(false);
+  const driverMsgsEndRef = useRef<HTMLDivElement>(null);
 
   const selectedConv = conversations?.find((c: any) => c.id === selectedId);
 
@@ -35,7 +40,7 @@ export default function ConversationsPage() {
       if (tab === 'clientes') {
         refetchConversations();
       } else {
-        loadDriverMessages();
+        loadDrivers();
       }
     }, 5000);
     return () => { if (listPollRef.current) clearInterval(listPollRef.current); };
@@ -72,19 +77,63 @@ export default function ConversationsPage() {
       .finally(() => setLoadingMessages(false));
   }, [selectedId]);
 
-  // Load driver messages
-  const loadDriverMessages = useCallback(async () => {
-    setLoadingDrivers(true);
+  const loadDrivers = useCallback(async () => {
     try {
-      const data = await api.get<any[]>('/delivery/messages');
-      setDriverMessages(data ?? []);
-    } catch { setDriverMessages([]); }
-    finally { setLoadingDrivers(false); }
+      const data = await api.get<any[]>('/delivery/drivers');
+      setDrivers(data ?? []);
+    } catch { setDrivers([]); }
   }, []);
 
+
   useEffect(() => {
-    if (tab === 'repartidores') loadDriverMessages();
+    if (tab === 'repartidores') loadDrivers();
   }, [tab]);
+
+  // Load driver chat messages when selected
+  useEffect(() => {
+    if (!selectedDriverId) return;
+    setLoadingDriverMsgs(true);
+    api.get<any[]>(`/delivery/drivers/${selectedDriverId}/messages`)
+      .then(setDriverChatMessages)
+      .catch(() => setDriverChatMessages([]))
+      .finally(() => setLoadingDriverMsgs(false));
+  }, [selectedDriverId]);
+
+  // Poll driver messages every 3s
+  useEffect(() => {
+    if (!selectedDriverId || tab !== 'repartidores') return;
+    const interval = setInterval(() => {
+      api.get<any[]>(`/delivery/drivers/${selectedDriverId}/messages`)
+        .then((msgs) => { if (msgs && msgs.length !== driverChatMessages.length) setDriverChatMessages(msgs); })
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [selectedDriverId, tab, driverChatMessages.length]);
+
+  // Auto-scroll driver messages
+  useEffect(() => {
+    driverMsgsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [driverChatMessages]);
+
+  // Send message to driver
+  const handleSendDriverMessage = async () => {
+    if (!driverReplyText.trim() || !selectedDriverId) return;
+    setSendingDriverMsg(true);
+    try {
+      await api.post(`/delivery/drivers/${selectedDriverId}/message`, { text: driverReplyText });
+      setDriverChatMessages([...driverChatMessages, {
+        id: `temp-${Date.now()}`,
+        direction: 'outbound',
+        content: driverReplyText,
+        createdAt: new Date().toISOString(),
+      }]);
+      setDriverReplyText('');
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSendingDriverMsg(false);
+    }
+  };
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -149,45 +198,113 @@ export default function ConversationsPage() {
         </button>
       </div>
 
-      {/* Driver Messages Tab */}
       {tab === 'repartidores' && (
-        <div className="flex-1 rounded-xl border border-card-border bg-card overflow-hidden flex flex-col">
-          <div className="border-b border-gray-700 px-5 py-3 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-white">Mensajes con Repartidores</h2>
-              <p className="text-xs text-gray-500">Historial de comunicación de entregas</p>
+        <div className="flex flex-1 gap-4 min-h-0">
+          {/* Driver list */}
+          <div className="w-80 flex-shrink-0 rounded-xl border border-card-border bg-card overflow-hidden flex flex-col">
+            <div className="border-b border-gray-700 px-4 py-3">
+              <h2 className="text-sm font-semibold text-white">Repartidores</h2>
+              <p className="text-xs text-gray-500">{drivers?.length ?? 0} registrados</p>
             </div>
-            <span className="text-xs text-gray-500">Auto-refresh cada 5s</span>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            {loadingDrivers && driverMessages.length === 0 ? (
-              <p className="text-center text-gray-500 text-sm py-8">Cargando...</p>
-            ) : driverMessages.length === 0 ? (
-              <p className="text-center text-gray-500 text-sm py-8">Sin mensajes de repartidores aún</p>
-            ) : (
-              driverMessages.map((msg: any, i: number) => (
-                <div key={msg.id ?? i} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[70%] rounded-2xl px-4 py-2.5 ${
-                    msg.direction === 'outbound'
-                      ? 'bg-accent/20 border border-accent/30 rounded-br-md'
-                      : 'bg-gray-800 border border-gray-700 rounded-bl-md'
-                  }`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-medium text-yellow-300">{msg.driverName ?? 'Repartidor'}</span>
-                      <span className="text-xs text-gray-500">#{msg.orderNumber ?? ''}</span>
+            <div className="flex-1 overflow-y-auto">
+              {drivers?.length === 0 ? (
+                <p className="p-4 text-sm text-gray-500 text-center">Sin repartidores registrados</p>
+              ) : (
+                drivers?.map((driver: any) => (
+                  <div
+                    key={driver.id}
+                    onClick={() => setSelectedDriverId(driver.id)}
+                    className={`px-4 py-3 cursor-pointer border-b border-gray-800 transition-colors ${
+                      selectedDriverId === driver.id ? 'bg-accent/10 border-l-2 border-l-accent' : 'hover:bg-gray-800/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-white">{driver.name}</p>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        driver.status === 'available' ? 'bg-green-900/40 text-green-300' :
+                        driver.status === 'busy' ? 'bg-yellow-900/40 text-yellow-300' :
+                        'bg-gray-700 text-gray-400'
+                      }`}>
+                        {driver.status === 'available' ? '🟢' : driver.status === 'busy' ? '🟡' : '⚪'} {driver.status}
+                      </span>
                     </div>
-                    <p className="text-sm text-white whitespace-pre-wrap">{msg.content}</p>
-                    <span className="text-xs text-gray-500 mt-1 block">
-                      {msg.createdAt ? new Date(msg.createdAt).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
-                    </span>
+                    <p className="mt-0.5 text-xs text-gray-400">{driver.phone}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Driver chat panel */}
+          <div className="flex-1 rounded-xl border border-card-border bg-card overflow-hidden flex flex-col">
+            {!selectedDriverId ? (
+              <div className="flex-1 flex items-center justify-center text-gray-500">
+                <p>Selecciona un repartidor</p>
+              </div>
+            ) : (
+              <>
+                {/* Chat header */}
+                <div className="flex items-center justify-between border-b border-gray-700 px-5 py-3">
+                  <div>
+                    <p className="font-medium text-white">{drivers?.find((d: any) => d.id === selectedDriverId)?.name ?? 'Repartidor'}</p>
+                    <p className="text-xs text-gray-400">WhatsApp · {drivers?.find((d: any) => d.id === selectedDriverId)?.phone ?? ''}</p>
+                  </div>
+                  <span className="text-xs text-gray-500">Auto-refresh 3s</span>
+                </div>
+
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                  {loadingDriverMsgs ? (
+                    <p className="text-center text-gray-500 text-sm">Cargando...</p>
+                  ) : driverChatMessages.length === 0 ? (
+                    <p className="text-center text-gray-500 text-sm py-8">Sin mensajes con este repartidor</p>
+                  ) : (
+                    driverChatMessages.map((msg: any) => (
+                      <div key={msg.id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
+                          msg.direction === 'outbound'
+                            ? 'bg-accent/20 border border-accent/30 rounded-br-md'
+                            : 'bg-gray-800 border border-gray-700 rounded-bl-md'
+                        }`}>
+                          {msg.orderNumber && (
+                            <span className="text-xs text-yellow-300 block mb-1">#{msg.orderNumber}</span>
+                          )}
+                          <p className="text-sm text-white whitespace-pre-wrap">{msg.content}</p>
+                          <span className="text-xs text-gray-500 mt-1 block">
+                            {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : ''}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  <div ref={driverMsgsEndRef} />
+                </div>
+
+                {/* Reply input */}
+                <div className="border-t border-gray-700 px-4 py-3">
+                  <div className="flex items-end gap-2">
+                    <textarea
+                      value={driverReplyText}
+                      onChange={(e) => setDriverReplyText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendDriverMessage(); } }}
+                      placeholder="Escribe un mensaje al repartidor..."
+                      rows={1}
+                      className="flex-1 rounded-xl border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm text-white resize-none focus:outline-none focus:ring-1 focus:ring-accent"
+                    />
+                    <button
+                      onClick={handleSendDriverMessage}
+                      disabled={sendingDriverMsg || !driverReplyText.trim()}
+                      className="rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+                    >
+                      {sendingDriverMsg ? '...' : '📤'}
+                    </button>
                   </div>
                 </div>
-              ))
+              </>
             )}
           </div>
         </div>
       )}
-
       {/* Clients Conversations Tab */}
       {tab === 'clientes' && (
       <div className="flex flex-1 gap-4 min-h-0">

@@ -82,7 +82,7 @@ export class WhatsAppChannel implements MessagingChannel {
       try {
         // For vspro templates, pass the message text as variable {{1}}
         const components = templateName.startsWith('vspro')
-          ? [{ type: 'body', parameters: [{ type: 'text', text: text.substring(0, 1024) }] }]
+          ? [{ type: 'body', parameters: [{ type: 'text', text: text.substring(0, 900) }] }]
           : [];
 
         const response = await axios.post(url, {

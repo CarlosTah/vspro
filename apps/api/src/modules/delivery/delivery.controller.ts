@@ -313,4 +313,62 @@ export class DeliveryController {
       LIMIT 100
     `).catch(() => []);
   }
+
+  /** Get messages for a specific driver (grouped like a conversation) */
+  @Get('drivers/:id/messages')
+  @Roles('admin', 'manager', 'operator')
+  async getDriverMessages(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schema}".delivery_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        assignment_id UUID, driver_id UUID,
+        direction VARCHAR(10) NOT NULL DEFAULT 'outbound',
+        content TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    return this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT dm.id, dm.direction, dm.content, dm.created_at AS "createdAt",
+             o.order_number AS "orderNumber"
+      FROM "${schema}".delivery_messages dm
+      LEFT JOIN "${schema}".delivery_assignments da ON da.id = dm.assignment_id
+      LEFT JOIN "${schema}".orders o ON o.id = da.order_id
+      WHERE dm.driver_id = $1::uuid
+      ORDER BY dm.created_at ASC
+      LIMIT 200
+    `, id).catch(() => []);
+  }
+
+  /** Send a direct message to a driver by driver ID */
+  @Post('drivers/:id/message')
+  @Roles('admin', 'manager')
+  async sendDirectDriverMessage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { text: string },
+    @TenantSchema() schema: string,
+  ) {
+    const drivers = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id, phone, name FROM "${schema}".delivery_drivers WHERE id = $1::uuid`, id
+    );
+    if (!drivers[0]) return { success: false, error: 'Repartidor no encontrado' };
+
+    const result = await this.delivery['messagingFactory'].sendText(
+      drivers[0].phone, body.text, 'whatsapp', schema
+    );
+
+    // Save message
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schema}".delivery_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        assignment_id UUID, driver_id UUID,
+        direction VARCHAR(10) NOT NULL DEFAULT 'outbound',
+        content TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await this.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".delivery_messages (driver_id, direction, content)
+      VALUES ($1::uuid, 'outbound', $2)
+    `, id, body.text);
+
+    return { success: result.success, error: result.error };
+  }
 }
