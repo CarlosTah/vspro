@@ -27,9 +27,17 @@ export class WhatsAppChannel implements MessagingChannel {
 
   async sendText(params: SendTextParams): Promise<SendResult> {
     const { recipientId, text, channelConfig } = params;
-
     const url = `${this.baseUrl}/${this.apiVersion}/${channelConfig.externalId}/messages`;
 
+    // Strategy: Try template FIRST (always works regardless of 24h window),
+    // then fall back to free text if template fails.
+    // This ensures delivery even when the conversation window is closed.
+    const templateResult = await this.sendUtilityTemplate(recipientId, text, channelConfig);
+    if (templateResult.success) {
+      return templateResult;
+    }
+
+    // Template failed (not approved, format error, etc.) — try free text
     try {
       const response = await axios.post(url, {
         messaging_product: 'whatsapp',
@@ -46,18 +54,9 @@ export class WhatsAppChannel implements MessagingChannel {
 
       const messageId = response.data?.messages?.[0]?.id;
       this.logger.debug(`WhatsApp text sent to ${recipientId}: ${messageId}`);
-
       return { success: true, messageId };
     } catch (err: any) {
-      const errorCode = err.response?.data?.error?.code;
       const errorMsg = err.response?.data?.error?.message ?? err.message;
-
-      // Error 131026 = outside 24h window, try template fallback
-      if (errorCode === 131026 || errorMsg.includes('24')) {
-        this.logger.warn(`WhatsApp 24h window expired for ${recipientId}, attempting template fallback`);
-        return this.sendUtilityTemplate(recipientId, text, channelConfig);
-      }
-
       this.logger.error(`WhatsApp send failed to ${recipientId}: ${errorMsg}`);
       return { success: false, error: errorMsg };
     }
