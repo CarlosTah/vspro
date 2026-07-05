@@ -21,7 +21,7 @@ export class AuthService {
     });
 
     if (!tenant) {
-      throw new UnauthorizedException('Credenciales inválidas');
+      throw new UnauthorizedException('El negocio no existe. Verifica el slug (URL del negocio).');
     }
 
     // 2. Buscar usuario en el schema del tenant usando raw SQL
@@ -35,14 +35,17 @@ export class AuthService {
     );
 
     const user = users[0];
-    if (!user || !user.isActive) {
-      throw new UnauthorizedException('Credenciales inválidas');
+    if (!user) {
+      throw new UnauthorizedException('El correo electrónico no está registrado en este negocio.');
+    }
+    if (!user.isActive) {
+      throw new UnauthorizedException('Tu cuenta está desactivada. Contacta al administrador.');
     }
 
     // 3. Verificar contraseña
     const passwordValid = await bcrypt.compare(password, user.passwordHash);
     if (!passwordValid) {
-      throw new UnauthorizedException('Credenciales inválidas');
+      throw new UnauthorizedException('Contraseña incorrecta.');
     }
 
     // 4. Generar JWT con contexto del tenant
