@@ -60,15 +60,19 @@ export class ConversationsService {
     return rows[0];
   }
 
-  async getMessages(conversationId: string, schemaName: string, limit = 50) {
+  async getMessages(conversationId: string, schemaName: string, limit = 100) {
+    // Get the latest N messages (DESC to get newest first) then reverse for chronological display
     return this.prisma.$queryRawUnsafe<any[]>(`
-      SELECT
-        id, direction, type, content, media_url AS "mediaUrl",
-        ai_processed AS "aiProcessed", created_at AS "createdAt"
-      FROM "${schemaName}".messages
-      WHERE conversation_id = $1::uuid
-      ORDER BY created_at ASC
-      LIMIT $2
+      SELECT * FROM (
+        SELECT
+          id, direction, type, content, media_url AS "mediaUrl",
+          ai_processed AS "aiProcessed", created_at AS "createdAt"
+        FROM "${schemaName}".messages
+        WHERE conversation_id = $1::uuid
+        ORDER BY created_at DESC
+        LIMIT $2
+      ) sub
+      ORDER BY sub."createdAt" ASC
     `, conversationId, limit);
   }
 
