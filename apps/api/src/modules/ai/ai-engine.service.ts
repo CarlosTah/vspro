@@ -2509,7 +2509,13 @@ Siempre confirma antes de agregar productos. Si no estás seguro del precio, pre
     const openMinutes = openH * 60 + openM;
 
     const [closeH, closeM] = todayHours.close.split(':').map(Number);
-    const closeMinutes = closeH * 60 + closeM;
+    let closeMinutes = closeH * 60 + closeM;
+
+    // Handle midnight (00:00) or times that mean "end of day"
+    // If close is 00:00 or close <= open, treat as next-day close (24:00 = 1440 minutes)
+    if (closeMinutes === 0 || closeMinutes <= openMinutes) {
+      closeMinutes = 24 * 60; // 1440 = midnight
+    }
 
     if (currentMinutes >= openMinutes && currentMinutes < closeMinutes) {
       return { isOpen: true };
