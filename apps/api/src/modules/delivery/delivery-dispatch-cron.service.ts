@@ -33,6 +33,17 @@ export class DeliveryDispatchCronService {
         const settings = await this.getDeliverySettings(tenant.schemaName);
         if (!settings.autoDispatchEnabled) continue;
 
+        // Auto-fix stale assignments: close assignments for orders already delivered/cancelled
+        await this.prisma.$executeRawUnsafe(`
+          UPDATE "${tenant.schemaName}".delivery_assignments
+          SET status = 'delivered'
+          WHERE status IN ('accepted', 'picked_up')
+            AND EXISTS (
+              SELECT 1 FROM "${tenant.schemaName}".orders o
+              WHERE o.id = order_id AND o.status IN ('delivered', 'cancelled')
+            )
+        `).catch(() => {});
+
         // Find ready orders without delivery assignment
         const readyOrders = await this.prisma.$queryRawUnsafe<any[]>(`
           SELECT o.id, o.order_number AS "orderNumber", o.total, o.shipping_address AS "shippingAddress",

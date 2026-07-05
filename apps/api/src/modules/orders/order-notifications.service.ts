@@ -11,7 +11,7 @@ import { OrderStatus } from '@vspro/shared';
  *
  * Messages sent:
  * - payment_verified: "✅ Pago confirmado, tu pedido está en preparación"
- * - in_production:    "👨‍🍳 Tu pedido se está preparando"
+ * - in_production:    "👨‍🍳 Tu pedido fue enviado a cocina"
  * - ready:            "🎉 ¡Tu pedido está listo! Pasa a recoger / Tu repartidor va en camino"
  * - shipped:          "🛵 Tu pedido va en camino"
  * - delivered:        "✅ Entregado. ¡Gracias por tu compra!"
@@ -148,10 +148,10 @@ export class OrderNotificationsService {
 
     switch (status) {
       case 'payment_verified':
-        return `✅ *Pago confirmado*\n\n${name}, recibimos tu pago de $${total} para el pedido *${num}*.\n\nTu pedido ya está en preparación. 👨‍🍳`;
+        return `✅ *Pago confirmado*\n\n${name}, recibimos tu pago de $${total} para el pedido *${num}*.\n\nTu pedido será enviado a cocina en breve. 👨‍🍳`;
 
       case 'in_production':
-        return `👨‍🍳 *En preparación*\n\n${name}, tu pedido *${num}* se está preparando.\n\nTe avisamos cuando esté listo.`;
+        return `👨‍🍳 *Pedido en cocina*\n\n${name}, tu pedido *${num}* fue enviado a cocina.\n\n⏳ Te avisamos cuando esté listo.`;
 
       case 'ready':
         if (isDelivery) {
