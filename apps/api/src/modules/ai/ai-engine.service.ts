@@ -2449,14 +2449,29 @@ Siempre confirma antes de agregar productos. Si no estás seguro del precio, pre
   private checkBusinessHours(businessHours: any): { isOpen: boolean; nextOpen?: string } {
     if (!businessHours) return { isOpen: true }; // Sin horario configurado = siempre abierto
 
-    // Parse format: could be {timezone, schedule: {mon: {open, close}}} or {mon: {open, close}}
-    let timezone = 'America/Mexico_City';
-    let schedule = businessHours;
-
-    if (businessHours.timezone) {
-      timezone = businessHours.timezone;
-      schedule = businessHours.schedule ?? businessHours;
-    }
+  // Parse format: could be {timezone, schedule: {mon: {open, close}}} or {mon: {open, close}}
+  let timezone = businessHours.timezone ?? 'America/Mexico_City';
+  let schedule = businessHours.schedule ?? businessHours;
+ 
+  // MERGE: Dashboard saves in Spanish format (lunes, martes, domingo, etc.) with 'enabled' flag.
+  // If Spanish keys exist with enabled:true, they override the schedule keys.
+  const spanishToKey: Record<string, string> = {
+  lunes: 'mon', martes: 'tue', miércoles: 'wed', miercoles: 'wed',
+  jueves: 'thu', viernes: 'fri', sábado: 'sat', sabado: 'sat', domingo: 'sun',
+  };
+  for (const [spanishDay, engKey] of Object.entries(spanishToKey)) {
+  const dashEntry = businessHours[spanishDay];
+  if (dashEntry && typeof dashEntry === 'object') {
+  if (dashEntry.enabled === false) {
+  // Day explicitly disabled from dashboard
+  schedule[engKey] = null;
+  } else if (dashEntry.enabled === true && dashEntry.open && dashEntry.close) {
+  // Day enabled with hours from dashboard — override schedule
+  schedule[engKey] = { open: dashEntry.open, close: dashEntry.close };
+  }
+  }
+  }
+ 
 
     // Get current time in business timezone
     const now = new Date();
