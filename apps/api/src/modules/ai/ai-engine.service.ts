@@ -2507,9 +2507,13 @@ Siempre confirma antes de agregar productos. Si no estás seguro del precio, pre
   if (dashEntry.enabled === false) {
   // Day explicitly disabled from dashboard
   schedule[engKey] = null;
-  } else if (dashEntry.enabled === true && dashEntry.open && dashEntry.close) {
-  // Day enabled with hours from dashboard — override schedule
-  schedule[engKey] = { open: dashEntry.open, close: dashEntry.close };
+  } else if (dashEntry.open || dashEntry.close) {
+  // Day has hours from dashboard — merge with existing schedule
+  const existing = schedule[engKey] ?? {};
+  schedule[engKey] = {
+  open: dashEntry.open ?? existing.open ?? '08:00',
+  close: dashEntry.close ?? existing.close ?? '00:00',
+  };
   }
   }
   }
