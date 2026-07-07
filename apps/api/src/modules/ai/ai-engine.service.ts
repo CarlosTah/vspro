@@ -113,11 +113,48 @@ export class AiEngineService {
       }
 
       // 5. Construir mensajes para la API (con memoria inyectada)
-      // Inject active order context if exists
+      // Inject active order context WITH REAL STATUS from DB
       let orderContext = '';
       const convCtx = conversation.context as any;
       if (convCtx?.lastOrderId) {
-        orderContext = `\n\nPEDIDO ACTIVO EN ESTA CONVERSACIÓN:\n- Order ID: ${convCtx.lastOrderId}\n- Número: ${convCtx.lastOrderNumber ?? 'N/A'}\nUsa este orderId para set_delivery_address y request_payment sin pedir al cliente.\n`;
+        try {
+          const orderRows = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT status, delivery_type, payment_method, total, shipping_address IS NOT NULL AS "hasAddress"
+             FROM "${schemaName}".orders WHERE id = $1::uuid`,
+            convCtx.lastOrderId,
+          );
+          const order = orderRows[0];
+          if (order) {
+            const statusLabels: Record<string, string> = {
+              new: 'Nuevo (sin procesar)',
+              payment_pending: 'Esperando pago',
+              payment_verified: 'Pago verificado',
+              in_production: 'En cocina/producción',
+              ready: 'LISTO para entrega/recoger',
+              shipped: 'En camino con repartidor',
+              delivered: 'Entregado',
+              cancelled: 'Cancelado',
+            };
+            orderContext = `\n\nPEDIDO ACTIVO EN ESTA CONVERSACIÓN:
+- Order ID: ${convCtx.lastOrderId}
+- Número: ${convCtx.lastOrderNumber ?? 'N/A'}
+- STATUS REAL: ${statusLabels[order.status] ?? order.status}
+- Tipo entrega: ${order.delivery_type === 'delivery' ? 'Domicilio' : 'Recoger en local'}
+- Método pago: ${order.payment_method ?? 'No definido'}
+- Total: $${parseFloat(order.total ?? 0).toLocaleString('es-MX')}
+- Dirección: ${order.hasAddress ? 'Configurada' : 'No configurada'}
+
+IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo diferente.
+- Si status es "in_production" → el pedido ESTÁ en cocina, NO digas que está listo.
+- Si status es "ready" → SÍ está listo, puedes confirmarlo.
+- Si status es "shipped" → está en camino con el repartidor.
+- Si el cliente pregunta estado, CONFIRMA este status. No inventes otro.\n`;
+          } else {
+            orderContext = `\n\nPEDIDO ACTIVO: ${convCtx.lastOrderId} (${convCtx.lastOrderNumber ?? 'N/A'})\n`;
+          }
+        } catch {
+          orderContext = `\n\nPEDIDO ACTIVO: ${convCtx.lastOrderId} (${convCtx.lastOrderNumber ?? 'N/A'})\n`;
+        }
       }
 
       const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
