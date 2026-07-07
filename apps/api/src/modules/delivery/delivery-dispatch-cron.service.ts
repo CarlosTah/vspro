@@ -44,7 +44,7 @@ export class DeliveryDispatchCronService {
             )
         `).catch(() => {});
 
-        // Find ready orders without delivery assignment
+        // Find ready orders without active assignment AND under max retry limit
         const readyOrders = await this.prisma.$queryRawUnsafe<any[]>(`
           SELECT o.id, o.order_number AS "orderNumber", o.total, o.shipping_address AS "shippingAddress",
                  c.name AS "customerName", c.channel_id AS "customerChannelId"
@@ -56,6 +56,10 @@ export class DeliveryDispatchCronService {
               SELECT 1 FROM "${tenant.schemaName}".delivery_assignments da
               WHERE da.order_id = o.id AND da.status IN ('offered', 'accepted', 'picked_up')
             )
+            AND (
+              SELECT COUNT(*) FROM "${tenant.schemaName}".delivery_assignments da2
+              WHERE da2.order_id = o.id AND da2.status = 'rejected'
+            ) < ${settings.maxRetries ?? 3}
         `);
 
         for (const order of readyOrders) {
