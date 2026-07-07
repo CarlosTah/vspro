@@ -44,6 +44,25 @@ export default function DeliveriesPage() {
   const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
   const [assignmentMessages, setAssignmentMessages] = useState<any[]>([]);
   const [driverMsg, setDriverMsg] = useState('');
+  const [showManualAssign, setShowManualAssign] = useState(false);
+  const [readyOrders, setReadyOrders] = useState<any[]>([]);
+  const [selectedOrderForAssign, setSelectedOrderForAssign] = useState<string>('');
+  const [selectedDriverForAssign, setSelectedDriverForAssign] = useState<string>('');
+  const [assigning, setAssigning] = useState(false);
+  const loadReadyOrders = async () => {
+    try { const orders = await api.get<any[]>('/orders?status=ready'); setReadyOrders(orders ?? []); } catch { setReadyOrders([]); }
+  };
+  const handleManualAssign = async () => {
+    if (!selectedOrderForAssign || !selectedDriverForAssign) return;
+    setAssigning(true);
+    try {
+      await api.post('/delivery/request', { orderId: selectedOrderForAssign, driverId: selectedDriverForAssign });
+      setShowManualAssign(false); setSelectedOrderForAssign(''); setSelectedDriverForAssign('');
+      refetchAssignments(); refetchActive();
+      alert('Repartidor asignado. Se envio mensaje por WhatsApp.');
+    } catch (err: any) { alert('Error: ' + err.message); }
+    finally { setAssigning(false); }
+  };
 
   const loadAssignmentMessages = async (assignment: any) => {
     setSelectedAssignment(assignment);
@@ -291,6 +310,26 @@ export default function DeliveriesPage() {
       {/* Assignments Tab */}
       {tab === 'assignments' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Manual Assign */}
+          <div className="lg:col-span-3 rounded-xl border border-card-border bg-card p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-300">Asignación manual</h3>
+              <button onClick={() => { setShowManualAssign(!showManualAssign); loadReadyOrders(); }} className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent/90">{showManualAssign ? 'Cerrar' : '+ Asignar repartidor'}</button>
+            </div>
+            {showManualAssign && (
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <select value={selectedOrderForAssign} onChange={(e) => setSelectedOrderForAssign(e.target.value)} className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white">
+                  <option value="">Pedido listo...</option>
+                  {readyOrders.map((o: any) => (<option key={o.id} value={o.id}>{o.orderNumber} - {o.customerName}</option>))}
+                </select>
+                <select value={selectedDriverForAssign} onChange={(e) => setSelectedDriverForAssign(e.target.value)} className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white">
+                  <option value="">Repartidor...</option>
+                  {drivers?.map((d: any) => (<option key={d.id} value={d.id}>{d.name} ({d.status})</option>))}
+                </select>
+                <button onClick={handleManualAssign} disabled={assigning || !selectedOrderForAssign || !selectedDriverForAssign} className="bg-accent text-white px-4 py-2 rounded-lg text-sm disabled:opacity-50">{assigning ? 'Asignando...' : '📤 Asignar y enviar WhatsApp'}</button>
+              </div>
+            )}
+          </div>
           {/* Assignment List */}
           <div className="lg:col-span-2 rounded-xl border border-card-border bg-card overflow-hidden">
             {assignments && assignments.length > 0 ? (
