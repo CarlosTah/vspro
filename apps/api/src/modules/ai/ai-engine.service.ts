@@ -1022,6 +1022,14 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         // Update local reference too
         (conversation.context as any).lastOrderId = order.id;
         (conversation.context as any).lastOrderNumber = order.orderNumber;
+ // AUTO-SAVE: Store order in customer memory (non-blocking)
+ this.customerMemory.upsertProfile(
+ ctx.customerId,
+ 'purchase_history_summary',
+ { [`order_${order.orderNumber}`]: `${args.items.map((i: any) => i.productName ?? "producto").join(", ")} — Total: $${order.total}` },
+ schemaName,
+ ).catch(() => {});
+
 
         return JSON.stringify({
           success: true,
@@ -1587,6 +1595,18 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
 
           // Get updated order total
           const updatedOrder = await this.ordersService.findById(orderId, schemaName);
+ // AUTO-SAVE: Store address in customer memory (non-blocking)
+ const addrCustomerId = (conversation.context as any)?.customerId;
+ if (addrCustomerId) {
+ const addrText = [args.street, args.colony, args.city, args.reference].filter(Boolean).join(", ");
+ this.customerMemory.upsertProfile(
+ addrCustomerId,
+ "addresses",
+ { last_delivery: addrText, full: address },
+ schemaName,
+ ).catch(() => {});
+ }
+
 
           return JSON.stringify({
             success: true,
