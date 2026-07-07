@@ -91,7 +91,7 @@ export class WhatsAppChannel implements MessagingChannel {
           type: 'template',
           template: {
             name: templateName,
-            language: { code: 'es_MX' },
+            language: { code: 'es' },
             components,
           },
         }, {
