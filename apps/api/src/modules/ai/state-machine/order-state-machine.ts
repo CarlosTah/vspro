@@ -191,12 +191,22 @@ export class OrderStateMachine {
           llmContext: 'El cliente quiere cancelar pero no hay pedido activo. Pregunta en qué puedes ayudar.',
         };
 
-      default:
+      default: {
+        // Check if asking for promos
+        const promoWords = ['promo', 'oferta', 'descuento', 'combo', 'especial', 'promoción', 'promocion'];
+        if (promoWords.some(k => intent.text.toLowerCase().includes(k))) {
+          return {
+            newState: OrderState.TAKING_ORDER,
+            actions: [{ tool: 'send_media_to_customer', args: { mediaType: 'promo' } }],
+            llmContext: 'Envía las promociones al cliente y pregunta si le interesa alguna.',
+          };
+        }
         return {
           newState: OrderState.IDLE,
           actions: [],
           llmContext: `El cliente dijo: "${intent.text}". Responde de forma útil. Si quiere pedir, muestra el catálogo:\n${this.formatCatalog()}`,
         };
+      }
     }
   }
 

@@ -70,7 +70,7 @@ export class MediaAssetsController {
  const asset = rows[0];
 
  // AUTO-EXTRACT: If type is 'menu' or 'catalog', use GPT-4o Vision to extract products
- if ((body.type === 'menu' || body.type === 'catalog') && file.mimetype?.startsWith('image/')) {
+ if ((body.type === 'menu' || body.type === 'catalog' || body.type === 'promo') && file.mimetype?.startsWith('image/')) {
  this.extractProductsFromMenu(file.buffer, file.mimetype, schema).catch(() => {});
  }
 

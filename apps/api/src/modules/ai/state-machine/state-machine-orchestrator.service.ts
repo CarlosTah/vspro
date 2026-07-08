@@ -320,9 +320,53 @@ export class StateMachineOrchestratorService {
           return JSON.stringify({ success: true, message: 'Escalado al equipo' });
         }
 
-        case 'send_media_to_customer':
+        case 'send_media_to_customer': {
+          // Send media (menu, promo, catalog) to customer via WhatsApp
+          const mediaType = args.mediaType ?? 'menu';
+          try {
+            await this.prisma.$executeRawUnsafe(`
+              CREATE TABLE IF NOT EXISTS "${schemaName}".media_assets (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                type VARCHAR(50) NOT NULL DEFAULT 'general',
+                title VARCHAR(255), url TEXT NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT true,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              )
+            `);
+            const assets = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT url, title FROM "${schemaName}".media_assets WHERE type = $1 AND is_active = true ORDER BY sort_order ASC LIMIT 3`,
+              mediaType,
+            );
+            if (assets.length === 0) {
+              return JSON.stringify({ success: false, message: `No hay material de tipo "${mediaType}" configurado.` });
+            }
+            // Send via WhatsApp
+            const customerPhone = conversation.context.senderPhone;
+            if (customerPhone) {
+              const channels = await this.prisma.$queryRawUnsafe<any[]>(
+                `SELECT external_id, access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`,
+              );
+              if (channels[0]) {
+                const axios = (await import('axios')).default;
+                for (const asset of assets.slice(0, 2)) {
+                  if (asset.url && !asset.url.startsWith('data:')) {
+                    await axios.post(
+                      `https://graph.facebook.com/v18.0/${channels[0].external_id}/messages`,
+                      { messaging_product: 'whatsapp', to: customerPhone, type: 'image', image: { link: asset.url, caption: asset.title ?? '' } },
+                      { headers: { Authorization: `Bearer ${channels[0].access_token}` } },
+                    ).catch(() => {});
+                  }
+                }
+              }
+            }
+            return JSON.stringify({ success: true, sent: assets.length, message: `Material "${mediaType}" enviado` });
+          } catch (e: any) {
+            return JSON.stringify({ success: false, message: e.message });
+          }
+        }
+
         case 'repeat_last_order':
-          // These are handled by the existing tool system — pass through
           return JSON.stringify({ success: true, message: 'Action queued' });
 
         default:
