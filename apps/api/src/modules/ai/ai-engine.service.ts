@@ -1030,6 +1030,17 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
  schemaName,
  ).catch(() => {});
 
+        // AUTO-SAVE: Store customer name if available from conversation context
+        const customerName = (conversation.context as any)?.customerName;
+        if (customerName && ctx.customerId) {
+          this.customerMemory.upsertProfile(
+            ctx.customerId,
+            'profile_name',
+            { name: customerName },
+            schemaName,
+          ).catch(() => {});
+        }
+
 
         return JSON.stringify({
           success: true,

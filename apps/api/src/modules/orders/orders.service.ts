@@ -135,8 +135,11 @@ export class OrdersService {
     // 5. Reservar stock
     await this.reserveStock(resolvedItems, schemaName);
 
-    // 6. Send WhatsApp notification to customer if they have a phone/channel
-    this.sendOrderCreatedNotification(order.id, resolvedItems, total, schemaName).catch(() => {});
+    // 6. Send WhatsApp notification ONLY for orders created from dashboard (manual/panel)
+    // When created via AI agent (channelType = 'whatsapp'), the agent already responds to the client
+    if (dto.channelType === 'manual' || dto.status === 'payment_verified') {
+      this.sendOrderCreatedNotification(order.id, resolvedItems, total, schemaName).catch(() => {});
+    }
 
     return order;
   }

@@ -59,7 +59,7 @@ export class DeliveryDispatchCronService {
             AND (
               SELECT COUNT(*) FROM "${tenant.schemaName}".delivery_assignments da2
               WHERE da2.order_id = o.id AND da2.status = 'rejected'
-            ) < ${settings.maxRetries ?? 3}
+            ) < ${settings.maxRetries ?? 6}
         `);
 
         for (const order of readyOrders) {

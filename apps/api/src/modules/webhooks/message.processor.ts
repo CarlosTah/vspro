@@ -219,7 +219,7 @@ export class MessageProcessor {
       // Inject senderPhone into context so register_business can link the owner
       const enrichedConversation = {
         ...conversation,
-        context: { ...conversation.context, customerId: customer.id, senderPhone: message.senderId },
+        context: { ...conversation.context, customerId: customer.id, senderPhone: message.senderId, customerName: customer.name ?? null },
       };
       const aiResponse = await this.aiEngine.processMessage(
         tenant,
