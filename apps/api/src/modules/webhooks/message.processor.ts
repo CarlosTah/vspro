@@ -329,7 +329,14 @@ export class MessageProcessor {
         ORDER BY da.offered_at DESC LIMIT 1
       `, driver.id);
 
-      if (assignments.length === 0) return false;
+      if (assignments.length === 0) {
+        // No 'offered' assignment — but check if driver is saying RECOGIDO or ENTREGADO
+        // for an already accepted/picked_up assignment
+        const isPickupCmd = ['recogido', 'lo tengo', 'listo lo llevo', 'ya lo tengo', 'recogi'].includes(text);
+        const isDeliveredCmd = ['entregado', 'entregue', 'listo entregado', 'ya lo entregue', 'entregué'].includes(text);
+        if (!isPickupCmd && !isDeliveredCmd) return false;
+        // Fall through to pickup/delivery checks below
+      }
 
       const assignment = assignments[0];
       const isAccept = ['si', 'sí', 'yes', 'ok', 'va', 'listo', 'voy', 'acepto', 'claro', 'dale'].includes(text);
