@@ -15,6 +15,7 @@ import { OwnerNotificationService } from '../notifications/owner-notification.se
 import { PromotionsService } from '../promotions/promotions.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { IncomingMessage } from '@vspro/shared';
+import { StateMachineOrchestratorService } from './state-machine/state-machine-orchestrator.service';
 
 export interface AiEngineResponse {
   text: string;
@@ -47,6 +48,7 @@ export class AiEngineService {
     private readonly promotionsService: PromotionsService,
     private readonly loyaltyService: LoyaltyService,
     private readonly config: ConfigService,
+    private readonly stateMachine: StateMachineOrchestratorService,
   ) {
     this.openai = new OpenAI({
       apiKey: this.config.get('OPENAI_API_KEY'),
@@ -86,8 +88,21 @@ export class AiEngineService {
       // 3. Cargar catálogo activo (para el contexto del prompt)
       const products = await this.productsService.findAll(schemaName, true);
 
-      // 4. Construir system prompt dinámico
+      // === STATE MACHINE MODE (for customer conversations) ===
       const isOwner = (conversation.context as any)?.isOwner === true;
+      if (!isOwner) {
+        try {
+          const result = await this.stateMachine.process(
+            tenant, conversation, message, schemaName, aiConfig, products,
+          );
+          return { text: result.text };
+        } catch (smError: any) {
+          this.logger.warn(`State machine failed, falling back to GPT-4o: ${smError.message}`);
+          // Fall through to legacy GPT-4o flow
+        }
+      }
+
+      // 4. Construir system prompt dinámico
       const systemPrompt = isOwner
         ? this.buildOwnerSystemPrompt(tenant, products)
         : this.buildSystemPrompt(tenant, aiConfig, products);

@@ -16,6 +16,9 @@ import { BillingModule } from '../billing/billing.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PromotionsModule } from '../promotions/promotions.module';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
+import { IntentClassifierService } from './state-machine/intent-classifier';
+import { TextGeneratorService } from './state-machine/text-generator';
+import { StateMachineOrchestratorService } from './state-machine/state-machine-orchestrator.service';
 
 @Module({
   imports: [ProductsModule, OrdersModule, CustomersModule, forwardRef(() => ProactivityModule), forwardRef(() => TenantsModule), KnowledgeBaseModule, BillingModule, NotificationsModule, PromotionsModule, LoyaltyModule],
@@ -26,6 +29,9 @@ import { LoyaltyModule } from '../loyalty/loyalty.module';
     AiMemoryService,
     AiToolsExtenderService,
     CustomerMemoryService,
+    IntentClassifierService,
+    TextGeneratorService,
+    StateMachineOrchestratorService,
   ],
   exports: [
     AiEngineService,
@@ -33,6 +39,7 @@ import { LoyaltyModule } from '../loyalty/loyalty.module';
     AiMemoryService,
     AiToolsExtenderService,
     CustomerMemoryService,
+    StateMachineOrchestratorService,
   ],
 })
 export class AiModule {}
