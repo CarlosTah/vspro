@@ -33,14 +33,22 @@ export class DeliveryDispatchCronService {
         const settings = await this.getDeliverySettings(tenant.schemaName);
         if (!settings.autoDispatchEnabled) continue;
 
-        // Auto-fix stale assignments: close assignments for orders already delivered/cancelled
+        // Auto-fix: close assignments for orders already delivered/cancelled
         await this.prisma.$executeRawUnsafe(`
           UPDATE "${tenant.schemaName}".delivery_assignments
           SET status = 'delivered'
           WHERE status IN ('accepted', 'picked_up')
-            AND EXISTS (
-              SELECT 1 FROM "${tenant.schemaName}".orders o
-              WHERE o.id = order_id AND o.status IN ('delivered', 'cancelled')
+            AND (
+              EXISTS (
+                SELECT 1 FROM "${tenant.schemaName}".orders o
+                WHERE o.id = order_id AND o.status IN ('delivered', 'cancelled')
+              )
+              OR (
+                status = 'picked_up' AND offered_at < NOW() - INTERVAL '2 hours'
+              )
+              OR (
+                status = 'accepted' AND accepted_at < NOW() - INTERVAL '4 hours'
+              )
             )
         `).catch(() => {});
 
