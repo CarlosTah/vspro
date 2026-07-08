@@ -119,9 +119,30 @@ export class StateMachineOrchestratorService {
       : `Tono: ${aiConfig.tone ?? 'amigable'}. Negocio: ${tenant.businessName}.`;
 
     const customerName = (conversation.context as any)?.customerName;
-    const llmContext = actionResults
-      ? `${transition.llmContext}\n\nResultado de acciones:${actionResults}`
-      : transition.llmContext;
+
+    // Load customer memory for personalization
+    let memoryHint = '';
+    const custId = conversation.context.customerId;
+    if (custId) {
+      try {
+        const memories = await this.prisma.$queryRawUnsafe<any[]>(
+          `SELECT category, data FROM "${schemaName}".customer_memories WHERE customer_id = $1::uuid ORDER BY updated_at DESC LIMIT 5`,
+          custId,
+        );
+        if (memories.length > 0) {
+          const memParts: string[] = [];
+          for (const m of memories) {
+            if (m.category === 'addresses' && m.data?.last_delivery) memParts.push(`Su dirección: ${m.data.last_delivery}`);
+            if (m.category === 'purchase_history_summary') memParts.push(`Pedidos anteriores: ${JSON.stringify(m.data).substring(0, 100)}`);
+            if (m.category === 'preferences') memParts.push(`Preferencias: ${JSON.stringify(m.data)}`);
+            if (m.category === 'profile_name' && m.data?.name) memParts.push(`Nombre: ${m.data.name}`);
+          }
+          if (memParts.length > 0) memoryHint = `\n\nDatos del cliente en memoria:\n${memParts.join('\n')}`;
+        }
+      } catch {}
+    }
+
+    const llmContext = `${transition.llmContext}${actionResults ? `\n\nResultado de acciones:${actionResults}` : ''}${memoryHint}`;
 
     let responseText: string;
     if (transition.skipLlm && transition.fixedResponse) {
@@ -206,6 +227,12 @@ export class StateMachineOrchestratorService {
             [`order_${order.orderNumber}`]: `${(args.items ?? []).map((i: any) => i.productName).join(', ')} — $${order.total}`,
           }, schemaName).catch(() => {});
 
+          // Auto-save preferences from notes
+          const notes = (args.items ?? []).filter((i: any) => i.notes).map((i: any) => i.notes).join(', ');
+          if (notes) {
+            this.customerMemory.upsertProfile(customerId, 'preferences', { latest_notes: notes }, schemaName).catch(() => {});
+          }
+
           return JSON.stringify({ success: true, orderId: order.id, orderNumber: order.orderNumber, total: order.total });
         }
 
@@ -230,6 +257,14 @@ export class StateMachineOrchestratorService {
             WHERE id = $2::uuid
           `, JSON.stringify(address), orderId);
 
+          // Auto-save address to memory
+          const custId3 = conversation.context.customerId;
+          if (custId3) {
+            const addrText = [args.street, args.colony, args.city, args.reference].filter(Boolean).join(', ');
+            this.customerMemory.upsertProfile(custId3, 'addresses', { last_delivery: addrText, full: address }, schemaName).catch(() => {});
+            this.customerMemory.upsertProfile(custId3, 'delivery_preference', { type: 'delivery' }, schemaName).catch(() => {});
+          }
+
           return JSON.stringify({ success: true, deliveryCost: 30 });
         }
 
@@ -243,6 +278,12 @@ export class StateMachineOrchestratorService {
           await this.prisma.$executeRawUnsafe(`
             UPDATE "${schemaName}".orders SET payment_method = $1, updated_at = NOW() WHERE id = $2::uuid
           `, args.method, orderId);
+
+          // Auto-save payment preference
+          const custId2 = conversation.context.customerId;
+          if (custId2) {
+            this.customerMemory.upsertProfile(custId2, 'payment_preference', { method: args.method }, schemaName).catch(() => {});
+          }
 
           // COD → go to production directly
           if (args.method === 'cod') {
