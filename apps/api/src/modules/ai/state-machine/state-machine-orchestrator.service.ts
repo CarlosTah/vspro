@@ -77,6 +77,25 @@ export class StateMachineOrchestratorService {
 
     this.logger.log(`[${schemaName}] SM: ${currentState.state} → ${intent.type} | msg: "${(message.text ?? '').substring(0, 40)}"`);
 
+    // Detect if message contains a name introduction (Soy X, Me llamo X, Mi nombre es X)
+    const nameMatch = (message.text ?? '').match(/(?:soy|me llamo|mi nombre es)\s+([A-ZÁÉÍÓÚÑa-záéíóúñ]+(?:\s[A-ZÁÉÍÓÚÑa-záéíóúñ]+)?)/i);
+    if (nameMatch && nameMatch[1] && nameMatch[1].length > 2) {
+      const detectedName = nameMatch[1].trim();
+      // Update customer name in DB
+      const custId = conversation.context.customerId;
+      if (custId) {
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE "${schemaName}".customers SET name = $1 WHERE id = $2::uuid`,
+          detectedName, custId,
+        ).catch(() => {});
+        // Also save in memory
+        this.customerMemory.upsertProfile(custId, 'profile_name', { name: detectedName }, schemaName).catch(() => {});
+        // Update local state for this message
+        currentState.customerName = detectedName;
+        (conversation.context as any).customerName = detectedName;
+      }
+    }
+
     // 3. Build the state machine with current catalog
     const catalog = products.map((p: any) => ({ name: p.name, price: parseFloat(p.price) }));
     // Load delivery cost from config (default $30)
@@ -357,7 +376,45 @@ export class StateMachineOrchestratorService {
         }
 
         case 'escalate_complaint': {
-          return JSON.stringify({ success: true, message: 'Escalado al equipo' });
+          // Actually notify the owner via WhatsApp with complaint details
+          try {
+            const orderId = conversation.context.lastOrderId;
+            const orderNum = conversation.context.lastOrderNumber;
+            const custName = conversation.context.customerName ?? 'Cliente';
+            const custPhone = conversation.context.senderPhone ?? '';
+            
+            // Get admin phone
+            const admins = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT phone FROM "${schemaName}".users WHERE role = 'admin' AND phone IS NOT NULL LIMIT 1`,
+            );
+            
+            if (admins[0]?.phone) {
+              const complaintMsg = `⚠️ *QUEJA DE CLIENTE*\n\n👤 ${custName} (${custPhone})\n📋 Pedido: ${orderNum ?? 'N/A'}\n💬 Problema: "${args.reason}"\n\nResponde al cliente desde el dashboard o contacta directamente.`;
+              
+              // Send to owner via messaging
+              const channels = await this.prisma.$queryRawUnsafe<any[]>(
+                `SELECT external_id, access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`,
+              );
+              if (channels[0]) {
+                const axios = (await import('axios')).default;
+                await axios.post(
+                  `https://graph.facebook.com/v18.0/${channels[0].external_id}/messages`,
+                  { messaging_product: 'whatsapp', to: admins[0].phone, type: 'text', text: { body: complaintMsg } },
+                  { headers: { Authorization: `Bearer ${channels[0].access_token}` } },
+                ).catch(() => {});
+              }
+            }
+            
+            // Add note to order if exists
+            if (orderId) {
+              await this.prisma.$executeRawUnsafe(
+                `UPDATE "${schemaName}".orders SET notes = COALESCE(notes, '') || E'\n' || $1, updated_at = NOW() WHERE id = $2::uuid`,
+                `[QUEJA ${new Date().toLocaleDateString()}] ${args.reason}`, orderId,
+              ).catch(() => {});
+            }
+          } catch {}
+          
+          return JSON.stringify({ success: true, message: 'Queja escalada al dueño y registrada en el pedido' });
         }
 
         case 'send_media_to_customer': {
@@ -379,7 +436,7 @@ export class StateMachineOrchestratorService {
               mediaType,
             );
             if (assets.length === 0) {
-              return JSON.stringify({ success: false, message: `No hay material de tipo "${mediaType}" configurado.` });
+              return JSON.stringify({ success: false, message: `No hay material de tipo "${mediaType}" configurado. El dueño debe subir imágenes en Configuración > Media.` });
             }
             // Send via WhatsApp
             const customerPhone = conversation.context.senderPhone;
@@ -396,6 +453,9 @@ export class StateMachineOrchestratorService {
                       { messaging_product: 'whatsapp', to: customerPhone, type: 'image', image: { link: asset.url, caption: asset.title ?? '' } },
                       { headers: { Authorization: `Bearer ${channels[0].access_token}` } },
                     ).catch(() => {});
+                  } else {
+                    // base64 image — log warning, cannot send via link
+                    this.logger.warn(`[${schemaName}] Cannot send base64 media asset to WhatsApp. Upload to CDN first.`);
                   }
                 }
               }

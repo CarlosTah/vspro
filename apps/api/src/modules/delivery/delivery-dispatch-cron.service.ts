@@ -208,11 +208,24 @@ export class DeliveryDispatchCronService {
       }
     } catch {}
 
-    const message = (settings.dispatchMessage || '📦 Pedido #{orderNumber} listo.\n👤 Cliente: {customerName}\n📍 {address}\n💰 Total: ${total}{paymentInfo}\n\n¿Puedes recogerlo? Responde SI o NO')
+    // Get order items for the dispatch message
+    let itemsSummary = '';
+    try {
+      const orderItems = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT items FROM "${schemaName}".orders WHERE id = $1::uuid`, order.id,
+      );
+      if (orderItems[0]?.items) {
+        const items = typeof orderItems[0].items === 'string' ? JSON.parse(orderItems[0].items) : orderItems[0].items;
+        itemsSummary = items.map((i: any) => `${i.quantity}x ${i.productName}`).join(', ');
+      }
+    } catch {}
+
+    const message = (settings.dispatchMessage || `📦 Pedido #{orderNumber} listo.\n👤 Cliente: {customerName}\n🛒 {items}\n📍 {address}\n💰 Total: \${total}{paymentInfo}\n\n¿Puedes recogerlo? Responde SI o NO`)
       .replace('{orderNumber}', order.orderNumber)
       .replace('{address}', address + reference + mapsLink)
       .replace('{total}', parseFloat(order.total).toLocaleString('es-MX'))
       .replace('{customerName}', order.customerName ?? 'Cliente')
+      .replace('{items}', itemsSummary || 'Ver detalles en dashboard')
       .replace('{paymentInfo}', paymentMethodInfo);
 
     // Send WhatsApp to driver

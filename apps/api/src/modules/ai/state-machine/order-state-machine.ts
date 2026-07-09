@@ -350,7 +350,7 @@ export class OrderStateMachine {
         return {
           newState: OrderState.SETTING_ADDRESS,
           actions: [],
-          llmContext: `El cliente quiere envío a domicilio. Costo envío: $${this.deliveryCost}. Total con envío: $${(state.total ?? 0) + this.deliveryCost}. Pide: dirección completa (calle, colonia, referencias) y que envíe su ubicación por WhatsApp 📍.`,
+          llmContext: `El cliente quiere envío a domicilio. Costo envío: $${this.deliveryCost}. Total con envío: $${(state.total ?? 0) + this.deliveryCost}. SI tienes su dirección anterior en los "Datos del cliente en memoria", pregunta: "¿Te lo enviamos a [dirección anterior] o a otra dirección?" Si NO hay dirección en memoria, pide: calle, colonia, referencias y ubicación 📍.`,
         };
 
       case 'want_pickup':
@@ -408,12 +408,25 @@ export class OrderStateMachine {
           llmContext: `Dirección guardada. Informa el total con envío y pregunta forma de pago: "¿Pagas por transferencia o efectivo al repartidor?"`,
         };
 
-      default:
+      default: {
+        // Try to detect if the text IS an address (contains numbers, street words, etc.)
+        const text = intent.text.toLowerCase();
+        const addressIndicators = ['calle', 'avenida', 'av.', 'av ', 'col.', 'col ', 'mz', 'manzana', 'lote', 'lt', 'num', 'número', '#', 'entre', 'esquina', 'frente'];
+        const looksLikeAddress = addressIndicators.some(w => text.includes(w)) || /\d{2,}/.test(text);
+        
+        if (looksLikeAddress) {
+          return {
+            newState: OrderState.ASKING_PAYMENT,
+            actions: [{ tool: 'set_delivery_address', args: { street: intent.text } }],
+            llmContext: 'Dirección guardada. Pregunta forma de pago: "¿Pagas por transferencia o efectivo al repartidor?"',
+          };
+        }
         return {
           newState: OrderState.SETTING_ADDRESS,
           actions: [],
-          llmContext: 'Necesito la dirección. Pide: calle, colonia, referencias. También que mande su ubicación 📍.',
+          llmContext: 'Necesito la dirección completa. Pide: calle, número, colonia, referencias. También que mande su ubicación 📍.',
         };
+      }
     }
   }
 
