@@ -128,19 +128,45 @@ export class StateMachineOrchestratorService {
       state: transition.newState,
     };
 
-    // Reset items when transitioning to IDLE or TAKING_ORDER from a completed state
+    // Reset items when transitioning to IDLE or starting a new order
     if (transition.newState === OrderState.IDLE || 
         (transition.newState === OrderState.TAKING_ORDER && currentState.state === OrderState.IDLE) ||
         (transition.newState === OrderState.TAKING_ORDER && currentState.state === OrderState.ORDER_COMPLETE)) {
-      newState.items = intent.items ?? undefined;
+      newState.items = undefined;
       newState.orderId = undefined;
       newState.orderNumber = undefined;
       newState.total = undefined;
-    } else if (transition.newState === OrderState.CONFIRMING_ORDER && intent.items) {
-      // When confirming, use ONLY the items from this intent (not accumulated)
-      newState.items = intent.items;
+    } else if (transition.newState === OrderState.CONFIRMING_ORDER) {
+      // When confirming, use ONLY the items from this transition (computed by state machine)
+      // The state machine already computed allItems = [...state.items, ...newItems]
+      // We extract items from the fixedResponse or from intent
+      if (intent.items && intent.items.length > 0) {
+        // Validate and merge with existing items
+        const catalog2 = products.map((p: any) => ({ name: p.name, price: parseFloat(p.price) }));
+        const smTemp = new OrderStateMachine(catalog2, '', deliveryCost);
+        // Use the validated items from the state machine's own logic
+        // If coming from TAKING_ORDER, merge; if from IDLE, just use new items
+        if (currentState.state === OrderState.TAKING_ORDER && currentState.items) {
+          const validated2 = (smTemp as any).validateItems(intent.items);
+          newState.items = [...currentState.items, ...validated2.valid];
+        } else {
+          const validated2 = (smTemp as any).validateItems(intent.items);
+          newState.items = validated2.valid;
+        }
+      } else if (currentState.items) {
+        newState.items = currentState.items;
+      }
+      // Calculate total from items
+      if (newState.items && newState.items.length > 0) {
+        newState.total = newState.items.reduce((sum, item: any) => {
+          const price = item.price ?? catalog.find(p => p.name === item.productName)?.price ?? 0;
+          return sum + (price * item.quantity);
+        }, 0);
+      }
     } else {
       newState.items = currentState.items;
+      // Keep total from current state
+      if (!newState.total && currentState.total) newState.total = currentState.total;
     }
 
     // Update orderId/orderNumber from action results
@@ -174,17 +200,15 @@ export class StateMachineOrchestratorService {
     if (custId) {
       try {
         const memories = await this.prisma.$queryRawUnsafe<any[]>(
-          `SELECT category, data FROM "${schemaName}".customer_memories WHERE customer_id = $1::uuid ORDER BY updated_at DESC LIMIT 5`,
+          `SELECT profile FROM "${schemaName}".customer_memories WHERE customer_id = $1::uuid LIMIT 1`,
           custId,
         );
-        if (memories.length > 0) {
+        if (memories.length > 0 && memories[0].profile) {
+          const profile = memories[0].profile;
           const memParts: string[] = [];
-          for (const m of memories) {
-            if (m.category === 'addresses' && m.data?.last_delivery) memParts.push(`Su dirección: ${m.data.last_delivery}`);
-            if (m.category === 'purchase_history_summary') memParts.push(`Pedidos anteriores: ${JSON.stringify(m.data).substring(0, 100)}`);
-            if (m.category === 'preferences') memParts.push(`Preferencias: ${JSON.stringify(m.data)}`);
-            if (m.category === 'profile_name' && m.data?.name) memParts.push(`Nombre: ${m.data.name}`);
-          }
+          if (profile.addresses?.last_delivery) memParts.push(`Su dirección: ${profile.addresses.last_delivery}`);
+          if (profile.addresses?.name) memParts.push(`Nombre: ${profile.addresses.name}`);
+          if (profile.preferences) memParts.push(`Preferencias: ${JSON.stringify(profile.preferences)}`);
           if (memParts.length > 0) memoryHint = `\n\nDatos del cliente en memoria:\n${memParts.join('\n')}`;
         }
       } catch {}
@@ -196,7 +220,13 @@ export class StateMachineOrchestratorService {
     if (transition.skipLlm && transition.fixedResponse) {
       responseText = transition.fixedResponse;
     } else {
-      responseText = await this.textGenerator.generate(llmContext, personality, customerName);
+      // IMPORTANT: Only pass memory hint to LLM when NOT showing items/totals
+      // to prevent the LLM from confusing addresses with products
+      const safeMemory = (transition.newState === OrderState.SETTING_ADDRESS || 
+                          transition.newState === OrderState.ASKING_DELIVERY)
+        ? memoryHint : '';
+      const safeLlmContext = `${transition.llmContext}${actionResults ? `\n\nResultado de acciones:${actionResults}` : ''}${safeMemory}`;
+      responseText = await this.textGenerator.generate(safeLlmContext, personality, customerName);
     }
 
     // 8. Persist state in conversation context
@@ -293,6 +323,35 @@ export class StateMachineOrchestratorService {
           if (args.lat) address.lat = args.lat;
           if (args.lng) address.lng = args.lng;
 
+          // If no GPS coordinates provided, try to get from memory/previous orders
+          if (!address.lat || !address.lng) {
+            const custIdAddr = conversation.context.customerId;
+            if (custIdAddr) {
+              try {
+                // Check memory for stored coordinates
+                const memAddr = await this.prisma.$queryRawUnsafe<any[]>(
+                  `SELECT profile->'addresses'->'full' AS full_addr FROM "${schemaName}".customer_memories WHERE customer_id = $1::uuid LIMIT 1`,
+                  custIdAddr,
+                );
+                if (memAddr[0]?.full_addr?.lat) {
+                  address.lat = memAddr[0].full_addr.lat;
+                  address.lng = memAddr[0].full_addr.lng;
+                }
+                // If not in memory, check last order with GPS
+                if (!address.lat) {
+                  const lastGps = await this.prisma.$queryRawUnsafe<any[]>(
+                    `SELECT shipping_address FROM "${schemaName}".orders WHERE customer_id = $1::uuid AND shipping_address IS NOT NULL AND (shipping_address->>'lat') IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
+                    custIdAddr,
+                  );
+                  if (lastGps[0]?.shipping_address?.lat) {
+                    address.lat = lastGps[0].shipping_address.lat;
+                    address.lng = lastGps[0].shipping_address.lng;
+                  }
+                }
+              } catch {}
+            }
+          }
+
           const orderId = args.orderId || conversation.context.lastOrderId;
           if (!orderId) return JSON.stringify({ success: false, message: 'No order ID' });
 
@@ -316,11 +375,11 @@ export class StateMachineOrchestratorService {
             WHERE id = $2::uuid
           `, JSON.stringify(address), orderId);
 
-          // Auto-save address to memory
+          // Auto-save address to memory (including GPS if available)
           const custId3 = conversation.context.customerId;
           if (custId3) {
             const addrText = [args.street, args.colony, args.city, args.reference].filter(Boolean).join(', ');
-            this.customerMemory.upsertProfile(custId3, 'addresses', { last_delivery: addrText, full: address }, schemaName).catch(() => {});
+            this.customerMemory.upsertProfile(custId3, 'addresses', { last_delivery: addrText || address.street, full: address }, schemaName).catch(() => {});
             this.customerMemory.upsertProfile(custId3, 'delivery_preference', { type: 'delivery' }, schemaName).catch(() => {});
           }
 
@@ -376,22 +435,29 @@ export class StateMachineOrchestratorService {
         }
 
         case 'escalate_complaint': {
-          // Actually notify the owner via WhatsApp with complaint details
+          // Notify the owner via WhatsApp with complaint details
           try {
             const orderId = conversation.context.lastOrderId;
             const orderNum = conversation.context.lastOrderNumber;
             const custName = conversation.context.customerName ?? 'Cliente';
             const custPhone = conversation.context.senderPhone ?? '';
             
-            // Get admin phone
+            // Get ALL admin phones
             const admins = await this.prisma.$queryRawUnsafe<any[]>(
-              `SELECT phone FROM "${schemaName}".users WHERE role = 'admin' AND phone IS NOT NULL LIMIT 1`,
+              `SELECT phone FROM "${schemaName}".users WHERE role = 'admin' AND phone IS NOT NULL`,
             );
             
-            if (admins[0]?.phone) {
+            // Find an admin whose phone is DIFFERENT from the sender
+            const targetAdmin = admins.find(a => {
+              const adminPhone = String(a.phone).replace(/\D/g, '');
+              const senderClean = String(custPhone).replace(/\D/g, '');
+              return adminPhone !== senderClean && !senderClean.endsWith(adminPhone) && !adminPhone.endsWith(senderClean);
+            }) || admins[0]; // fallback to first admin if no different one found
+            
+            if (targetAdmin?.phone && targetAdmin.phone !== custPhone) {
               const complaintMsg = `⚠️ *QUEJA DE CLIENTE*\n\n👤 ${custName} (${custPhone})\n📋 Pedido: ${orderNum ?? 'N/A'}\n💬 Problema: "${args.reason}"\n\nResponde al cliente desde el dashboard o contacta directamente.`;
               
-              // Send to owner via messaging
+              // Send to owner via WhatsApp
               const channels = await this.prisma.$queryRawUnsafe<any[]>(
                 `SELECT external_id, access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`,
               );
@@ -399,20 +465,24 @@ export class StateMachineOrchestratorService {
                 const axios = (await import('axios')).default;
                 await axios.post(
                   `https://graph.facebook.com/v18.0/${channels[0].external_id}/messages`,
-                  { messaging_product: 'whatsapp', to: admins[0].phone, type: 'text', text: { body: complaintMsg } },
+                  { messaging_product: 'whatsapp', to: targetAdmin.phone, type: 'text', text: { body: complaintMsg } },
                   { headers: { Authorization: `Bearer ${channels[0].access_token}` } },
-                ).catch(() => {});
+                ).catch((e) => this.logger.warn(`Failed to send complaint to owner: ${e.message}`));
               }
+            } else {
+              this.logger.warn(`[${schemaName}] Cannot escalate complaint: owner phone same as sender or no admin found`);
             }
             
-            // Add note to order if exists
+            // ALWAYS add note to order regardless of notification success
             if (orderId) {
               await this.prisma.$executeRawUnsafe(
                 `UPDATE "${schemaName}".orders SET notes = COALESCE(notes, '') || E'\n' || $1, updated_at = NOW() WHERE id = $2::uuid`,
                 `[QUEJA ${new Date().toLocaleDateString()}] ${args.reason}`, orderId,
               ).catch(() => {});
             }
-          } catch {}
+          } catch (e: any) {
+            this.logger.error(`escalate_complaint failed: ${e.message}`);
+          }
           
           return JSON.stringify({ success: true, message: 'Queja escalada al dueño y registrada en el pedido' });
         }

@@ -140,12 +140,19 @@ export class OrderStateMachine {
 
       case 'add_items':
         // Customer jumped straight to ordering
-        const validated = this.validateItems(intent.items ?? []);
-        if (validated.valid.length > 0) {
+        const validatedIdle = this.validateItems(intent.items ?? []);
+        if (validatedIdle.valid.length > 0) {
+          const total = this.calculateTotal(validatedIdle.valid);
+          const summary = this.formatOrderSummary(validatedIdle.valid);
+          const invalidNote = validatedIdle.invalid.length > 0
+            ? `\n\n⚠️ "${validatedIdle.invalid.join(', ')}" no los tenemos disponibles.`
+            : '';
           return {
             newState: OrderState.CONFIRMING_ORDER,
             actions: [],
-            llmContext: `El cliente quiere:\n${this.formatOrderSummary(validated.valid)}\nTotal: $${this.calculateTotal(validated.valid)}\n${validated.invalid.length > 0 ? `NOTA: "${validated.invalid.join(', ')}" no están en el catálogo, infórmale.` : ''}\nPregunta si el pedido está correcto.`,
+            llmContext: '',
+            skipLlm: true,
+            fixedResponse: `Tu pedido:\n${summary}\n\n💰 Total: $${total}${invalidNote}\n\n¿Todo correcto? ✅`,
           };
         }
         return {
@@ -238,13 +245,20 @@ export class OrderStateMachine {
   private handleTakingOrder(state: ConversationStateData, intent: ParsedIntent): TransitionResult {
     switch (intent.type) {
       case 'add_items':
-        const validated = this.validateItems(intent.items ?? []);
-        const allItems = [...(state.items ?? []), ...validated.valid];
-        if (allItems.length > 0) {
+        const validatedTO = this.validateItems(intent.items ?? []);
+        const allItemsTO = [...(state.items ?? []), ...validatedTO.valid];
+        if (allItemsTO.length > 0) {
+          const total = this.calculateTotal(allItemsTO);
+          const summary = this.formatOrderSummary(allItemsTO);
+          const invalidNote = validatedTO.invalid.length > 0
+            ? `\n\n⚠️ "${validatedTO.invalid.join(', ')}" no los tenemos.`
+            : '';
           return {
             newState: OrderState.CONFIRMING_ORDER,
             actions: [],
-            llmContext: `El cliente quiere:\n${this.formatOrderSummary(allItems)}\nTotal: $${this.calculateTotal(allItems)}\n${validated.invalid.length > 0 ? `"${validated.invalid.join(', ')}" no están disponibles.` : ''}\nPregunta: "¿Todo correcto?"`,
+            llmContext: '',
+            skipLlm: true,
+            fixedResponse: `Tu pedido:\n${summary}\n\n💰 Total: $${total}${invalidNote}\n\n¿Todo correcto? ✅`,
           };
         }
         return {
@@ -284,6 +298,9 @@ export class OrderStateMachine {
         const mentionsCod = ['efectivo', 'contra entrega', 'al repartidor', 'cash'].some(k => txt.includes(k));
         const mentionsPickup = ['paso', 'recojo', 'recoger', 'recogo', 'paso a recoger'].some(k => txt.includes(k));
         
+        // Calculate total from state items
+        const orderTotal = this.calculateTotal(state.items ?? intent.items ?? []);
+        
         if (mentionsPickup && mentionsCod) {
           // "Sí, paso y pago en efectivo" — skip delivery and payment questions
           return {
@@ -292,28 +309,36 @@ export class OrderStateMachine {
               { tool: 'create_order', args: { items: state.items ?? intent.items ?? [] } },
               { tool: 'set_payment_method', args: { method: 'cod' } },
             ],
-            llmContext: `Pedido creado y confirmado. El cliente recoge y paga en efectivo. Mensaje: "¡Listo! Tu pedido fue enviado a cocina. Pagas en efectivo al recoger. Te avisamos cuando esté listo. 🙌"`,
+            llmContext: '',
+            skipLlm: true,
+            fixedResponse: `¡Listo! Tu pedido fue enviado a cocina. Pagas $${orderTotal} en efectivo al recoger. Te avisamos cuando esté listo. 🙌`,
           };
         }
         if (mentionsPickup) {
           return {
             newState: OrderState.ASKING_PAYMENT,
             actions: [{ tool: 'create_order', args: { items: state.items ?? intent.items ?? [] } }],
-            llmContext: 'Pedido creado. El cliente recoge. Pregunta forma de pago: "¿Pagas por transferencia o en efectivo?"',
+            llmContext: '',
+            skipLlm: true,
+            fixedResponse: `¡Pedido creado! Total: $${orderTotal}. ¿Pagas por transferencia o en efectivo? 💳💵`,
           };
         }
         if (mentionsCod) {
           return {
             newState: OrderState.ASKING_DELIVERY,
             actions: [{ tool: 'create_order', args: { items: state.items ?? intent.items ?? [] } }],
-            llmContext: `Pedido creado. Se anotó efectivo. Pregunta: "¿Pasas a recoger o te lo enviamos a domicilio? ($${this.deliveryCost} de envío)"`,
+            llmContext: '',
+            skipLlm: true,
+            fixedResponse: `¡Pedido creado! Total: $${orderTotal}. Se anotó efectivo. ¿Pasas a recoger o te lo enviamos a domicilio? El envío cuesta $${this.deliveryCost}. 🛵`,
           };
         }
 
         return {
           newState: OrderState.ASKING_DELIVERY,
           actions: [{ tool: 'create_order', args: { items: state.items ?? intent.items ?? [] } }],
-          llmContext: `Pedido creado. Pregunta: "¿Pasas a recoger o te lo enviamos a domicilio? El envío tiene un costo de $${this.deliveryCost}."`,
+          llmContext: '',
+          skipLlm: true,
+          fixedResponse: `¡Pedido creado! Total: $${orderTotal}. ¿Pasas a recoger o te lo enviamos a domicilio? El envío tiene un costo de $${this.deliveryCost}. 😊`,
         };
       }
 
@@ -327,12 +352,16 @@ export class OrderStateMachine {
 
       case 'add_items':
         // Adding more items
-        const validated = this.validateItems(intent.items ?? []);
-        const allItems = [...(state.items ?? []), ...validated.valid];
+        const validatedConf = this.validateItems(intent.items ?? []);
+        const allItemsConf = [...(state.items ?? []), ...validatedConf.valid];
+        const totalConf = this.calculateTotal(allItemsConf);
+        const summaryConf = this.formatOrderSummary(allItemsConf);
         return {
           newState: OrderState.CONFIRMING_ORDER,
           actions: [],
-          llmContext: `Pedido actualizado:\n${this.formatOrderSummary(allItems)}\nTotal: $${this.calculateTotal(allItems)}\n¿Todo correcto?`,
+          llmContext: '',
+          skipLlm: true,
+          fixedResponse: `Pedido actualizado:\n${summaryConf}\n\n💰 Total: $${totalConf}\n\n¿Todo correcto? ✅`,
         };
 
       default:
@@ -350,7 +379,7 @@ export class OrderStateMachine {
         return {
           newState: OrderState.SETTING_ADDRESS,
           actions: [],
-          llmContext: `El cliente quiere envío a domicilio. Costo envío: $${this.deliveryCost}. Total con envío: $${(state.total ?? 0) + this.deliveryCost}. SI tienes su dirección anterior en los "Datos del cliente en memoria", pregunta: "¿Te lo enviamos a [dirección anterior] o a otra dirección?" Si NO hay dirección en memoria, pide: calle, colonia, referencias y ubicación 📍.`,
+          llmContext: `El cliente quiere envío a domicilio. Costo envío: $${this.deliveryCost}. Total con envío: $${(state.total ?? 0) + this.deliveryCost}. SI tienes su dirección anterior en los "Datos del cliente en memoria", pregunta: "¿Te lo enviamos a [dirección anterior] o a otra dirección?" Si NO hay dirección en memoria, pide: calle, colonia, referencias y ubicación 📍. NO inventes datos, NO incluyas nombres de productos ni listas.`,
         };
 
       case 'want_pickup':
@@ -402,10 +431,13 @@ export class OrderStateMachine {
           addressArgs.lat = intent.location.lat;
           addressArgs.lng = intent.location.lng;
         }
+        const totalWithShip = (state.total ?? 0) + this.deliveryCost;
         return {
           newState: OrderState.ASKING_PAYMENT,
           actions: [{ tool: 'set_delivery_address', args: addressArgs }],
-          llmContext: `Dirección guardada. Informa el total con envío y pregunta forma de pago: "¿Pagas por transferencia o efectivo al repartidor?"`,
+          llmContext: '',
+          skipLlm: true,
+          fixedResponse: `Dirección guardada. Total con envío: $${totalWithShip}. ¿Pagas por transferencia o efectivo al repartidor? 💳💵`,
         };
 
       default: {
@@ -415,10 +447,13 @@ export class OrderStateMachine {
         const looksLikeAddress = addressIndicators.some(w => text.includes(w)) || /\d{2,}/.test(text);
         
         if (looksLikeAddress) {
+          const totalAddr = (state.total ?? 0) + this.deliveryCost;
           return {
             newState: OrderState.ASKING_PAYMENT,
             actions: [{ tool: 'set_delivery_address', args: { street: intent.text } }],
-            llmContext: 'Dirección guardada. Pregunta forma de pago: "¿Pagas por transferencia o efectivo al repartidor?"',
+            llmContext: '',
+            skipLlm: true,
+            fixedResponse: `Dirección guardada. Total con envío: $${totalAddr}. ¿Pagas por transferencia o efectivo al repartidor? 💳💵`,
           };
         }
         return {
@@ -436,14 +471,16 @@ export class OrderStateMachine {
         return {
           newState: OrderState.ORDER_COMPLETE,
           actions: [{ tool: 'set_payment_method', args: { orderId: state.orderId, method: 'cod' } }],
-          llmContext: `Pago contra entrega confirmado. Mensaje final: "¡Tu pedido fue enviado a cocina! Te avisamos cuando esté listo. Pagas $${state.total ?? '?'} al repartidor. 🙌"`,
+          llmContext: '',
+          skipLlm: true,
+          fixedResponse: `¡Tu pedido fue enviado a cocina! Te avisamos cuando esté listo. Pagas $${state.total ?? '?'} al repartidor. 🙌`,
         };
 
       case 'want_transfer':
         return {
           newState: OrderState.PROCESSING_PAYMENT,
           actions: [{ tool: 'request_payment', args: { orderId: state.orderId } }],
-          llmContext: 'Solicita el pago por transferencia. Da los datos bancarios si los tienes y pide que envíe el comprobante.',
+          llmContext: 'Solicita el pago por transferencia. Da los datos bancarios si los tienes y pide que envíe el comprobante. NO incluyas listas de productos ni inventes información.',
         };
 
       default: {
@@ -453,7 +490,9 @@ export class OrderStateMachine {
           return {
             newState: OrderState.ORDER_COMPLETE,
             actions: [{ tool: 'set_payment_method', args: { orderId: state.orderId, method: 'cod' } }],
-            llmContext: `Pago contra entrega confirmado. Mensaje: "¡Pedido enviado a cocina! Pagas $${state.total ?? '?'} en efectivo. Te avisamos cuando esté listo. 🙌"`,
+            llmContext: '',
+            skipLlm: true,
+            fixedResponse: `¡Tu pedido fue enviado a cocina! Te avisamos cuando esté listo. Pagas $${state.total ?? '?'} en efectivo. 🙌`,
           };
         }
         // Check for transfer keywords
@@ -468,7 +507,9 @@ export class OrderStateMachine {
         return {
           newState: OrderState.ASKING_PAYMENT,
           actions: [],
-          llmContext: `No entendí. Total: $${state.total ?? '?'}. Pregunta: "¿Pagas por transferencia bancaria o efectivo contra entrega?"`,
+          llmContext: '',
+          skipLlm: true,
+          fixedResponse: `Total: $${state.total ?? '?'}. ¿Pagas por transferencia bancaria o efectivo contra entrega? 💳💵`,
         };
       }
     }
