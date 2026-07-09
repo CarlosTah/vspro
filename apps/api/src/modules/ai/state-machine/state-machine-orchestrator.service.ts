@@ -71,7 +71,17 @@ export class StateMachineOrchestratorService {
 
     // 3. Build the state machine with current catalog
     const catalog = products.map((p: any) => ({ name: p.name, price: parseFloat(p.price) }));
-    const stateMachine = new OrderStateMachine(catalog, tenant.businessName, 30);
+    // Load delivery cost from config (default $30)
+    let deliveryCost = 30;
+    try {
+      const costRows = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT agent_config->'deliverySettings'->'shippingCost' AS cost FROM "${schemaName}".ai_config LIMIT 1`,
+      );
+      const cfgCost = costRows[0]?.cost;
+      if (cfgCost && !isNaN(parseFloat(String(cfgCost)))) deliveryCost = parseFloat(String(cfgCost));
+    } catch {}
+
+    const stateMachine = new OrderStateMachine(catalog, tenant.businessName, deliveryCost);
 
     // 4. Execute the transition
     const transition = stateMachine.transition(currentState, intent);
@@ -251,9 +261,20 @@ export class StateMachineOrchestratorService {
           await this.prisma.$executeRawUnsafe(`
             ALTER TABLE "${schemaName}".orders ADD COLUMN IF NOT EXISTS delivery_type VARCHAR(20) DEFAULT 'pickup'
           `);
+
+          // Get dynamic delivery cost
+          let shipCost = 30;
+          try {
+            const costRows = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT agent_config->'deliverySettings'->'shippingCost' AS cost FROM "${schemaName}".ai_config LIMIT 1`,
+            );
+            const c = costRows[0]?.cost;
+            if (c && !isNaN(parseFloat(String(c)))) shipCost = parseFloat(String(c));
+          } catch {}
+
           await this.prisma.$executeRawUnsafe(`
             UPDATE "${schemaName}".orders
-            SET shipping_address = $1::jsonb, delivery_type = 'delivery', shipping_cost = 30, total = subtotal + 30, updated_at = NOW()
+            SET shipping_address = $1::jsonb, delivery_type = 'delivery', shipping_cost = ${shipCost}, total = subtotal + ${shipCost}, updated_at = NOW()
             WHERE id = $2::uuid
           `, JSON.stringify(address), orderId);
 
@@ -265,7 +286,7 @@ export class StateMachineOrchestratorService {
             this.customerMemory.upsertProfile(custId3, 'delivery_preference', { type: 'delivery' }, schemaName).catch(() => {});
           }
 
-          return JSON.stringify({ success: true, deliveryCost: 30 });
+          return JSON.stringify({ success: true, deliveryCost: shipCost });
         }
 
         case 'set_payment_method': {
@@ -366,8 +387,21 @@ export class StateMachineOrchestratorService {
           }
         }
 
-        case 'repeat_last_order':
-          return JSON.stringify({ success: true, message: 'Action queued' });
+        case 'repeat_last_order': {
+          const custId4 = conversation.context.customerId;
+          if (!custId4) return JSON.stringify({ success: false, message: 'No customer ID' });
+          try {
+            const lastOrders = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT id, order_number AS "orderNumber", items, total FROM "${schemaName}".orders WHERE customer_id = $1::uuid AND status IN ('delivered','payment_verified','ready','shipped') ORDER BY created_at DESC LIMIT 1`,
+              custId4,
+            );
+            if (lastOrders.length === 0) return JSON.stringify({ success: false, message: 'No hay pedidos anteriores' });
+            const lastOrder = lastOrders[0];
+            const items = typeof lastOrder.items === 'string' ? JSON.parse(lastOrder.items) : lastOrder.items;
+            const summary = items.map((i: any) => `${i.quantity}x ${i.productName}`).join(', ');
+            return JSON.stringify({ success: true, lastOrderNumber: lastOrder.orderNumber, items, total: lastOrder.total, summary });
+          } catch { return JSON.stringify({ success: false, message: 'Error al buscar pedido anterior' }); }
+        }
 
         default:
           return JSON.stringify({ success: false, message: `Unknown tool: ${tool}` });

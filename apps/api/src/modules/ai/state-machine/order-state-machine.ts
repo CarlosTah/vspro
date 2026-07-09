@@ -127,10 +127,13 @@ export class OrderStateMachine {
     switch (intent.type) {
       case 'greeting':
       case 'want_to_order':
+        const needsName = !state.customerName;
         return {
           newState: OrderState.TAKING_ORDER,
           actions: [],
-          llmContext: `Saluda al cliente de ${this.businessName}. Pregunta qué se le antoja. Catálogo disponible:\n${this.formatCatalog()}\nSé breve y amigable.`,
+          llmContext: needsName
+            ? `Saluda al cliente de ${this.businessName}. Pregúntale su nombre y qué se le antoja. Catálogo:\n${this.formatCatalog()}\nSé breve.`
+            : `Saluda a ${state.customerName} de ${this.businessName}. Pregunta qué se le antoja. Catálogo:\n${this.formatCatalog()}\nSé breve.`,
         };
 
       case 'add_items':
