@@ -3,6 +3,7 @@ import { DeliveryService } from './delivery.service';
 import { DeliveryController } from './delivery.controller';
 import { DeliverySettingsController } from './delivery-settings.controller';
 import { DeliveryTrackingController } from './delivery-tracking.controller';
+import { NotificationSettingsController } from './notification-settings.controller';
 import { DeliveryDispatchCronService } from './delivery-dispatch-cron.service';
 import { MessagingModule } from '../messaging/messaging.module';
 import { OrdersModule } from '../orders/orders.module';
@@ -25,7 +26,7 @@ import { OrdersModule } from '../orders/orders.module';
  */
 @Module({
   imports: [MessagingModule, OrdersModule],
-  controllers: [DeliveryController, DeliverySettingsController, DeliveryTrackingController],
+  controllers: [DeliveryController, DeliverySettingsController, DeliveryTrackingController, NotificationSettingsController],
   providers: [DeliveryService, DeliveryDispatchCronService],
   exports: [DeliveryService],
 })

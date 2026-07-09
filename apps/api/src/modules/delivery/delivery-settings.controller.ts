@@ -14,6 +14,7 @@ export interface DeliverySettingsDto {
   notifyClientOnShipped?: boolean;
   notifyClientOnDelivered?: boolean;
   dispatchMessage?: string;
+  shippingCost?: number;
 }
 
 export interface DeliverySettings {
@@ -24,6 +25,7 @@ export interface DeliverySettings {
   notifyClientOnShipped: boolean;
   notifyClientOnDelivered: boolean;
   dispatchMessage: string;
+  shippingCost: number;
 }
 
 const DEFAULT_SETTINGS: DeliverySettings = {
@@ -34,6 +36,7 @@ const DEFAULT_SETTINGS: DeliverySettings = {
   notifyClientOnShipped: true,
   notifyClientOnDelivered: true,
   dispatchMessage: '📦 Pedido #{orderNumber} listo para entrega.\n📍 Dirección: {address}\n💰 Total: ${total}\n\n¿Puedes recogerlo? Responde SI o NO',
+  shippingCost: 30,
 };
 
 @ApiTags('settings')

@@ -17,6 +17,7 @@ export default function BusinessSettingsPage() {
     facebook: '',
     tiktok: '',
     website: '',
+    industry: '',
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -81,6 +82,26 @@ export default function BusinessSettingsPage() {
           <label className="block text-sm font-medium text-gray-300 mb-1.5">Nombre del negocio</label>
           <input value={form.businessName} onChange={(e) => setForm({ ...form, businessName: e.target.value })} placeholder="Mi Negocio" className="vspro-input w-full" />
         </div>
+
+          {/* Industry */}
+          <div className="space-y-2">
+            <label className="text-sm text-gray-300">Tipo de negocio</label>
+            <select
+              value={form.industry}
+              onChange={(e) => setForm({ ...form, industry: e.target.value })}
+              className="vspro-input"
+            >
+              <option value="">Selecciona...</option>
+              <option value="restaurante">🍽️ Restaurante / Comida</option>
+              <option value="barberia">💈 Barbería / Estética</option>
+              <option value="ropa">👕 Ropa / Ecommerce</option>
+              <option value="clinica">🏥 Clínica / Salud</option>
+              <option value="inmobiliaria">🏠 Inmobiliaria / Rentas</option>
+              <option value="taller">🔧 Taller / Servicios</option>
+              <option value="ecommerce">🛒 Tienda Online</option>
+            </select>
+            <p className="text-xs text-gray-500">Define el flujo del agente IA y las opciones del dashboard</p>
+          </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>

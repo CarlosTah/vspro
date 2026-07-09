@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 export default function DeliverySettingsPage() {
   const { data: settings, loading } = useApi<any>('/settings/delivery');
   const [form, setForm] = useState({
+    shippingCost: 30,
     autoDispatchEnabled: true,
     timeoutMinutes: 10,
     maxRetries: 3,
@@ -46,6 +47,20 @@ export default function DeliverySettingsPage() {
       </div>
 
       <div className="rounded-xl border border-card-border bg-card p-6 space-y-6">
+
+          {/* Shipping Cost */}
+          <div className="space-y-2">
+            <label className="text-sm text-gray-300">Costo de envío ($)</label>
+            <input
+              type="number"
+              value={form.shippingCost}
+              onChange={(e) => setForm({ ...form, shippingCost: Number(e.target.value) })}
+              className="vspro-input w-32"
+              min={0}
+              step={5}
+            />
+            <p className="text-xs text-gray-500">Se suma al total cuando el cliente pide envío a domicilio</p>
+          </div>
 
         {/* Auto-dispatch */}
         <ToggleRow
