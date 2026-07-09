@@ -197,6 +197,26 @@ export class OrderStateMachine {
         };
 
       default: {
+        // Check if asking for business location
+        const locationWords = ['dónde', 'donde', 'ubicación', 'ubicacion', 'dirección', 'direccion', 'cómo llego', 'como llego', 'dónde están', 'donde estan'];
+        if (locationWords.some(k => intent.text.toLowerCase().includes(k))) {
+          return {
+            newState: OrderState.IDLE,
+            actions: [],
+            llmContext: `El cliente pregunta dónde está el negocio. Si tienes la dirección en los datos del negocio, compártela. Si no, di que pregunten al negocio directamente. NO inventes direcciones.`,
+          };
+        }
+
+        // Check if asking how long it takes
+        const timeWords = ['cuánto tarda', 'cuanto tarda', 'cuánto se tarda', 'tiempo', 'cuánto demora', 'cuanto demora', 'cuándo llega', 'cuando llega'];
+        if (timeWords.some(k => intent.text.toLowerCase().includes(k))) {
+          return {
+            newState: state.state === OrderState.IDLE ? OrderState.IDLE : state.state,
+            actions: [],
+            llmContext: 'El cliente pregunta cuánto tarda. Responde: "Los pedidos para recoger tardan aprox. 15-25 minutos. Para domicilio, 30-45 minutos dependiendo la zona."',
+          };
+        }
+
         // Check if asking for promos
         const promoWords = ['promo', 'oferta', 'descuento', 'combo', 'especial', 'promoción', 'promocion'];
         if (promoWords.some(k => intent.text.toLowerCase().includes(k))) {
@@ -251,7 +271,7 @@ export class OrderStateMachine {
         return {
           newState: OrderState.TAKING_ORDER,
           actions: [],
-          llmContext: `El cliente dijo: "${intent.text}". Puede que esté pidiendo algo. Si reconoces productos, confírmalos. Si no, pregunta qué desea del catálogo:\n${this.formatCatalog()}`,
+          llmContext: `El cliente dijo: "${intent.text}". No estoy seguro de qué producto quiere. Pregunta brevemente: "¿Me puedes repetir qué te gustaría pedir?" NO muestres todo el catálogo.`,
         };
     }
   }
@@ -340,6 +360,14 @@ export class OrderStateMachine {
           llmContext: 'El cliente recoge en local. Pregunta forma de pago: "¿Pagas por transferencia o en efectivo?"',
         };
 
+      case 'add_items':
+        // Customer wants to add more items after confirming — go back to taking order
+        return {
+          newState: OrderState.TAKING_ORDER,
+          actions: [],
+          llmContext: 'El cliente quiere agregar algo más a su pedido. Pregunta qué más quiere.',
+        };
+
       default: {
         // Check if text contains pickup keywords not caught by classifier
         const pickupWords = ['paso', 'recojo', 'recoger', 'recogo', 'voy', 'paso por'];
@@ -405,12 +433,31 @@ export class OrderStateMachine {
           llmContext: 'Solicita el pago por transferencia. Da los datos bancarios si los tienes y pide que envíe el comprobante.',
         };
 
-      default:
+      default: {
+        // Check for COD keywords not caught by classifier
+        const codWords = ['efectivo', 'en efectivo', 'al recibir', 'cuando llegue', 'al repartidor', 'contra entrega', 'cash', 'al llegar'];
+        if (codWords.some(k => intent.text.toLowerCase().includes(k))) {
+          return {
+            newState: OrderState.ORDER_COMPLETE,
+            actions: [{ tool: 'set_payment_method', args: { orderId: state.orderId, method: 'cod' } }],
+            llmContext: `Pago contra entrega confirmado. Mensaje: "¡Pedido enviado a cocina! Pagas $${state.total ?? '?'} en efectivo. Te avisamos cuando esté listo. 🙌"`,
+          };
+        }
+        // Check for transfer keywords
+        const transferWords = ['transferencia', 'deposito', 'depósito', 'banco', 'transfer'];
+        if (transferWords.some(k => intent.text.toLowerCase().includes(k))) {
+          return {
+            newState: OrderState.PROCESSING_PAYMENT,
+            actions: [{ tool: 'request_payment', args: { orderId: state.orderId } }],
+            llmContext: 'Solicita el pago por transferencia. Da los datos bancarios y pide comprobante.',
+          };
+        }
         return {
           newState: OrderState.ASKING_PAYMENT,
           actions: [],
           llmContext: `No entendí. Total: $${state.total ?? '?'}. Pregunta: "¿Pagas por transferencia bancaria o efectivo contra entrega?"`,
         };
+      }
     }
   }
 
@@ -447,6 +494,16 @@ export class OrderStateMachine {
         llmContext: 'El cliente tiene un problema con su pedido entregado. Sé empático, discúlpate, y confirma que se escaló al equipo para resolverlo.',
       };
     }
+    // Check if asking about time
+    const timeQ = ['cuánto', 'cuanto', 'tarda', 'demora', 'tiempo', 'cuándo', 'cuando'];
+    if (timeQ.some(k => intent.text.toLowerCase().includes(k))) {
+      return {
+        newState: OrderState.ORDER_COMPLETE,
+        actions: [],
+        llmContext: 'El cliente pregunta cuánto tarda. Responde que su pedido ya está en preparación/camino según el estado. Si es pickup: "15-25 min". Si delivery: "30-45 min aprox."',
+      };
+    }
+
     // Any other message after order complete — check if it's a complaint by keywords
     const complaintWords = ['no trae', 'falta', 'está mal', 'incorrecto', 'frío', 'frio', 'tardó', 'queja', 'molesto'];
     if (complaintWords.some(k => intent.text.toLowerCase().includes(k))) {
@@ -484,11 +541,46 @@ export class OrderStateMachine {
     const valid: Array<{ productName: string; quantity: number; notes?: string; price: number }> = [];
     const invalid: string[] = [];
 
+    // Common synonyms for food businesses
+    const synonyms: Record<string, string[]> = {
+      'refresco': ['coca', 'coca cola', 'coca-cola', 'pepsi', 'soda', 'gaseosa'],
+      'agua de horchata': ['horchata', 'agua horchata'],
+      'taco al pastor': ['pastor', 'de pastor', 'al pastor', 'taco pastor'],
+      'taco de bistec': ['bistec', 'de bistec', 'taco bistec', 'bistek', 'de bistek'],
+      'tacos de suadero': ['suadero', 'de suadero', 'taco suadero'],
+      'tacos de longaniza': ['longaniza', 'de longaniza', 'taco longaniza'],
+      'quesadilla': ['quesa', 'quesadillas'],
+      'torta de jamón': ['torta', 'torta jamón', 'torta de jamon'],
+      'orden de guacamole': ['guacamole', 'guaca', 'orden guacamole'],
+    };
+
     for (const item of items) {
-      const match = this.catalog.find(p =>
-        p.name.toLowerCase().includes(item.productName.toLowerCase()) ||
-        item.productName.toLowerCase().includes(p.name.toLowerCase())
+      const inputName = item.productName.toLowerCase().trim();
+
+      // Direct match
+      let match = this.catalog.find(p =>
+        p.name.toLowerCase().includes(inputName) ||
+        inputName.includes(p.name.toLowerCase())
       );
+
+      // Synonym match if no direct match
+      if (!match) {
+        for (const [catalogName, alts] of Object.entries(synonyms)) {
+          if (alts.some(alt => inputName.includes(alt) || alt.includes(inputName))) {
+            match = this.catalog.find(p => p.name.toLowerCase() === catalogName);
+            break;
+          }
+        }
+      }
+
+      // Partial match — at least 4 chars matching
+      if (!match && inputName.length >= 4) {
+        match = this.catalog.find(p => {
+          const catLower = p.name.toLowerCase();
+          return catLower.includes(inputName.substring(0, 4)) || inputName.includes(catLower.substring(0, 4));
+        });
+      }
+
       if (match) {
         valid.push({ ...item, productName: match.name, price: match.price });
       } else {
