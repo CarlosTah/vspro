@@ -258,12 +258,44 @@ export class OrderStateMachine {
 
   private handleConfirming(state: ConversationStateData, intent: ParsedIntent): TransitionResult {
     switch (intent.type) {
-      case 'confirm_yes':
+      case 'confirm_yes': {
+        // Check if the message also includes payment/delivery info (compound intent)
+        const txt = intent.text.toLowerCase();
+        const mentionsCod = ['efectivo', 'contra entrega', 'al repartidor', 'cash'].some(k => txt.includes(k));
+        const mentionsPickup = ['paso', 'recojo', 'recoger', 'recogo', 'paso a recoger'].some(k => txt.includes(k));
+        
+        if (mentionsPickup && mentionsCod) {
+          // "Sí, paso y pago en efectivo" — skip delivery and payment questions
+          return {
+            newState: OrderState.ORDER_COMPLETE,
+            actions: [
+              { tool: 'create_order', args: { items: state.items ?? intent.items ?? [] } },
+              { tool: 'set_payment_method', args: { method: 'cod' } },
+            ],
+            llmContext: `Pedido creado y confirmado. El cliente recoge y paga en efectivo. Mensaje: "¡Listo! Tu pedido fue enviado a cocina. Pagas en efectivo al recoger. Te avisamos cuando esté listo. 🙌"`,
+          };
+        }
+        if (mentionsPickup) {
+          return {
+            newState: OrderState.ASKING_PAYMENT,
+            actions: [{ tool: 'create_order', args: { items: state.items ?? intent.items ?? [] } }],
+            llmContext: 'Pedido creado. El cliente recoge. Pregunta forma de pago: "¿Pagas por transferencia o en efectivo?"',
+          };
+        }
+        if (mentionsCod) {
+          return {
+            newState: OrderState.ASKING_DELIVERY,
+            actions: [{ tool: 'create_order', args: { items: state.items ?? intent.items ?? [] } }],
+            llmContext: `Pedido creado. Se anotó efectivo. Pregunta: "¿Pasas a recoger o te lo enviamos a domicilio? ($${this.deliveryCost} de envío)"`,
+          };
+        }
+
         return {
           newState: OrderState.ASKING_DELIVERY,
           actions: [{ tool: 'create_order', args: { items: state.items ?? intent.items ?? [] } }],
           llmContext: `Pedido creado. Pregunta: "¿Pasas a recoger o te lo enviamos a domicilio? El envío tiene un costo de $${this.deliveryCost}."`,
         };
+      }
 
       case 'confirm_no':
       case 'modify_order':
@@ -298,7 +330,7 @@ export class OrderStateMachine {
         return {
           newState: OrderState.SETTING_ADDRESS,
           actions: [],
-          llmContext: `El cliente quiere envío a domicilio (costo: $${this.deliveryCost}). Pide: dirección completa (calle, colonia, referencias) y que envíe su ubicación por WhatsApp 📍.`,
+          llmContext: `El cliente quiere envío a domicilio. Costo envío: $${this.deliveryCost}. Total con envío: $${(state.total ?? 0) + this.deliveryCost}. Pide: dirección completa (calle, colonia, referencias) y que envíe su ubicación por WhatsApp 📍.`,
         };
 
       case 'want_pickup':
@@ -308,12 +340,22 @@ export class OrderStateMachine {
           llmContext: 'El cliente recoge en local. Pregunta forma de pago: "¿Pagas por transferencia o en efectivo?"',
         };
 
-      default:
+      default: {
+        // Check if text contains pickup keywords not caught by classifier
+        const pickupWords = ['paso', 'recojo', 'recoger', 'recogo', 'voy', 'paso por'];
+        if (pickupWords.some(k => intent.text.toLowerCase().includes(k))) {
+          return {
+            newState: OrderState.ASKING_PAYMENT,
+            actions: [],
+            llmContext: 'El cliente recoge en local. Pregunta forma de pago: "¿Pagas por transferencia o en efectivo?"',
+          };
+        }
         return {
           newState: OrderState.ASKING_DELIVERY,
           actions: [],
           llmContext: `No entendí. Pregunta claramente: "¿Pasas a recoger o te lo enviamos a domicilio? ($${this.deliveryCost} de envío)"`,
         };
+      }
     }
   }
 
@@ -367,7 +409,7 @@ export class OrderStateMachine {
         return {
           newState: OrderState.ASKING_PAYMENT,
           actions: [],
-          llmContext: 'No entendí la forma de pago. Pregunta: "¿Pagas por transferencia bancaria o efectivo contra entrega?"',
+          llmContext: `No entendí. Total: $${state.total ?? '?'}. Pregunta: "¿Pagas por transferencia bancaria o efectivo contra entrega?"`,
         };
     }
   }
@@ -388,7 +430,6 @@ export class OrderStateMachine {
   }
 
   private handleOrderComplete(state: ConversationStateData, intent: ParsedIntent): TransitionResult {
-    // After order is complete, any new message starts fresh or checks status
     if (intent.type === 'check_status') {
       return {
         newState: OrderState.CHECKING_STATUS,
@@ -399,10 +440,26 @@ export class OrderStateMachine {
     if (intent.type === 'want_to_order' || intent.type === 'add_items') {
       return this.handleIdle({ ...state, state: OrderState.IDLE, items: undefined, orderId: undefined }, intent);
     }
+    if (intent.type === 'complaint') {
+      return {
+        newState: OrderState.IDLE,
+        actions: [{ tool: 'escalate_complaint', args: { reason: intent.text, priority: 'medium' } }],
+        llmContext: 'El cliente tiene un problema con su pedido entregado. Sé empático, discúlpate, y confirma que se escaló al equipo para resolverlo.',
+      };
+    }
+    // Any other message after order complete — check if it's a complaint by keywords
+    const complaintWords = ['no trae', 'falta', 'está mal', 'incorrecto', 'frío', 'frio', 'tardó', 'queja', 'molesto'];
+    if (complaintWords.some(k => intent.text.toLowerCase().includes(k))) {
+      return {
+        newState: OrderState.IDLE,
+        actions: [{ tool: 'escalate_complaint', args: { reason: intent.text, priority: 'medium' } }],
+        llmContext: 'El cliente reporta un problema con su pedido. Sé empático y confirma que se escaló al equipo.',
+      };
+    }
     return {
       newState: OrderState.ORDER_COMPLETE,
       actions: [],
-      llmContext: `El pedido ${state.orderNumber ?? ''} ya fue enviado a cocina. Si pregunta estado, usa get_order_status. Si quiere algo más, tómalo como nuevo pedido.`,
+      llmContext: `El pedido ${state.orderNumber ?? ''} ya fue procesado. Si tienes algún problema con tu pedido, con gusto te ayudo. ¿Necesitas algo más?`,
     };
   }
 

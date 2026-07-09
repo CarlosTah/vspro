@@ -75,7 +75,7 @@ export class StateMachineOrchestratorService {
       );
     }
 
-    this.logger.debug(`[${schemaName}] Intent: ${intent.type} | State: ${currentState.state}`);
+    this.logger.log(`[${schemaName}] SM: ${currentState.state} → ${intent.type} | msg: "${(message.text ?? '').substring(0, 40)}"`);
 
     // 3. Build the state machine with current catalog
     const catalog = products.map((p: any) => ({ name: p.name, price: parseFloat(p.price) }));
@@ -93,6 +93,8 @@ export class StateMachineOrchestratorService {
 
     // 4. Execute the transition
     const transition = stateMachine.transition(currentState, intent);
+
+    this.logger.log(`[${schemaName}] SM: → ${transition.newState} | actions: ${transition.actions.map(a => a.tool).join(',') || 'none'}`);
 
     // 5. Execute system actions (tools) automatically
     let actionResults = '';
