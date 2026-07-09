@@ -137,22 +137,13 @@ export class StateMachineOrchestratorService {
       newState.orderNumber = undefined;
       newState.total = undefined;
     } else if (transition.newState === OrderState.CONFIRMING_ORDER) {
-      // When confirming, use ONLY the items from this transition (computed by state machine)
-      // The state machine already computed allItems = [...state.items, ...newItems]
-      // We extract items from the fixedResponse or from intent
+      // When confirming, use ONLY the items from this intent (validated by state machine)
+      // Do NOT accumulate with previous state items — this prevents duplicates
       if (intent.items && intent.items.length > 0) {
-        // Validate and merge with existing items
         const catalog2 = products.map((p: any) => ({ name: p.name, price: parseFloat(p.price) }));
         const smTemp = new OrderStateMachine(catalog2, '', deliveryCost);
-        // Use the validated items from the state machine's own logic
-        // If coming from TAKING_ORDER, merge; if from IDLE, just use new items
-        if (currentState.state === OrderState.TAKING_ORDER && currentState.items) {
-          const validated2 = (smTemp as any).validateItems(intent.items);
-          newState.items = [...currentState.items, ...validated2.valid];
-        } else {
-          const validated2 = (smTemp as any).validateItems(intent.items);
-          newState.items = validated2.valid;
-        }
+        const validated2 = (smTemp as any).validateItems(intent.items);
+        newState.items = validated2.valid;
       } else if (currentState.items) {
         newState.items = currentState.items;
       }

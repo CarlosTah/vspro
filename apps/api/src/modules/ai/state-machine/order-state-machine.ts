@@ -246,10 +246,11 @@ export class OrderStateMachine {
     switch (intent.type) {
       case 'add_items':
         const validatedTO = this.validateItems(intent.items ?? []);
-        const allItemsTO = [...(state.items ?? []), ...validatedTO.valid];
-        if (allItemsTO.length > 0) {
-          const total = this.calculateTotal(allItemsTO);
-          const summary = this.formatOrderSummary(allItemsTO);
+        // ONLY use the items from this intent — do NOT accumulate from state
+        // This prevents duplicates when customer refines their order (e.g., "tortas" then "4 tortas")
+        if (validatedTO.valid.length > 0) {
+          const total = this.calculateTotal(validatedTO.valid);
+          const summary = this.formatOrderSummary(validatedTO.valid);
           const invalidNote = validatedTO.invalid.length > 0
             ? `\n\n⚠️ "${validatedTO.invalid.join(', ')}" no los tenemos.`
             : '';
@@ -443,19 +444,40 @@ export class OrderStateMachine {
       default: {
         // Try to detect if the text IS an address (contains numbers, street words, etc.)
         const text = intent.text.toLowerCase();
-        const addressIndicators = ['calle', 'avenida', 'av.', 'av ', 'col.', 'col ', 'mz', 'manzana', 'lote', 'lt', 'num', 'número', '#', 'entre', 'esquina', 'frente'];
-        const looksLikeAddress = addressIndicators.some(w => text.includes(w)) || /\d{2,}/.test(text);
         
-        if (looksLikeAddress) {
-          const totalAddr = (state.total ?? 0) + this.deliveryCost;
+        // First, check if it's a question or complaint — NOT an address
+        const isQuestion = text.includes('?') || text.startsWith('por q') || text.startsWith('por que') || text.startsWith('porq') ||
+          ['son', 'no?', 'cuánto', 'cuanto', 'por qué', 'porque'].some(q => text.includes(q));
+        
+        if (!isQuestion) {
+          const addressIndicators = ['calle', 'avenida', 'av.', 'av ', 'col.', 'col ', 'mz', 'manzana', 'lote', 'lt', 'num', 'número', '#', 'entre', 'esquina', 'frente'];
+          // Only match numbers if the text also has address-like words, OR the text is short and has a street pattern (e.g., "Almeja 224")
+          const hasAddressWord = addressIndicators.some(w => text.includes(w));
+          const isShortWithNumber = text.length < 40 && /^[a-záéíóúñ\s]+\d{1,5}/i.test(text.trim());
+          const looksLikeAddress = hasAddressWord || isShortWithNumber;
+          
+          if (looksLikeAddress) {
+            const totalAddr = (state.total ?? 0) + this.deliveryCost;
+            return {
+              newState: OrderState.ASKING_PAYMENT,
+              actions: [{ tool: 'set_delivery_address', args: { street: intent.text } }],
+              llmContext: '',
+              skipLlm: true,
+              fixedResponse: `Dirección guardada. Total con envío: $${totalAddr}. ¿Pagas por transferencia o efectivo al repartidor? 💳💵`,
+            };
+          }
+        }
+        
+        // If it's a question about price/total while in SETTING_ADDRESS, answer it
+        if (isQuestion) {
+          const totalWithDelivery = (state.total ?? 0) + this.deliveryCost;
           return {
-            newState: OrderState.ASKING_PAYMENT,
-            actions: [{ tool: 'set_delivery_address', args: { street: intent.text } }],
-            llmContext: '',
-            skipLlm: true,
-            fixedResponse: `Dirección guardada. Total con envío: $${totalAddr}. ¿Pagas por transferencia o efectivo al repartidor? 💳💵`,
+            newState: OrderState.SETTING_ADDRESS,
+            actions: [],
+            llmContext: `El cliente pregunta sobre el total. Subtotal del pedido: $${state.total ?? 0}. Envío: $${this.deliveryCost}. Total con envío: $${totalWithDelivery}. Responde de forma clara y pide su dirección.`,
           };
         }
+        
         return {
           newState: OrderState.SETTING_ADDRESS,
           actions: [],
@@ -646,7 +668,7 @@ export class OrderStateMachine {
 
   private calculateTotal(items: Array<{ productName: string; quantity: number; price?: number }>): number {
     return items.reduce((sum, item) => {
-      const price = item.price ?? this.catalog.find(p => p.name === item.productName)?.price ?? 0;
+      const price = item.price ?? this.catalog.find(p => p.name.toLowerCase() === item.productName.toLowerCase())?.price ?? 0;
       return sum + (price * item.quantity);
     }, 0);
   }
@@ -657,7 +679,7 @@ export class OrderStateMachine {
 
   private formatOrderSummary(items: Array<{ productName: string; quantity: number; notes?: string; price?: number }>): string {
     return items.map(i => {
-      const price = i.price ?? this.catalog.find(p => p.name === i.productName)?.price ?? 0;
+      const price = i.price ?? this.catalog.find(p => p.name.toLowerCase() === i.productName.toLowerCase())?.price ?? 0;
       return `- ${i.quantity}x ${i.productName} ($${price * i.quantity})${i.notes ? ` [${i.notes}]` : ''}`;
     }).join('\n');
   }
