@@ -126,15 +126,17 @@ export class OrderStateMachine {
   private handleIdle(state: ConversationStateData, intent: ParsedIntent): TransitionResult {
     switch (intent.type) {
       case 'greeting':
-      case 'want_to_order':
-        const needsName = !state.customerName;
+      case 'want_to_order': {
+        // WhatsApp names with ~ or special chars are display names, not real names
+        const hasRealName = state.customerName && !state.customerName.includes('~') && state.customerName.length > 2;
         return {
           newState: OrderState.TAKING_ORDER,
           actions: [],
-          llmContext: needsName
-            ? `Saluda al cliente de ${this.businessName}. Pregúntale su nombre y qué se le antoja. Catálogo:\n${this.formatCatalog()}\nSé breve.`
-            : `Saluda a ${state.customerName} de ${this.businessName}. Pregunta qué se le antoja. Catálogo:\n${this.formatCatalog()}\nSé breve.`,
+          llmContext: hasRealName
+            ? `Saluda a ${state.customerName} de ${this.businessName}. Pregunta qué se le antoja. Catálogo:\n${this.formatCatalog()}\nSé breve.`
+            : `Saluda al cliente de ${this.businessName}. Pregúntale su nombre y qué se le antoja. Catálogo:\n${this.formatCatalog()}\nSé breve.`,
         };
+      }
 
       case 'add_items':
         // Customer jumped straight to ordering

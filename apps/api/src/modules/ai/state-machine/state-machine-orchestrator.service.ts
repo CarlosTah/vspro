@@ -59,6 +59,14 @@ export class StateMachineOrchestratorService {
         (message as any).latitude,
         (message as any).longitude,
       );
+    } else if (message.text && message.text.includes('maps.google.com/?q=')) {
+      // WhatsApp sometimes sends location as a URL text message
+      const coordMatch = message.text.match(/q=([-\d.]+),([-\d.]+)/);
+      if (coordMatch) {
+        intent = this.intentClassifier.classifyLocation(parseFloat(coordMatch[1]), parseFloat(coordMatch[2]));
+      } else {
+        intent = await this.intentClassifier.classify(message.text, currentState.state, hasImage);
+      }
     } else {
       intent = await this.intentClassifier.classify(
         message.text ?? '',
@@ -97,8 +105,22 @@ export class StateMachineOrchestratorService {
     const newState: ConversationStateData = {
       ...currentState,
       state: transition.newState,
-      items: intent.items ? [...(currentState.items ?? []), ...intent.items] : currentState.items,
     };
+
+    // Reset items when transitioning to IDLE or TAKING_ORDER from a completed state
+    if (transition.newState === OrderState.IDLE || 
+        (transition.newState === OrderState.TAKING_ORDER && currentState.state === OrderState.IDLE) ||
+        (transition.newState === OrderState.TAKING_ORDER && currentState.state === OrderState.ORDER_COMPLETE)) {
+      newState.items = intent.items ?? undefined;
+      newState.orderId = undefined;
+      newState.orderNumber = undefined;
+      newState.total = undefined;
+    } else if (transition.newState === OrderState.CONFIRMING_ORDER && intent.items) {
+      // When confirming, use ONLY the items from this intent (not accumulated)
+      newState.items = intent.items;
+    } else {
+      newState.items = currentState.items;
+    }
 
     // Update orderId/orderNumber from action results
     if (actionResults.includes('"orderId"') || actionResults.includes('"orderNumber"')) {
@@ -116,11 +138,6 @@ export class StateMachineOrchestratorService {
         const totalMatch = actionResults.match(/"total"\s*:\s*"?(\d+\.?\d*)"?/);
         if (totalMatch) newState.total = parseFloat(totalMatch[1]);
       } catch {}
-    }
-
-    // If items were validated by the state machine, use them
-    if (transition.newState === OrderState.CONFIRMING_ORDER && intent.items) {
-      newState.items = intent.items;
     }
 
     // 7. Generate natural language response
