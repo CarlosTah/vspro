@@ -168,12 +168,17 @@ export class OrderStateMachine {
           llmContext: 'Informa al cliente el estado de su pedido basándote en el resultado de la herramienta.',
         };
 
-      case 'check_menu':
+      case 'check_menu': {
+        const promoKeywords = ['promo', 'oferta', 'descuento', 'combo', 'especial', 'promoción', 'promocion'];
+        const isPromo = promoKeywords.some(k => intent.text.toLowerCase().includes(k));
         return {
           newState: OrderState.TAKING_ORDER,
-          actions: [{ tool: 'send_media_to_customer', args: { mediaType: 'menu' } }],
-          llmContext: `Envía el menú al cliente y pregunta qué se le antoja. Catálogo:\n${this.formatCatalog()}`,
+          actions: [{ tool: 'send_media_to_customer', args: { mediaType: isPromo ? 'promo' : 'menu' } }],
+          llmContext: isPromo
+            ? 'Se enviaron las promociones al cliente. Pregunta si le interesa algo.'
+            : `Envía el menú al cliente y pregunta qué se le antoja. Catálogo:\n${this.formatCatalog()}`,
         };
+      }
 
       case 'repeat_order':
         return {
@@ -268,12 +273,17 @@ export class OrderStateMachine {
           llmContext: `"${intent.text}" no está en nuestro catálogo. Lo que tenemos:\n${this.formatCatalog()}\n¿Qué te pongo?`,
         };
 
-      case 'check_menu':
+      case 'check_menu': {
+        const promoKw = ['promo', 'oferta', 'descuento', 'combo', 'especial', 'promoción', 'promocion'];
+        const wantsPromo = promoKw.some(k => intent.text.toLowerCase().includes(k));
         return {
           newState: OrderState.TAKING_ORDER,
-          actions: [{ tool: 'send_media_to_customer', args: { mediaType: 'menu' } }],
-          llmContext: `Envía el menú. Catálogo:\n${this.formatCatalog()}`,
+          actions: [{ tool: 'send_media_to_customer', args: { mediaType: wantsPromo ? 'promo' : 'menu' } }],
+          llmContext: wantsPromo
+            ? 'Se enviaron las promociones. Pregunta si le interesa algo.'
+            : `Envía el menú. Catálogo:\n${this.formatCatalog()}`,
         };
+      }
 
       case 'cancel':
         return {
@@ -380,7 +390,7 @@ export class OrderStateMachine {
         return {
           newState: OrderState.SETTING_ADDRESS,
           actions: [],
-          llmContext: `El cliente quiere envío a domicilio. Costo envío: $${this.deliveryCost}. Total con envío: $${(state.total ?? 0) + this.deliveryCost}. SI tienes su dirección anterior en los "Datos del cliente en memoria", pregunta: "¿Te lo enviamos a [dirección anterior] o a otra dirección?" Si NO hay dirección en memoria, pide: calle, colonia, referencias y ubicación 📍. NO inventes datos, NO incluyas nombres de productos ni listas.`,
+          llmContext: `DELIVERY_ASK_ADDRESS|${(state.total ?? 0) + this.deliveryCost}`,
         };
 
       case 'want_pickup':
@@ -589,10 +599,34 @@ export class OrderStateMachine {
         llmContext: 'El cliente reporta un problema con su pedido. Sé empático y confirma que se escaló al equipo.',
       };
     }
+
+    // Farewell / acknowledgment — transition to IDLE, no need to keep asking
+    const farewellWords = ['gracias', 'todo', 'sería todo', 'seria todo', 'es todo', 'nada más', 'nada mas', 'ok', 'vale', 'listo', 'perfecto', 'bye', 'adiós', 'adios', 'chao', 'buenas noches', 'hasta luego'];
+    if (farewellWords.some(k => intent.text.toLowerCase().includes(k))) {
+      return {
+        newState: OrderState.IDLE,
+        actions: [],
+        skipLlm: true,
+        llmContext: '',
+        fixedResponse: '¡Gracias por tu pedido! Cualquier cosa, aquí estamos. 🙌',
+      };
+    }
+
+    // Check if it's a greeting (new conversation attempt)
+    if (intent.type === 'greeting') {
+      return {
+        newState: OrderState.IDLE,
+        actions: [],
+        llmContext: `El pedido ${state.orderNumber ?? ''} ya fue procesado. Pregunta si necesita algo más o quiere hacer otro pedido.`,
+      };
+    }
+
     return {
       newState: OrderState.ORDER_COMPLETE,
       actions: [],
-      llmContext: `El pedido ${state.orderNumber ?? ''} ya fue procesado. Si tienes algún problema con tu pedido, con gusto te ayudo. ¿Necesitas algo más?`,
+      skipLlm: true,
+      llmContext: '',
+      fixedResponse: `Tu pedido ${state.orderNumber ?? ''} está en proceso. ¡Te avisamos cuando salga! 🙌`,
     };
   }
 

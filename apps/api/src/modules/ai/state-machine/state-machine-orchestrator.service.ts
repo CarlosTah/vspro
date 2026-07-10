@@ -137,20 +137,26 @@ export class StateMachineOrchestratorService {
       newState.orderNumber = undefined;
       newState.total = undefined;
     } else if (transition.newState === OrderState.CONFIRMING_ORDER) {
-      // When confirming, use ONLY the items from this intent (validated by state machine)
-      // Do NOT accumulate with previous state items — this prevents duplicates
+      // Determine items for the confirming state
       if (intent.items && intent.items.length > 0) {
         const catalog2 = products.map((p: any) => ({ name: p.name, price: parseFloat(p.price) }));
         const smTemp = new OrderStateMachine(catalog2, '', deliveryCost);
         const validated2 = (smTemp as any).validateItems(intent.items);
-        newState.items = validated2.valid;
+        
+        // If coming FROM CONFIRMING_ORDER (customer adding more items), MERGE with existing
+        if (currentState.state === OrderState.CONFIRMING_ORDER && currentState.items && currentState.items.length > 0) {
+          newState.items = [...currentState.items, ...validated2.valid];
+        } else {
+          // Fresh confirmation from TAKING_ORDER or IDLE — use only new items
+          newState.items = validated2.valid;
+        }
       } else if (currentState.items) {
         newState.items = currentState.items;
       }
       // Calculate total from items
       if (newState.items && newState.items.length > 0) {
         newState.total = newState.items.reduce((sum, item: any) => {
-          const price = item.price ?? catalog.find(p => p.name === item.productName)?.price ?? 0;
+          const price = item.price ?? catalog.find(p => p.name.toLowerCase() === (item.productName || '').toLowerCase())?.price ?? 0;
           return sum + (price * item.quantity);
         }, 0);
       }
@@ -211,13 +217,33 @@ export class StateMachineOrchestratorService {
     if (transition.skipLlm && transition.fixedResponse) {
       responseText = transition.fixedResponse;
     } else {
-      // IMPORTANT: Only pass memory hint to LLM when NOT showing items/totals
-      // to prevent the LLM from confusing addresses with products
-      const safeMemory = (transition.newState === OrderState.SETTING_ADDRESS || 
-                          transition.newState === OrderState.ASKING_DELIVERY)
-        ? memoryHint : '';
-      const safeLlmContext = `${transition.llmContext}${actionResults ? `\n\nResultado de acciones:${actionResults}` : ''}${safeMemory}`;
-      responseText = await this.textGenerator.generate(safeLlmContext, personality, customerName);
+      // Special case: DELIVERY_ASK_ADDRESS — build deterministic response with stored address
+      if (transition.llmContext.startsWith('DELIVERY_ASK_ADDRESS|')) {
+        const totalWithShip = transition.llmContext.split('|')[1];
+        let storedAddress = '';
+        if (custId) {
+          try {
+            const memProfile = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT profile->'addresses'->>'last_delivery' AS addr FROM "${schemaName}".customer_memories WHERE customer_id = $1::uuid LIMIT 1`,
+              custId,
+            );
+            storedAddress = memProfile[0]?.addr ?? '';
+          } catch {}
+        }
+        if (storedAddress) {
+          responseText = `El envío cuesta $${deliveryCost}. Total con envío: $${totalWithShip}.\n\n¿Te lo enviamos a *${storedAddress}* o a otra dirección? 📍`;
+        } else {
+          responseText = `El envío cuesta $${deliveryCost}. Total con envío: $${totalWithShip}.\n\nPor favor, envíame tu dirección completa (calle, colonia, referencias) y tu ubicación 📍.`;
+        }
+      } else {
+        // IMPORTANT: Only pass memory hint to LLM when NOT showing items/totals
+        // to prevent the LLM from confusing addresses with products
+        const safeMemory = (transition.newState === OrderState.SETTING_ADDRESS || 
+                            transition.newState === OrderState.ASKING_DELIVERY)
+          ? memoryHint : '';
+        const safeLlmContext = `${transition.llmContext}${actionResults ? `\n\nResultado de acciones:${actionResults}` : ''}${safeMemory}`;
+        responseText = await this.textGenerator.generate(safeLlmContext, personality, customerName);
+      }
     }
 
     // 8. Persist state in conversation context
