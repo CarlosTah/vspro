@@ -45,7 +45,27 @@ export class AiConfigService {
     if (dto.awayMessage !== undefined) { fields.push(`away_message = $${idx++}`); values.push(dto.awayMessage); }
     if (dto.language !== undefined) { fields.push(`language = $${idx++}`); values.push(dto.language); }
     if (dto.customInstructions !== undefined) { fields.push(`custom_instructions = $${idx++}`); values.push(dto.customInstructions); }
-    if (dto.businessHours !== undefined) { fields.push(`business_hours = $${idx++}::jsonb`); values.push(JSON.stringify(dto.businessHours)); }
+    if (dto.businessHours !== undefined) {
+      // Normalize: sync Spanish keys into schedule sub-object for consistency
+      const bh = { ...dto.businessHours };
+      const spanishToEng: Record<string, string> = {
+        lunes: 'mon', martes: 'tue', miércoles: 'wed', miercoles: 'wed',
+        jueves: 'thu', viernes: 'fri', sábado: 'sat', sabado: 'sat', domingo: 'sun',
+      };
+      if (!bh.schedule) bh.schedule = {};
+      for (const [es, en] of Object.entries(spanishToEng)) {
+        const entry = bh[es];
+        if (entry && typeof entry === 'object') {
+          if (entry.enabled === false) {
+            bh.schedule[en] = null;
+          } else if (entry.open) {
+            bh.schedule[en] = { open: entry.open, close: entry.close || '00:00' };
+          }
+        }
+      }
+      fields.push(`business_hours = $${idx++}::jsonb`);
+      values.push(JSON.stringify(bh));
+    }
 
     if (fields.length === 0 && !dto.businessData) return this.getConfig(schemaName);
 
