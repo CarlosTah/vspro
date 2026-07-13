@@ -52,11 +52,11 @@ Categorías posibles:
 - want_transfer: pago por transferencia (transferencia, deposito)
 - payment_proof: envía comprobante de pago (imagen de transferencia)
 - check_status: pregunta por estado de pedido (cómo va mi pedido, ya está)
-- check_menu: pide ver el menú o promociones (menú, carta, qué tienen, precios, promociones)
+- check_menu: pide EXPLÍCITAMENTE ver el menú/carta/promociones (ej: "pásame el menú", "qué promociones tienen", "enséñame la carta"). NO incluye preguntas sobre productos específicos como "¿venden X?" o "¿tienen media orden?".
 - cancel: quiere cancelar (cancelar, ya no quiero)
 - complaint: queja o problema (tarda mucho, está mal, quiero hablar con alguien)
 - repeat_order: quiere repetir pedido anterior (lo mismo, mi pedido habitual)
-- other: no encaja en ninguna categoría, es ambiguo, o es una pregunta general
+- other: no encaja claramente en ninguna categoría, es una pregunta general sobre el negocio (ej: "¿venden media orden?", "¿abren los domingos?", "¿tienen estacionamiento?"), o el mensaje es ambiguo
 
 ${hasImage ? 'NOTA: El cliente envió una imagen. Si el estado es "processing_payment", es payment_proof. Si es "setting_address", puede ser referencia visual (give_address).' : ''}
 
