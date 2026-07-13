@@ -42,4 +42,10 @@ export class KnowledgeBaseController {
   remove(@Param('id') id: string, @TenantSchema() schema: string) {
     return this.kbService.delete(id, schema);
   }
+
+  @Post('regenerate-embeddings')
+  @Roles('admin')
+  regenerateEmbeddings(@TenantSchema() schema: string) {
+    return this.kbService.regenerateEmbeddings(schema).then(count => ({ regenerated: count }));
+  }
 }

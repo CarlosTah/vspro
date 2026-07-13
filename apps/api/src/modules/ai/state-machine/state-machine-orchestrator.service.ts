@@ -4,6 +4,7 @@ import { PrismaService } from '../../../database/prisma.service';
 import { ProductsService } from '../../products/products.service';
 import { OrdersService } from '../../orders/orders.service';
 import { CustomerMemoryService } from '../customer-memory.service';
+import { KnowledgeBaseService } from '../../knowledge-base/knowledge-base.service';
 import { IntentClassifierService } from './intent-classifier';
 import { TextGeneratorService } from './text-generator';
 import {
@@ -29,6 +30,7 @@ export class StateMachineOrchestratorService {
     private readonly productsService: ProductsService,
     private readonly ordersService: OrdersService,
     private readonly customerMemory: CustomerMemoryService,
+    private readonly knowledgeBase: KnowledgeBaseService,
     private readonly intentClassifier: IntentClassifierService,
     private readonly textGenerator: TextGeneratorService,
     private readonly config: ConfigService,
@@ -241,7 +243,14 @@ export class StateMachineOrchestratorService {
         const safeMemory = (transition.newState === OrderState.SETTING_ADDRESS || 
                             transition.newState === OrderState.ASKING_DELIVERY)
           ? memoryHint : '';
-        const safeLlmContext = `${transition.llmContext}${actionResults ? `\n\nResultado de acciones:${actionResults}` : ''}${safeMemory}`;
+        
+        // RAG: Search knowledge base for relevant context based on customer message
+        let ragContext = '';
+        try {
+          ragContext = await this.knowledgeBase.buildRAGContext(message.text ?? '', schemaName);
+        } catch {}
+
+        const safeLlmContext = `${transition.llmContext}${actionResults ? `\n\nResultado de acciones:${actionResults}` : ''}${safeMemory}${ragContext}`;
         responseText = await this.textGenerator.generate(safeLlmContext, personality, customerName);
       }
     }
