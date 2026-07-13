@@ -241,7 +241,7 @@ export class OrderStateMachine {
         return {
           newState: OrderState.IDLE,
           actions: [],
-          llmContext: `El cliente dijo: "${intent.text}". Responde de forma útil. Si quiere pedir, muestra el catálogo:\n${this.formatCatalog()}`,
+          llmContext: `El cliente dijo: "${intent.text}". Responde de forma útil y natural a lo que pregunta. Si parece que quiere pedir algo, pregunta qué se le antoja. NO repitas siempre la misma respuesta. Sé variado y conversacional.`,
         };
       }
     }
@@ -296,7 +296,7 @@ export class OrderStateMachine {
         return {
           newState: OrderState.TAKING_ORDER,
           actions: [],
-          llmContext: `El cliente dijo: "${intent.text}". No estoy seguro de qué producto quiere. Pregunta brevemente: "¿Me puedes repetir qué te gustaría pedir?" NO muestres todo el catálogo.`,
+          llmContext: `El cliente dijo: "${intent.text}". No entendí qué producto quiere. Responde de forma breve y DIFERENTE cada vez — pregunta qué le gustaría pedir o si necesita ver el menú. NO repitas siempre la misma frase. NO muestres el catálogo completo. Sé natural y variado.`,
         };
     }
   }

@@ -324,11 +324,24 @@ export class StateMachineOrchestratorService {
   }
 
   private getSafeFallback(state: ConversationStateData): string {
+    // Use random selection to avoid repetitive fallbacks
+    const confirmingFallbacks = [
+      '¿Me puedes decir otra vez qué quieres? Quiero tener tu pedido bien. 😊',
+      'Disculpa, ¿me repites qué productos y cantidades llevas? 📝',
+      '¿Podrías confirmarme tu pedido una vez más? 🙏',
+    ];
+    const takingFallbacks = [
+      '¿Qué te gustaría pedir? 🌮',
+      '¡Dime qué se te antoja! 😋',
+      '¿Qué te puedo preparar hoy? 🍽️',
+    ];
+    const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+
     switch (state.state) {
       case OrderState.CONFIRMING_ORDER:
-        return '¿Me puedes repetir tu pedido? Quiero asegurarme de tenerlo bien. 😊';
+        return pick(confirmingFallbacks);
       case OrderState.TAKING_ORDER:
-        return '¿Qué te gustaría pedir? 🌮';
+        return pick(takingFallbacks);
       case OrderState.ORDER_COMPLETE:
         return `Tu pedido ${state.orderNumber ?? ''} está en proceso. ¡Te avisamos cuando salga! 🙌`;
       default:
