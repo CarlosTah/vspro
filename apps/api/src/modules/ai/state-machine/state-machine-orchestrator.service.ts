@@ -255,10 +255,85 @@ export class StateMachineOrchestratorService {
       }
     }
 
-    // 8. Persist state in conversation context
+    // 8. V&V — Verify & Validate response before sending
+    if (!transition.skipLlm && responseText) {
+      responseText = this.validateResponse(responseText, newState, catalog);
+    }
+
+    // 9. Persist state in conversation context
     await this.persistState(conversation.id, newState, schemaName);
 
     return { text: responseText, newState };
+  }
+
+  // ─── V&V: Post-generation validation ───────────────────────
+
+  /**
+   * Validates the LLM-generated response before sending.
+   * Checks for: wrong prices, invented products, hallucinated totals.
+   * If invalid, returns a safe fallback.
+   */
+  private validateResponse(
+    text: string,
+    state: ConversationStateData,
+    catalog: Array<{ name: string; price: number }>,
+  ): string {
+    // 1. Check for hallucinated prices/totals
+    const priceMatches = text.match(/\$(\d+(?:\.\d{2})?)/g);
+    if (priceMatches && state.total) {
+      for (const match of priceMatches) {
+        const amount = parseFloat(match.replace('$', ''));
+        // Check if this amount is a valid catalog price, the state total, or a known calculation
+        const isValidPrice = catalog.some(p => p.price === amount);
+        const isStateTotal = amount === state.total;
+        const isWithDelivery = amount === state.total + 30; // common: total + shipping
+        const isSubtotal = state.items?.some((i: any) => {
+          const price = i.price ?? catalog.find(p => p.name.toLowerCase() === (i.productName || '').toLowerCase())?.price ?? 0;
+          return price * i.quantity === amount;
+        });
+
+        if (!isValidPrice && !isStateTotal && !isWithDelivery && !isSubtotal && amount > 0 && amount !== 30) {
+          this.logger.warn(`[V&V] Hallucinated price $${amount} detected in response. State total: $${state.total}`);
+          // Replace the wrong amount with the correct total
+          text = text.replace(match, `$${state.total}`);
+        }
+      }
+    }
+
+    // 2. Check for invented products (names not in catalog)
+    const catalogNames = catalog.map(p => p.name.toLowerCase());
+    // Look for patterns like "Nx ProductName" or "- ProductName" that might be hallucinated items
+    const itemPatterns = text.match(/(?:\d+x?\s+|[-•]\s+)([A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*[\($\n]|$)/gm);
+    if (itemPatterns && itemPatterns.length > 2) {
+      // If the response lists 3+ items, verify they exist in catalog
+      let inventedCount = 0;
+      for (const pattern of itemPatterns) {
+        const cleaned = pattern.replace(/^[\d+x\-•\s]+/, '').replace(/[\($\n].*$/, '').trim().toLowerCase();
+        if (cleaned.length > 3 && !catalogNames.some(n => n.includes(cleaned) || cleaned.includes(n))) {
+          inventedCount++;
+        }
+      }
+      if (inventedCount > 1) {
+        this.logger.warn(`[V&V] ${inventedCount} invented products detected in response. Blocking.`);
+        // Fall back to a safe message based on current state
+        return this.getSafeFallback(state);
+      }
+    }
+
+    return text;
+  }
+
+  private getSafeFallback(state: ConversationStateData): string {
+    switch (state.state) {
+      case OrderState.CONFIRMING_ORDER:
+        return '¿Me puedes repetir tu pedido? Quiero asegurarme de tenerlo bien. 😊';
+      case OrderState.TAKING_ORDER:
+        return '¿Qué te gustaría pedir? 🌮';
+      case OrderState.ORDER_COMPLETE:
+        return `Tu pedido ${state.orderNumber ?? ''} está en proceso. ¡Te avisamos cuando salga! 🙌`;
+      default:
+        return '¿En qué te puedo ayudar? 😊';
+    }
   }
 
   // ─── State Management ───────────────────────────────────────
