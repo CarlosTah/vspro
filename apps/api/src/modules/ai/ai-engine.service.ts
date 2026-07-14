@@ -876,6 +876,155 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           },
         },
       },
+      {
+        type: 'function',
+        function: {
+          name: 'upload_media',
+          description: 'Sube una imagen (menú, promoción, catálogo) al sistema. El owner envía la imagen por WhatsApp y se guarda en el CDN para que el agente la pueda enviar a clientes.',
+          parameters: {
+            type: 'object',
+            properties: {
+              mediaUrl: { type: 'string', description: 'URL de la imagen recibida de WhatsApp' },
+              type: { type: 'string', enum: ['menu', 'promo', 'catalog', 'general'], description: 'Tipo de material' },
+              title: { type: 'string', description: 'Título descriptivo de la imagen' },
+            },
+            required: ['mediaUrl', 'type', 'title'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'update_product',
+          description: 'Edita un producto existente del catálogo. Puede cambiar nombre, precio o stock.',
+          parameters: {
+            type: 'object',
+            properties: {
+              productName: { type: 'string', description: 'Nombre actual del producto a editar' },
+              newName: { type: 'string', description: 'Nuevo nombre (opcional)' },
+              newPrice: { type: 'number', description: 'Nuevo precio (opcional)' },
+              stockAvailable: { type: 'number', description: 'Nueva cantidad en stock (opcional)' },
+            },
+            required: ['productName'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'delete_product',
+          description: 'Elimina un producto del catálogo.',
+          parameters: {
+            type: 'object',
+            properties: {
+              productName: { type: 'string', description: 'Nombre del producto a eliminar' },
+            },
+            required: ['productName'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'set_custom_instructions',
+          description: 'Configura las instrucciones personalizadas del agente (personalidad, reglas, tono, prohibiciones). Esto define cómo se comporta el agente con los clientes.',
+          parameters: {
+            type: 'object',
+            properties: {
+              instructions: { type: 'string', description: 'Las instrucciones completas para el agente' },
+            },
+            required: ['instructions'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'set_away_message',
+          description: 'Configura el mensaje que se envía cuando el negocio está cerrado (fuera de horario).',
+          parameters: {
+            type: 'object',
+            properties: {
+              message: { type: 'string', description: 'Mensaje de "cerrado" o "no disponible"' },
+            },
+            required: ['message'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'set_welcome_message',
+          description: 'Configura el mensaje de bienvenida que recibe un cliente nuevo al escribir por primera vez.',
+          parameters: {
+            type: 'object',
+            properties: {
+              message: { type: 'string', description: 'Mensaje de bienvenida' },
+            },
+            required: ['message'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'add_knowledge_base_entry',
+          description: 'Agrega información a la base de conocimiento del negocio (FAQs, políticas, horarios, info general). El agente usará esta info para responder preguntas de clientes.',
+          parameters: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: 'Título o tema (ej: "Política de devoluciones")' },
+              content: { type: 'string', description: 'Contenido/respuesta completa' },
+              category: { type: 'string', enum: ['info', 'politica', 'faq', 'general'], description: 'Categoría' },
+            },
+            required: ['title', 'content'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'list_products',
+          description: 'Muestra el catálogo completo de productos con precios y stock.',
+          parameters: { type: 'object', properties: {} },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'list_drivers',
+          description: 'Muestra los repartidores configurados con su estado.',
+          parameters: { type: 'object', properties: {} },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'set_delivery_cost',
+          description: 'Cambia el costo de envío a domicilio.',
+          parameters: {
+            type: 'object',
+            properties: {
+              cost: { type: 'number', description: 'Nuevo costo de envío en pesos' },
+            },
+            required: ['cost'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'switch_whatsapp_number',
+          description: 'Mueve el número de WhatsApp Business del negocio actual a otro tenant/negocio. Usa con precaución.',
+          parameters: {
+            type: 'object',
+            properties: {
+              targetTenantSlug: { type: 'string', description: 'Slug del tenant destino' },
+            },
+            required: ['targetTenantSlug'],
+          },
+        },
+      },
     ];
   }
 
@@ -1331,6 +1480,20 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             }
           }
 
+          // Auto-configure WhatsApp channel if the registering owner has one
+          try {
+            const ownerChannels = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT external_id, access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`,
+            );
+            if (ownerChannels.length > 0) {
+              await this.prisma.$executeRawUnsafe(`
+                CREATE TABLE IF NOT EXISTS "${tenant.schemaName}".channels (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), type VARCHAR(20) NOT NULL, external_id VARCHAR(100), access_token TEXT, is_active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW())
+              `);
+              // Note: Don't auto-move the channel - just log that it needs to be configured
+              this.logger.log(`[register_business] New tenant ${tenant.slug} created. WhatsApp channel needs manual assignment via switch_whatsapp_number.`);
+            }
+          } catch {}
+
           return JSON.stringify({
             success: true,
             tenantSlug: tenant.slug,
@@ -1487,6 +1650,14 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
 
       case 'generate_report': {
         try {
+          // Validate data exists
+          const orderCount = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT COUNT(*)::int AS count FROM "${schemaName}".orders`,
+          );
+          if (!orderCount[0]?.count || orderCount[0].count === 0) {
+            return JSON.stringify({ success: true, message: 'Aún no hay datos para generar reportes. Necesitas al menos una orden completada.' });
+          }
+
           const now = new Date();
           let dateFilter: string;
           let label: string;
@@ -1952,42 +2123,38 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           for (const asset of assets.slice(0, 3)) {
             try {
               if (asset.url.startsWith('data:')) {
-                // Base64 image — upload to Meta first, then send by media ID
-                const matches = asset.url.match(/^data:(.+?);base64,(.+)$/);
-                if (matches) {
-                  const mimeType = matches[1];
-                  const base64Data = matches[2];
-                  const buffer = Buffer.from(base64Data, 'base64');
-
-                  // Upload media to Meta
-                  const FormData = (await import('form-data')).default;
-                  const form = new FormData();
-                  form.append('messaging_product', 'whatsapp');
-                  form.append('type', 'image');
-                  form.append('file', buffer, { filename: 'image.jpg', contentType: mimeType });
-
-                  const uploadResp = await axios.post(
-                    `https://graph.facebook.com/v19.0/${phoneNumberId}/media`,
-                    form,
-                    { headers: { Authorization: `Bearer ${accessToken}`, ...form.getHeaders() } },
-                  );
-
-                  const mediaId = uploadResp.data?.id;
-                  if (mediaId) {
+                // Auto-migrate base64 to CDN
+                try {
+                  const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+                  const match2 = asset.url.match(/^data:(image\/\w+);base64,(.+)$/s);
+                  if (match2) {
+                    const buf = Buffer.from(match2[2], 'base64');
+                    const ext2 = match2[1].includes('png') ? 'png' : 'jpg';
+                    const key2 = `media/${schemaName}/${args.mediaType}/${asset.id}.${ext2}`;
+                    const s3 = new S3Client({
+                      endpoint: this.config.get('AWS_S3_ENDPOINT') || 'https://nyc3.digitaloceanspaces.com',
+                      region: this.config.get('AWS_REGION') || 'nyc3',
+                      credentials: { accessKeyId: this.config.get('AWS_ACCESS_KEY_ID') || '', secretAccessKey: this.config.get('AWS_SECRET_ACCESS_KEY') || '' },
+                      forcePathStyle: false,
+                    });
+                    const bucket = this.config.get('AWS_S3_BUCKET') || 'vspro-uploads';
+                    await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key2, Body: buf, ContentType: match2[1], ACL: 'public-read' }));
+                    const cdnUrl = `https://${bucket}.nyc3.digitaloceanspaces.com/${key2}`;
+                    // Update DB
+                    await this.prisma.$executeRawUnsafe(`UPDATE "${schemaName}".media_assets SET url = $1 WHERE id = $2::uuid`, cdnUrl, asset.id);
+                    asset.url = cdnUrl;
+                    // Now send it
                     await axios.post(
-                      `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,
-                      {
-                        messaging_product: 'whatsapp',
-                        to: customerPhone,
-                        type: 'image',
-                        image: { id: mediaId, caption: asset.title ?? '' },
-                      },
+                      `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+                      { messaging_product: 'whatsapp', to: customerPhone, type: 'image', image: { link: cdnUrl, caption: asset.title ?? '' } },
                       { headers: { Authorization: `Bearer ${accessToken}` } },
-                    );
+                    ).catch(() => {});
                     sentCount++;
                   }
+                } catch (migErr: any) {
+                  this.logger.warn(`[${schemaName}] Failed to auto-migrate base64 to CDN: ${migErr.message}`);
                 }
-              } else {
+              } else if (asset.url) {
                 // Regular URL — send directly via link
                 await axios.post(
                   `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,
@@ -2288,6 +2455,216 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           });
         } catch (err: any) {
           return JSON.stringify({ success: false, message: `Error al canjear puntos: ${err.message}` });
+        }
+      }
+
+      case 'upload_media': {
+        try {
+          const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+          const axios = (await import('axios')).default;
+          
+          // Download image from WhatsApp URL
+          const mediaResponse = await axios.get(args.mediaUrl, { responseType: 'arraybuffer', headers: { Authorization: `Bearer ${this.config.get('WHATSAPP_TOKEN') || ''}` } }).catch(() => null);
+          if (!mediaResponse) return JSON.stringify({ success: false, message: 'No se pudo descargar la imagen' });
+          
+          const buffer = Buffer.from(mediaResponse.data);
+          const mimeType = String(mediaResponse.headers['content-type'] || 'image/jpeg');
+          const ext = mimeType.includes('png') ? 'png' : 'jpg';
+          const id = require('crypto').randomUUID();
+          const key = `media/${schemaName}/${args.type}/${id}.${ext}`;
+          
+          const s3 = new S3Client({
+            endpoint: this.config.get('AWS_S3_ENDPOINT') || 'https://nyc3.digitaloceanspaces.com',
+            region: this.config.get('AWS_REGION') || 'nyc3',
+            credentials: { accessKeyId: this.config.get('AWS_ACCESS_KEY_ID') || '', secretAccessKey: this.config.get('AWS_SECRET_ACCESS_KEY') || '' },
+            forcePathStyle: false,
+          });
+          
+          const bucket = this.config.get('AWS_S3_BUCKET') || 'vspro-uploads';
+          await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: buffer, ContentType: mimeType as string, ACL: 'public-read' }));
+          
+          const publicUrl = `https://${bucket}.nyc3.digitaloceanspaces.com/${key}`;
+          
+          // Save to media_assets
+          await this.prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "${schemaName}".media_assets (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), type VARCHAR(50) NOT NULL DEFAULT 'general', title VARCHAR(255), url TEXT NOT NULL, is_active BOOLEAN NOT NULL DEFAULT true, sort_order INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())
+          `);
+          await this.prisma.$executeRawUnsafe(`
+            INSERT INTO "${schemaName}".media_assets (type, title, url) VALUES ($1, $2, $3)
+          `, args.type, args.title, publicUrl);
+          
+          return JSON.stringify({ success: true, url: publicUrl, message: `Imagen "${args.title}" subida como ${args.type}. Los clientes ahora podrán verla.` });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
+        }
+      }
+
+      case 'update_product': {
+        try {
+          const products = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT id, name, price, stock_available AS "stockAvailable" FROM "${schemaName}".products WHERE LOWER(name) LIKE $1 LIMIT 1`,
+            `%${args.productName.toLowerCase()}%`,
+          );
+          if (products.length === 0) return JSON.stringify({ success: false, message: `Producto "${args.productName}" no encontrado` });
+          
+          const p = products[0];
+          const updates: string[] = [];
+          const values: any[] = [];
+          let idx = 1;
+          
+          if (args.newName) { updates.push(`name = $${idx++}`); values.push(args.newName); }
+          if (args.newPrice !== undefined) { updates.push(`price = $${idx++}`); values.push(args.newPrice); }
+          if (args.stockAvailable !== undefined) { updates.push(`stock_available = $${idx++}`); values.push(args.stockAvailable); }
+          
+          if (updates.length === 0) return JSON.stringify({ success: false, message: 'No se proporcionaron cambios' });
+          
+          values.push(p.id);
+          await this.prisma.$executeRawUnsafe(
+            `UPDATE "${schemaName}".products SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${idx}::uuid`,
+            ...values,
+          );
+          
+          return JSON.stringify({ success: true, message: `Producto "${p.name}" actualizado: ${args.newName ? `nombre → ${args.newName}` : ''}${args.newPrice ? ` precio → $${args.newPrice}` : ''}${args.stockAvailable !== undefined ? ` stock → ${args.stockAvailable}` : ''}` });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
+        }
+      }
+
+      case 'delete_product': {
+        try {
+          const products = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT id, name FROM "${schemaName}".products WHERE LOWER(name) LIKE $1 LIMIT 1`,
+            `%${args.productName.toLowerCase()}%`,
+          );
+          if (products.length === 0) return JSON.stringify({ success: false, message: `Producto "${args.productName}" no encontrado` });
+          
+          await this.prisma.$executeRawUnsafe(`DELETE FROM "${schemaName}".products WHERE id = $1::uuid`, products[0].id);
+          return JSON.stringify({ success: true, message: `Producto "${products[0].name}" eliminado del catálogo.` });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
+        }
+      }
+
+      case 'set_custom_instructions': {
+        try {
+          await this.prisma.$executeRawUnsafe(
+            `UPDATE "${schemaName}".ai_config SET custom_instructions = $1, updated_at = NOW() WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)`,
+            args.instructions,
+          );
+          return JSON.stringify({ success: true, message: 'Instrucciones del agente actualizadas. El agente ahora seguirá estas reglas.' });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
+        }
+      }
+
+      case 'set_away_message': {
+        try {
+          await this.prisma.$executeRawUnsafe(
+            `UPDATE "${schemaName}".ai_config SET away_message = $1, updated_at = NOW() WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)`,
+            args.message,
+          );
+          return JSON.stringify({ success: true, message: 'Mensaje de "cerrado" actualizado.' });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
+        }
+      }
+
+      case 'set_welcome_message': {
+        try {
+          await this.prisma.$executeRawUnsafe(
+            `UPDATE "${schemaName}".ai_config SET welcome_message = $1, updated_at = NOW() WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)`,
+            args.message,
+          );
+          return JSON.stringify({ success: true, message: 'Mensaje de bienvenida actualizado.' });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
+        }
+      }
+
+      case 'add_knowledge_base_entry': {
+        try {
+          await this.prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "${schemaName}".knowledge_base (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), title VARCHAR(255), content TEXT, category VARCHAR(50) DEFAULT 'general', is_active BOOLEAN DEFAULT true, sort_order INTEGER DEFAULT 0, embedding vector(1536), created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW())
+          `);
+          await this.prisma.$executeRawUnsafe(
+            `INSERT INTO "${schemaName}".knowledge_base (title, content, category) VALUES ($1, $2, $3)`,
+            args.title, args.content, args.category || 'general',
+          );
+          return JSON.stringify({ success: true, message: `Info agregada a la base de conocimiento: "${args.title}". El agente ahora podrá usar esta información para responder clientes.` });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
+        }
+      }
+
+      case 'list_products': {
+        try {
+          const products = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT name, price, stock_available AS "stock" FROM "${schemaName}".products WHERE is_active = true ORDER BY name`,
+          );
+          if (products.length === 0) return JSON.stringify({ success: true, products: [], message: 'No hay productos en el catálogo aún.' });
+          const list = products.map((p: any) => `• ${p.name}: $${p.price}${p.stock !== null ? ` (stock: ${p.stock})` : ''}`).join('\n');
+          return JSON.stringify({ success: true, count: products.length, products: list });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
+        }
+      }
+
+      case 'list_drivers': {
+        try {
+          await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "${schemaName}".delivery_drivers (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARCHAR(100), phone VARCHAR(20), status VARCHAR(20) DEFAULT 'available', max_deliveries INTEGER DEFAULT 3, created_at TIMESTAMPTZ DEFAULT NOW())`);
+          const drivers = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT name, phone, status, max_deliveries AS "maxDeliveries" FROM "${schemaName}".delivery_drivers ORDER BY name`,
+          );
+          if (drivers.length === 0) return JSON.stringify({ success: true, drivers: [], message: 'No hay repartidores configurados.' });
+          const list = drivers.map((d: any) => `• ${d.name} (${d.phone}) — ${d.status}`).join('\n');
+          return JSON.stringify({ success: true, count: drivers.length, drivers: list });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
+        }
+      }
+
+      case 'set_delivery_cost': {
+        try {
+          await this.prisma.$executeRawUnsafe(`
+            UPDATE "${schemaName}".ai_config SET agent_config = jsonb_set(COALESCE(agent_config, '{}'::jsonb), '{deliverySettings,shippingCost}', $1::jsonb), updated_at = NOW() WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
+          `, JSON.stringify(args.cost));
+          return JSON.stringify({ success: true, message: `Costo de envío actualizado a $${args.cost}.` });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
+        }
+      }
+
+      case 'switch_whatsapp_number': {
+        try {
+          // Get current channel info
+          const currentChannel = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT id, external_id, access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`,
+          );
+          if (currentChannel.length === 0) return JSON.stringify({ success: false, message: 'Este negocio no tiene un número WhatsApp configurado.' });
+          
+          // Find target tenant
+          const targetTenant = await this.prisma.tenant.findFirst({ where: { slug: args.targetTenantSlug, status: { in: ['ACTIVE', 'TRIAL'] } } });
+          if (!targetTenant) return JSON.stringify({ success: false, message: `Tenant "${args.targetTenantSlug}" no encontrado o no está activo.` });
+          
+          const targetSchema = (targetTenant as any).schemaName;
+          
+          // Remove from current
+          await this.prisma.$executeRawUnsafe(`DELETE FROM "${schemaName}".channels WHERE id = $1::uuid`, currentChannel[0].id);
+          
+          // Add to target
+          await this.prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "${targetSchema}".channels (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), type VARCHAR(20) NOT NULL, external_id VARCHAR(100), access_token TEXT, is_active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW())
+          `);
+          await this.prisma.$executeRawUnsafe(`
+            DELETE FROM "${targetSchema}".channels WHERE type = 'whatsapp'
+          `);
+          await this.prisma.$executeRawUnsafe(`
+            INSERT INTO "${targetSchema}".channels (type, external_id, access_token, is_active) VALUES ('whatsapp', $1, $2, true)
+          `, currentChannel[0].external_id, currentChannel[0].access_token);
+          
+          return JSON.stringify({ success: true, message: `Número WhatsApp movido a "${args.targetTenantSlug}". Los mensajes ahora irán a ese negocio.` });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
         }
       }
 
