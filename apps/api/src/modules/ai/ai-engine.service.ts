@@ -1031,6 +1031,72 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           },
         },
       },
+      {
+        type: 'function',
+        function: {
+          name: 'get_subscription_status',
+          description: 'Muestra el estado de la suscripción del negocio: plan actual, fecha de vencimiento del trial, estado de pago. Usa cuando el dueño pregunta "¿cuándo vence mi prueba?", "¿qué plan tengo?", etc.',
+          parameters: { type: 'object', properties: {} },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_config_summary',
+          description: 'Muestra un resumen de toda la configuración actual del negocio: productos, horarios, repartidores, datos bancarios, personalidad del agente, base de conocimiento. Usa para validar que todo esté configurado correctamente.',
+          parameters: { type: 'object', properties: {} },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'create_promotion',
+          description: 'Crea una promoción o combo para el negocio. Tipos: discount (porcentaje o monto fijo), combo (precio especial por conjunto), bogo (compra X lleva Y gratis).',
+          parameters: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Nombre de la promoción (ej: "Martes de Tacos 2x1")' },
+              type: { type: 'string', enum: ['discount', 'combo', 'bogo'], description: 'Tipo de promoción' },
+              description: { type: 'string', description: 'Descripción para el cliente' },
+              discountValue: { type: 'number', description: 'Para discount: porcentaje (10=10%) o monto fijo' },
+              discountType: { type: 'string', enum: ['percentage', 'fixed'], description: 'Tipo de descuento' },
+              comboPrice: { type: 'number', description: 'Para combo: precio del combo' },
+              comboProducts: { type: 'array', items: { type: 'object', properties: { productName: { type: 'string' }, quantity: { type: 'number' } } }, description: 'Productos del combo' },
+              buyQuantity: { type: 'number', description: 'Para bogo: cantidad que compra' },
+              getQuantity: { type: 'number', description: 'Para bogo: cantidad gratis' },
+              startDate: { type: 'string', description: 'Fecha inicio (YYYY-MM-DD), default: hoy' },
+              endDate: { type: 'string', description: 'Fecha fin (YYYY-MM-DD), default: 30 días' },
+            },
+            required: ['name', 'type'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_usage_stats',
+          description: 'Muestra estadísticas de uso del negocio: mensajes enviados este mes, pedidos del mes, clientes nuevos, ingresos. Usa cuando preguntan métricas o "cómo va mi negocio".',
+          parameters: { type: 'object', properties: {} },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'save_prospect',
+          description: 'Guarda los datos de un prospecto interesado en VSPRO para seguimiento (CRM básico). Usa cuando un prospecto da su nombre, negocio o datos de contacto pero AÚN no se registra.',
+          parameters: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Nombre del prospecto' },
+              phone: { type: 'string', description: 'Teléfono (si lo da)' },
+              businessName: { type: 'string', description: 'Nombre de su negocio (si lo menciona)' },
+              industry: { type: 'string', description: 'Giro del negocio' },
+              interest: { type: 'string', description: 'Qué le interesa o por qué preguntó (ej: "quiere automatizar pedidos")' },
+            },
+            required: ['name'],
+          },
+        },
+      },
     ];
   }
 
@@ -2674,6 +2740,267 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         }
       }
 
+      case 'get_subscription_status': {
+        try {
+          const tenantData = await this.prisma.tenant.findFirst({
+            where: { schemaName },
+            include: { plan: true },
+          });
+          if (!tenantData) return JSON.stringify({ success: false, message: 'Tenant no encontrado' });
+
+          const subscription = await this.prisma.subscription.findFirst({
+            where: { tenantId: tenantData.id, status: { in: ['ACTIVE', 'TRIALING'] } },
+            orderBy: { createdAt: 'desc' },
+          });
+
+          const trialEnd = (tenantData as any).trialEndsAt;
+          const now = new Date();
+          const isTrialActive = trialEnd && new Date(trialEnd) > now;
+          const daysLeft = isTrialActive ? Math.ceil((new Date(trialEnd).getTime() - now.getTime()) / 86400000) : 0;
+
+          return JSON.stringify({
+            success: true,
+            status: (tenantData as any).status,
+            plan: tenantData.plan?.name ?? 'Sin plan',
+            planSlug: tenantData.plan?.slug ?? null,
+            trialEndsAt: trialEnd ?? null,
+            trialDaysLeft: daysLeft,
+            isTrialActive,
+            subscriptionStatus: subscription?.status ?? 'none',
+            message: isTrialActive
+              ? `📋 Plan: Prueba gratuita. Te quedan ${daysLeft} día(s) (vence ${new Date(trialEnd).toLocaleDateString('es-MX')}). Para continuar después del trial, selecciona un plan.`
+              : subscription?.status === 'ACTIVE'
+                ? `📋 Plan: ${tenantData.plan?.name ?? 'Activo'}. Suscripción activa.`
+                : `📋 Estado: ${(tenantData as any).status}. ${tenantData.plan ? `Plan: ${tenantData.plan.name}` : 'Sin plan activo.'}`,
+          });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
+        }
+      }
+
+      case 'get_config_summary': {
+        try {
+          // Products
+          const products = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT COUNT(*)::int AS count FROM "${schemaName}".products WHERE is_active = true`,
+          );
+          // Drivers
+          let driverCount = 0;
+          try {
+            const drivers = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT COUNT(*)::int AS count FROM "${schemaName}".delivery_drivers`,
+            );
+            driverCount = drivers[0]?.count ?? 0;
+          } catch {}
+          // AI Config
+          const config = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT assistant_name, tone, business_hours IS NOT NULL AS "hasHours", 
+                    custom_instructions IS NOT NULL AND custom_instructions != '' AS "hasInstructions",
+                    agent_config->'payment_info' IS NOT NULL AS "hasPaymentInfo",
+                    agent_config->'deliverySettings'->'shippingCost' AS "shippingCost"
+             FROM "${schemaName}".ai_config LIMIT 1`,
+          );
+          // KB
+          let kbCount = 0;
+          try {
+            const kb = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT COUNT(*)::int AS count FROM "${schemaName}".knowledge_base WHERE is_active = true`,
+            );
+            kbCount = kb[0]?.count ?? 0;
+          } catch {}
+          // Media
+          let mediaCount = 0;
+          try {
+            const media = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT COUNT(*)::int AS count FROM "${schemaName}".media_assets WHERE is_active = true`,
+            );
+            mediaCount = media[0]?.count ?? 0;
+          } catch {}
+          // Channel
+          let hasWhatsApp = false;
+          try {
+            const ch = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT 1 FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`,
+            );
+            hasWhatsApp = ch.length > 0;
+          } catch {}
+
+          const cfg = config[0] ?? {};
+          const summary = {
+            products: products[0]?.count ?? 0,
+            drivers: driverCount,
+            assistantName: cfg.assistant_name ?? 'No configurado',
+            tone: cfg.tone ?? 'No configurado',
+            hasBusinessHours: !!cfg.hasHours,
+            hasCustomInstructions: !!cfg.hasInstructions,
+            hasPaymentInfo: !!cfg.hasPaymentInfo,
+            shippingCost: cfg.shippingCost ?? 'No configurado',
+            knowledgeBaseEntries: kbCount,
+            mediaAssets: mediaCount,
+            hasWhatsApp,
+          };
+
+          const checks = [
+            `${summary.products > 0 ? '✅' : '❌'} Productos: ${summary.products}`,
+            `${summary.hasBusinessHours ? '✅' : '❌'} Horarios configurados`,
+            `${summary.hasCustomInstructions ? '✅' : '❌'} Personalidad del agente`,
+            `${summary.hasPaymentInfo ? '✅' : '❌'} Datos bancarios`,
+            `${summary.drivers > 0 ? '✅' : '❌'} Repartidores: ${summary.drivers}`,
+            `${summary.knowledgeBaseEntries > 0 ? '✅' : '⚠️'} Base de conocimiento: ${summary.knowledgeBaseEntries} entradas`,
+            `${summary.mediaAssets > 0 ? '✅' : '⚠️'} Material gráfico: ${summary.mediaAssets} imágenes`,
+            `${summary.hasWhatsApp ? '✅' : '❌'} Canal WhatsApp conectado`,
+            `ℹ️ Nombre del agente: ${summary.assistantName}`,
+            `ℹ️ Costo de envío: $${summary.shippingCost}`,
+          ];
+
+          return JSON.stringify({
+            success: true,
+            summary,
+            message: `📊 Configuración del negocio:\n${checks.join('\n')}`,
+          });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
+        }
+      }
+
+      case 'create_promotion': {
+        try {
+          await this.prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "${schemaName}".promotions (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              name VARCHAR(255) NOT NULL,
+              description TEXT,
+              type VARCHAR(50) NOT NULL DEFAULT 'discount',
+              rules JSONB NOT NULL DEFAULT '{}',
+              is_active BOOLEAN DEFAULT true,
+              start_date TIMESTAMPTZ DEFAULT NOW(),
+              end_date TIMESTAMPTZ DEFAULT NOW() + INTERVAL '30 days',
+              max_uses INTEGER,
+              current_uses INTEGER DEFAULT 0,
+              created_at TIMESTAMPTZ DEFAULT NOW(),
+              updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+          `);
+
+          const rules: Record<string, any> = {};
+          if (args.type === 'discount') {
+            rules.discountType = args.discountType ?? 'percentage';
+            rules.discountValue = args.discountValue ?? 10;
+          } else if (args.type === 'combo') {
+            rules.comboPrice = args.comboPrice;
+            rules.products = args.comboProducts ?? [];
+          } else if (args.type === 'bogo') {
+            rules.buyQuantity = args.buyQuantity ?? 2;
+            rules.getQuantity = args.getQuantity ?? 1;
+          }
+
+          const startDate = args.startDate ?? new Date().toISOString().split('T')[0];
+          const endDate = args.endDate ?? new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+
+          await this.prisma.$executeRawUnsafe(`
+            INSERT INTO "${schemaName}".promotions (name, description, type, rules, start_date, end_date)
+            VALUES ($1, $2, $3, $4::jsonb, $5::date, $6::date)
+          `, args.name, args.description ?? '', args.type, JSON.stringify(rules), startDate, endDate);
+
+          let promoDesc = '';
+          if (args.type === 'discount') promoDesc = `${rules.discountValue}${rules.discountType === 'percentage' ? '%' : '$'} de descuento`;
+          else if (args.type === 'combo') promoDesc = `Combo por $${rules.comboPrice}`;
+          else if (args.type === 'bogo') promoDesc = `Compra ${rules.buyQuantity} lleva ${rules.getQuantity} gratis`;
+
+          return JSON.stringify({
+            success: true,
+            message: `🎉 Promoción "${args.name}" creada: ${promoDesc}. Vigencia: ${startDate} al ${endDate}. El agente la ofrecerá a los clientes automáticamente.`,
+          });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
+        }
+      }
+
+      case 'get_usage_stats': {
+        try {
+          const now = new Date();
+          const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+          // Orders this month
+          const orders = await this.prisma.$queryRawUnsafe<any[]>(`
+            SELECT COUNT(*)::int AS total,
+                   COUNT(*) FILTER (WHERE status = 'delivered')::int AS delivered,
+                   COALESCE(SUM(total) FILTER (WHERE status = 'delivered'), 0) AS revenue
+            FROM "${schemaName}".orders
+            WHERE created_at >= $1::timestamptz
+          `, firstOfMonth);
+
+          // Messages this month
+          const messages = await this.prisma.$queryRawUnsafe<any[]>(`
+            SELECT COUNT(*)::int AS total FROM "${schemaName}".messages
+            WHERE created_at >= $1::timestamptz
+          `, firstOfMonth);
+
+          // New customers this month
+          const customers = await this.prisma.$queryRawUnsafe<any[]>(`
+            SELECT COUNT(*)::int AS total FROM "${schemaName}".customers
+            WHERE created_at >= $1::timestamptz
+          `, firstOfMonth);
+
+          // Total customers
+          const totalCustomers = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT COUNT(*)::int AS total FROM "${schemaName}".customers`,
+          );
+
+          const o = orders[0] ?? {};
+          const stats = {
+            month: now.toLocaleString('es-MX', { month: 'long', year: 'numeric' }),
+            orders: { total: o.total ?? 0, delivered: o.delivered ?? 0 },
+            revenue: parseFloat(o.revenue) || 0,
+            messages: messages[0]?.total ?? 0,
+            newCustomers: customers[0]?.total ?? 0,
+            totalCustomers: totalCustomers[0]?.total ?? 0,
+          };
+
+          return JSON.stringify({
+            success: true,
+            stats,
+            message: `📊 Estadísticas de ${stats.month}:\n• Pedidos: ${stats.orders.total} (${stats.orders.delivered} entregados)\n• Ingresos: $${stats.revenue.toLocaleString('es-MX')}\n• Mensajes: ${stats.messages}\n• Clientes nuevos: ${stats.newCustomers} (total: ${stats.totalCustomers})`,
+          });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
+        }
+      }
+
+      case 'save_prospect': {
+        try {
+          // Create prospects table if not exists (in public schema for VSPRO CRM)
+          await this.prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "${schemaName}".prospects (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              name VARCHAR(255),
+              phone VARCHAR(50),
+              business_name VARCHAR(255),
+              industry VARCHAR(100),
+              interest TEXT,
+              status VARCHAR(50) DEFAULT 'new',
+              notes TEXT,
+              created_at TIMESTAMPTZ DEFAULT NOW(),
+              updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+          `);
+
+          const senderPhone = (conversation.context as any)?.senderPhone ?? args.phone ?? '';
+
+          await this.prisma.$executeRawUnsafe(`
+            INSERT INTO "${schemaName}".prospects (name, phone, business_name, industry, interest)
+            VALUES ($1, $2, $3, $4, $5)
+          `, args.name, senderPhone || args.phone || null, args.businessName || null, args.industry || null, args.interest || null);
+
+          return JSON.stringify({
+            success: true,
+            message: `📝 Prospecto "${args.name}" guardado${args.businessName ? ` (${args.businessName})` : ''}. Se le dará seguimiento.`,
+          });
+        } catch (e: any) {
+          return JSON.stringify({ success: false, message: e.message });
+        }
+      }
+
       default:
         return JSON.stringify({ error: `Herramienta desconocida: ${name}` });
     }
@@ -2899,6 +3226,11 @@ LO QUE PUEDES HACER:
 - Agregar FAQs (add_knowledge_base_entry)
 - Seleccionar plan (select_plan)
 - Mover número WhatsApp (switch_whatsapp_number)
+- Ver estado de suscripción (get_subscription_status)
+- Ver resumen de configuración (get_config_summary)
+- Crear promociones (create_promotion)
+- Ver estadísticas de uso (get_usage_stats)
+- Guardar prospecto (save_prospect)
 
 SI MANDAN UNA IMAGEN:
 - Si es un menú → extrae productos con precios y usa add_product para cada uno
