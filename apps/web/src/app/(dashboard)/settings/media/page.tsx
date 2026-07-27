@@ -55,9 +55,16 @@ export default function MediaSettingsPage() {
     finally { setUploading(false); e.target.value = ''; }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este material?')) return;
-    await api.delete(`/media-assets/${id}`);
+  const handleDelete = async (id: string, type: string) => {
+    let deleteProducts = false;
+    if (type === 'menu' || type === 'catalog') {
+      const choice = confirm('¿Eliminar este material?\n\nSi presionas "Aceptar" también se eliminarán los productos del catálogo asociados a esta imagen.\n\nSi solo quieres eliminar la imagen (sin tocar productos), cancela y usa el botón de editar.');
+      if (!choice) return;
+      deleteProducts = true;
+    } else {
+      if (!confirm('¿Eliminar este material?')) return;
+    }
+    await api.delete(`/media-assets/${id}${deleteProducts ? '?deleteProducts=true' : ''}`);
     loadAssets();
   };
 
@@ -118,7 +125,7 @@ export default function MediaSettingsPage() {
                     <img src={asset.url} alt={asset.title} className="w-full h-24 object-cover" />
                   )}
                   <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button onClick={() => handleDelete(asset.id)} className="text-xs text-red-400 bg-gray-900 rounded px-2 py-1">
+                    <button onClick={() => handleDelete(asset.id, asset.type)} className="text-xs text-red-400 bg-gray-900 rounded px-2 py-1">
                       🗑️ Eliminar
                     </button>
                   </div>

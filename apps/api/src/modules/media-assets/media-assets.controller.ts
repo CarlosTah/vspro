@@ -91,7 +91,21 @@ export class MediaAssetsController {
 
  @Delete(':id')
  @Roles('admin')
- async delete(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
+ async delete(
+ @Param('id', ParseUUIDPipe) id: string,
+ @Query('deleteProducts') deleteProducts: string,
+ @TenantSchema() schema: string,
+ ) {
+ // If deleteProducts=true, also delete all products in the catalog
+ if (deleteProducts === 'true') {
+ const count = await this.prisma.$queryRawUnsafe<any[]>(
+ `SELECT COUNT(*)::int AS cnt FROM "${schema}".products WHERE is_active = true`,
+ );
+ await this.prisma.$executeRawUnsafe(`DELETE FROM "${schema}".products`);
+ await this.prisma.$executeRawUnsafe(`DELETE FROM "${schema}".media_assets WHERE id = $1::uuid`, id);
+ return { success: true, productsDeleted: count[0]?.cnt ?? 0, message: 'Material y productos eliminados' };
+ }
+
  await this.prisma.$executeRawUnsafe(`DELETE FROM "${schema}".media_assets WHERE id = $1::uuid`, id);
  return { success: true };
  }
@@ -146,10 +160,12 @@ export class MediaAssetsController {
  private async uploadToSpaces(file: any, schema: string): Promise<string> {
  try {
  const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
- const spacesEndpoint = this.config.get('DO_SPACES_ENDPOINT', 'https://nyc3.digitaloceanspaces.com');
- const spacesBucket = this.config.get('DO_SPACES_BUCKET', 'vspro-storage');
- const spacesKey = this.config.get('DO_SPACES_KEY', '');
- const spacesSecret = this.config.get('DO_SPACES_SECRET', '');
+ // Support both DO_SPACES_* and AWS_* env var names
+ const spacesEndpoint = this.config.get('AWS_S3_ENDPOINT') || this.config.get('DO_SPACES_ENDPOINT') || 'https://nyc3.digitaloceanspaces.com';
+ const spacesBucket = this.config.get('AWS_S3_BUCKET') || this.config.get('DO_SPACES_BUCKET') || 'vspro-uploads';
+ const spacesKey = this.config.get('AWS_ACCESS_KEY_ID') || this.config.get('DO_SPACES_KEY') || '';
+ const spacesSecret = this.config.get('AWS_SECRET_ACCESS_KEY') || this.config.get('DO_SPACES_SECRET') || '';
+ const spacesRegion = this.config.get('AWS_REGION') || 'nyc3';
 
  if (!spacesKey || !spacesSecret) {
  // Fallback: save as base64 data URL if no Spaces configured
@@ -159,11 +175,13 @@ export class MediaAssetsController {
 
  const s3 = new S3Client({
  endpoint: spacesEndpoint,
- region: 'nyc3',
+ region: spacesRegion,
  credentials: { accessKeyId: spacesKey, secretAccessKey: spacesSecret },
+ forcePathStyle: false,
  });
 
- const key = `media/${schema}/${crypto.randomUUID()}-${file.originalname}`;
+ const ext = file.mimetype?.includes('png') ? 'png' : file.mimetype?.includes('pdf') ? 'pdf' : 'jpg';
+ const key = `media/${schema}/${crypto.randomUUID()}.${ext}`;
  await s3.send(new PutObjectCommand({
  Bucket: spacesBucket,
  Key: key,
@@ -172,9 +190,9 @@ export class MediaAssetsController {
  ACL: 'public-read',
  }));
 
- const cdnUrl = spacesEndpoint.replace('https://', `https://${spacesBucket}.`).replace('.digitaloceanspaces.com', '.cdn.digitaloceanspaces.com');
- return `${cdnUrl}/${key}`;
- } catch {
+ return `https://${spacesBucket}.${spacesRegion}.digitaloceanspaces.com/${key}`;
+ } catch (err: any) {
+ console.error(`[MediaAssets] Upload to Spaces failed: ${err.message}`);
  // If upload fails, store as base64
  const base64 = file.buffer.toString('base64');
  return `data:${file.mimetype};base64,${base64}`;
