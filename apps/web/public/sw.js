@@ -119,3 +119,32 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
+
+// Push Notifications
+self.addEventListener('push', (event) => {
+  const data = event.data?.json() ?? { title: 'VSPRO', body: 'Tienes una nueva notificación' };
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      tag: data.tag ?? 'vspro-notification',
+      data: { url: data.url ?? '/orders' },
+      vibrate: [200, 100, 200],
+    })
+  );
+});
+
+// Click on notification → open app
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url ?? '/orders';
+  event.waitUntil(
+    clients.matchAll({ type: 'window' }).then((windowClients) => {
+      for (const client of windowClients) {
+        if (client.url.includes(url) && 'focus' in client) return client.focus();
+      }
+      return clients.openWindow(url);
+    })
+  );
+});

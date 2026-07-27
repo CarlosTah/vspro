@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/sidebar';
 import { Header } from '@/components/header';
 import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
+import { PushSubscribe } from '@/components/push-subscribe';
 import { useAuth } from '@/lib/auth-context';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -37,6 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </main>
       </div>
       <PWAInstallPrompt />
+      <PushSubscribe />
     </div>
   );
 }
