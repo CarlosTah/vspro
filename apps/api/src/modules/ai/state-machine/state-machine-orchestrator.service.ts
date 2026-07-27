@@ -51,6 +51,20 @@ export class StateMachineOrchestratorService {
     // 1. Load current state from conversation context
     const currentState = this.loadState(conversation.context);
 
+    // Persist customerId and senderPhone to DB context if not already there
+    const initialCustId = conversation.context.customerId;
+    const senderPhone = conversation.context.senderPhone;
+    if (initialCustId || senderPhone) {
+      const ctxPatch: Record<string, any> = {};
+      if (initialCustId) ctxPatch.customerId = initialCustId;
+      if (senderPhone) ctxPatch.senderPhone = senderPhone;
+      if (conversation.context.customerName) ctxPatch.customerName = conversation.context.customerName;
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE "${schemaName}".conversations SET context = context || $1::jsonb WHERE id = $2::uuid`,
+        JSON.stringify(ctxPatch), conversation.id,
+      ).catch(() => {});
+    }
+
     // 2. Classify the customer's intent
     const hasImage = !!(message.mediaUrl && message.type === 'image');
     let intent: ParsedIntent;
@@ -366,7 +380,7 @@ export class StateMachineOrchestratorService {
   }
 
   private async persistState(conversationId: string, state: ConversationStateData, schemaName: string): Promise<void> {
-    const patch = {
+    const patch: Record<string, any> = {
       smState: state.state,
       lastOrderId: state.orderId,
       lastOrderNumber: state.orderNumber,
@@ -376,6 +390,8 @@ export class StateMachineOrchestratorService {
       smPaymentMethod: state.paymentMethod,
       smTotal: state.total,
     };
+    // Also persist customerName if available
+    if (state.customerName) patch.customerName = state.customerName;
 
     await this.prisma.$executeRawUnsafe(`
       UPDATE "${schemaName}".conversations
@@ -549,12 +565,36 @@ export class StateMachineOrchestratorService {
         }
 
         case 'escalate_complaint': {
-          // Notify the owner via WhatsApp with complaint details
+          // Notify the owner via WhatsApp with FULL complaint details
           try {
             const orderId = conversation.context.lastOrderId;
             const orderNum = conversation.context.lastOrderNumber;
             const custName = conversation.context.customerName ?? 'Cliente';
             const custPhone = conversation.context.senderPhone ?? '';
+            
+            // Get order details (items, total, address)
+            let orderDetails = '';
+            let driverName = '';
+            if (orderId) {
+              try {
+                const orderRows = await this.prisma.$queryRawUnsafe<any[]>(
+                  `SELECT items, total, shipping_address, payment_method FROM "${schemaName}".orders WHERE id = $1::uuid`, orderId,
+                );
+                if (orderRows[0]) {
+                  const items = typeof orderRows[0].items === 'string' ? JSON.parse(orderRows[0].items) : orderRows[0].items;
+                  const itemList = (items || []).map((i: any) => `${i.quantity}x ${i.productName}`).join(', ');
+                  const addr = orderRows[0].shipping_address?.street ?? 'Recoger en local';
+                  orderDetails = `\n🛒 Items: ${itemList}\n💰 Total: $${orderRows[0].total}\n📍 Dirección: ${addr}\n💳 Pago: ${orderRows[0].payment_method === 'cod' ? 'Efectivo contra entrega' : orderRows[0].payment_method ?? 'N/A'}`;
+                }
+                // Get driver info
+                const driverRows = await this.prisma.$queryRawUnsafe<any[]>(
+                  `SELECT dd.name, dd.phone FROM "${schemaName}".delivery_assignments da JOIN "${schemaName}".delivery_drivers dd ON dd.id = da.driver_id WHERE da.order_id = $1::uuid ORDER BY da.offered_at DESC LIMIT 1`, orderId,
+                );
+                if (driverRows[0]) {
+                  driverName = `\n🛵 Repartidor: ${driverRows[0].name} (${driverRows[0].phone})`;
+                }
+              } catch {}
+            }
             
             // Get ALL admin phones
             const admins = await this.prisma.$queryRawUnsafe<any[]>(
@@ -566,10 +606,10 @@ export class StateMachineOrchestratorService {
               const adminPhone = String(a.phone).replace(/\D/g, '');
               const senderClean = String(custPhone).replace(/\D/g, '');
               return adminPhone !== senderClean && !senderClean.endsWith(adminPhone) && !adminPhone.endsWith(senderClean);
-            }) || admins[0]; // fallback to first admin if no different one found
+            }) || admins[0];
             
             if (targetAdmin?.phone && targetAdmin.phone !== custPhone) {
-              const complaintMsg = `⚠️ *QUEJA DE CLIENTE*\n\n👤 ${custName} (${custPhone})\n📋 Pedido: ${orderNum ?? 'N/A'}\n💬 Problema: "${args.reason}"\n\nResponde al cliente desde el dashboard o contacta directamente.`;
+              const complaintMsg = `⚠️ *QUEJA DE CLIENTE*\n\n👤 ${custName} (${custPhone})\n📋 Pedido: ${orderNum ?? 'N/A'}${orderDetails}${driverName}\n\n❗ Problema: "${args.reason}"\n\nResponde al cliente desde el dashboard o contacta directamente al ${custPhone}.`;
               
               // Send to owner via WhatsApp
               const channels = await this.prisma.$queryRawUnsafe<any[]>(
@@ -582,6 +622,7 @@ export class StateMachineOrchestratorService {
                   { messaging_product: 'whatsapp', to: targetAdmin.phone, type: 'text', text: { body: complaintMsg } },
                   { headers: { Authorization: `Bearer ${channels[0].access_token}` } },
                 ).catch((e) => this.logger.warn(`Failed to send complaint to owner: ${e.message}`));
+                this.logger.log(`[${schemaName}] Complaint escalated to ${targetAdmin.phone} for order ${orderNum}`);
               }
             } else {
               this.logger.warn(`[${schemaName}] Cannot escalate complaint: owner phone same as sender or no admin found`);
