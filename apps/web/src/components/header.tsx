@@ -1,11 +1,16 @@
 'use client';
 
+import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useSidebar } from '@/hooks/use-sidebar';
 
 export function Header() {
   const { user, tenant, logout } = useAuth();
   const { toggle } = useSidebar();
+  const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const initials = (user?.name ?? 'U')
     .split(' ')
@@ -14,11 +19,21 @@ export function Header() {
     .toUpperCase()
     .slice(0, 2);
 
+  // Close menu on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    if (menuOpen) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+
   return (
     <header className="flex h-14 lg:h-16 items-center justify-between border-b border-card-border bg-surface px-4 lg:px-6 pt-[env(safe-area-inset-top)]">
       {/* Left: Hamburger (mobile) + Business Name */}
       <div className="flex items-center gap-3">
-        {/* Hamburger button — only on mobile */}
         <button
           onClick={toggle}
           className="lg:hidden rounded-lg p-2 text-muted-foreground hover:bg-card hover:text-white transition-colors"
@@ -43,23 +58,56 @@ export function Header() {
 
       {/* Right: Notifications + User */}
       <div className="flex items-center gap-2 lg:gap-4">
-        <button className="relative rounded-full p-2 text-muted-foreground hover:bg-card transition-colors">
+        {/* Bell → goes to escalations/notifications */}
+        <button
+          onClick={() => router.push('/escalations')}
+          className="relative rounded-full p-2 text-muted-foreground hover:bg-card transition-colors"
+          aria-label="Notificaciones"
+        >
           🔔
           <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent animate-glow-pulse" />
         </button>
 
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-xs font-bold text-white">
-            {initials}
-          </div>
-          <span className="text-sm font-medium text-slate-200 hidden sm:inline">{user?.name ?? 'Usuario'}</span>
+        {/* Avatar → dropdown menu */}
+        <div className="relative" ref={menuRef}>
           <button
-            onClick={logout}
-            className="ml-1 lg:ml-2 text-xs text-muted hover:text-destructive transition-colors hidden sm:inline"
-            title="Cerrar sesión"
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="flex items-center gap-2"
+            aria-label="Menú de usuario"
           >
-            Salir
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-xs font-bold text-white">
+              {initials}
+            </div>
+            <span className="text-sm font-medium text-slate-200 hidden sm:inline">{user?.name ?? 'Usuario'}</span>
           </button>
+
+          {/* Dropdown */}
+          {menuOpen && (
+            <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-card-border bg-card shadow-2xl z-50 overflow-hidden">
+              <div className="px-4 py-3 border-b border-card-border">
+                <p className="text-sm font-medium text-white truncate">{user?.name ?? 'Usuario'}</p>
+                <p className="text-xs text-muted truncate">{user?.email ?? ''}</p>
+              </div>
+              <button
+                onClick={() => { setMenuOpen(false); router.push('/settings'); }}
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-surface transition-colors"
+              >
+                ⚙️ Configuración
+              </button>
+              <button
+                onClick={() => { setMenuOpen(false); router.push('/settings/media'); }}
+                className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-surface transition-colors"
+              >
+                🖼️ Material gráfico
+              </button>
+              <button
+                onClick={() => { setMenuOpen(false); logout(); }}
+                className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-surface transition-colors border-t border-card-border"
+              >
+                🚪 Cerrar sesión
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>
