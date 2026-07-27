@@ -19,7 +19,17 @@ const API_CACHE_PATHS = [
 ];
 
 // Install — pre-cache app shell
+const APP_SHELL = [
+  '/',
+  '/orders',
+  '/production',
+  '/manifest.json',
+];
+
 self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
+  );
   self.skipWaiting();
 });
 
@@ -37,8 +47,16 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Only handle API requests
-  if (!url.pathname.startsWith('/api') && !url.hostname.includes('api.vspro.app')) {
+  // For navigation requests (HTML pages), use network-first with offline fallback
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request).then(r => r || caches.match('/')))
+    );
+    return;
+  }
+
+  // Only handle API requests for caching strategy
+  if (!url.pathname.startsWith('/api') && !url.hostname.includes('api.vspro.app') && !url.hostname.includes('localhost:3001')) {
     return;
   }
 

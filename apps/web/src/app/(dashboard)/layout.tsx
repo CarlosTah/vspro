@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/sidebar';
 import { Header } from '@/components/header';
+import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
 import { useAuth } from '@/lib/auth-context';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -35,6 +36,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="relative z-10 mx-auto max-w-7xl">{children}</div>
         </main>
       </div>
+      <PWAInstallPrompt />
     </div>
   );
 }
