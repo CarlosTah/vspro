@@ -99,7 +99,7 @@ export class StateMachineOrchestratorService {
     }
 
     // 3. Build the state machine with current catalog
-    const catalog = products.map((p: any) => ({ name: p.name, price: parseFloat(p.price) }));
+    const catalog = products.map((p: any) => ({ name: p.name, price: parseFloat(p.price), category: p.category ?? '' }));
     // Load delivery cost from config (default $30)
     let deliveryCost = 30;
     try {
@@ -141,7 +141,7 @@ export class StateMachineOrchestratorService {
     } else if (transition.newState === OrderState.CONFIRMING_ORDER) {
       // Determine items for the confirming state
       if (intent.items && intent.items.length > 0) {
-        const catalog2 = products.map((p: any) => ({ name: p.name, price: parseFloat(p.price) }));
+        const catalog2 = products.map((p: any) => ({ name: p.name, price: parseFloat(p.price), category: p.category ?? '' }));
         const smTemp = new OrderStateMachine(catalog2, '', deliveryCost);
         const validated2 = (smTemp as any).validateItems(intent.items);
         

@@ -85,7 +85,7 @@ export interface ConversationStateData {
 
 export class OrderStateMachine {
   constructor(
-    private readonly catalog: Array<{ name: string; price: number }>,
+    private readonly catalog: Array<{ name: string; price: number; category?: string }>,
     private readonly businessName: string,
     private readonly deliveryCost: number = 30,
   ) {}
@@ -651,44 +651,92 @@ export class OrderStateMachine {
     const valid: Array<{ productName: string; quantity: number; notes?: string; price: number }> = [];
     const invalid: string[] = [];
 
-    // Common synonyms for food businesses
-    const synonyms: Record<string, string[]> = {
-      'refresco': ['coca', 'coca cola', 'coca-cola', 'pepsi', 'soda', 'gaseosa'],
-      'agua de horchata': ['horchata', 'agua horchata'],
-      'taco al pastor': ['pastor', 'de pastor', 'al pastor', 'taco pastor'],
-      'taco de bistec': ['bistec', 'de bistec', 'taco bistec', 'bistek', 'de bistek'],
-      'tacos de suadero': ['suadero', 'de suadero', 'taco suadero'],
-      'tacos de longaniza': ['longaniza', 'de longaniza', 'taco longaniza'],
-      'quesadilla': ['quesa', 'quesadillas'],
-      'torta de jamón': ['torta', 'torta jamón', 'torta de jamon'],
-      'orden de guacamole': ['guacamole', 'guaca', 'orden guacamole'],
-    };
-
     for (const item of items) {
       const inputName = item.productName.toLowerCase().trim();
 
-      // Direct match
-      let match = this.catalog.find(p =>
-        p.name.toLowerCase().includes(inputName) ||
-        inputName.includes(p.name.toLowerCase())
-      );
+      // Strategy 1: EXACT match (case-insensitive)
+      let match = this.catalog.find(p => p.name.toLowerCase() === inputName);
 
-      // Synonym match if no direct match
+      // Strategy 2: Input IS the full product name (contains match both ways)
       if (!match) {
-        for (const [catalogName, alts] of Object.entries(synonyms)) {
-          if (alts.some(alt => inputName.includes(alt) || alt.includes(inputName))) {
-            match = this.catalog.find(p => p.name.toLowerCase() === catalogName);
+        match = this.catalog.find(p => p.name.toLowerCase() === inputName || inputName === p.name.toLowerCase());
+      }
+
+      // Strategy 3: Specific product type detection
+      // If input says "sope de X", "torta de X", "taco de X", "gringa de X", etc.
+      // → match ONLY within that specific category
+      if (!match) {
+        const typePatterns: Record<string, string[]> = {
+          'Sopes': ['sope', 'sopes'],
+          'Tortas': ['torta', 'tortas'],
+          'Tacos': ['taco', 'tacos'],
+          'Gringas': ['gringa', 'gringas'],
+          'Burritos': ['burrito', 'burritos'],
+          'Costras': ['costra', 'costras'],
+          'Nachos': ['nacho', 'nachos'],
+          'Huarache': ['huarache', 'huaraches'],
+          'Papa Rellena': ['papa rellena', 'papas rellenas'],
+          'Al Pastor': ['kg de pastor', 'kilo de pastor', 'medio kilo de pastor'],
+          'Suadero': ['kg de suadero', 'kilo de suadero', 'medio kilo de suadero'],
+          'Aguas de Frutas': ['agua de', 'aguas de'],
+          'Bebidas': ['coca', 'coca-cola', 'refresco', 'agua cristal'],
+          'Entradas': ['guacamole', 'boneless', 'papas', 'aros', 'doraditos', 'pamponas'],
+        };
+
+        for (const [category, keywords] of Object.entries(typePatterns)) {
+          if (keywords.some(kw => inputName.includes(kw))) {
+            // Search ONLY within this category
+            const categoryProducts = this.catalog.filter(p => (p as any).category === category || p.name.toLowerCase().includes(category.toLowerCase()));
+            
+            // Try to find the specific variant within this category
+            const variant = inputName.replace(/^(sope|torta|taco|gringa|burrito|costra|nacho|nachos|huarache|papa rellena)s?\s*(de\s*)?/i, '').trim();
+            
+            if (variant) {
+              match = categoryProducts.find(p => p.name.toLowerCase().includes(variant));
+            }
+            if (!match && categoryProducts.length > 0) {
+              // Try full input against category products
+              match = categoryProducts.find(p => 
+                p.name.toLowerCase().includes(inputName) || inputName.includes(p.name.toLowerCase())
+              );
+            }
             break;
           }
         }
       }
 
-      // Partial match — at least 4 chars matching
-      if (!match && inputName.length >= 4) {
-        match = this.catalog.find(p => {
+      // Strategy 4: Keyword match — find product whose name contains the most words from input
+      if (!match) {
+        const inputWords = inputName.split(/\s+/).filter(w => w.length > 2);
+        let bestMatch: { name: string; price: number } | undefined;
+        let bestScore = 0;
+
+        for (const product of this.catalog) {
+          const prodLower = product.name.toLowerCase();
+          const score = inputWords.filter(w => prodLower.includes(w)).length;
+          // Prefer products where the match is more specific (longer name = more specific)
+          // AND prefer cheaper products when ambiguous (tacos > kg)
+          if (score > bestScore || (score === bestScore && bestMatch && product.price < bestMatch.price)) {
+            bestScore = score;
+            bestMatch = product;
+          }
+        }
+
+        if (bestScore >= 2 || (bestScore === 1 && inputWords.length === 1)) {
+          match = bestMatch;
+        }
+      }
+
+      // Strategy 5: Simple contains (last resort) — but prefer SHORTER/CHEAPER products
+      if (!match && inputName.length >= 5) {
+        const candidates = this.catalog.filter(p => {
           const catLower = p.name.toLowerCase();
-          return catLower.includes(inputName.substring(0, 4)) || inputName.includes(catLower.substring(0, 4));
+          return catLower.includes(inputName) || inputName.includes(catLower);
         });
+        if (candidates.length > 0) {
+          // Pick the cheapest one (tacos > kg, individual items > bulk)
+          match = candidates.sort((a, b) => a.price - b.price)[0];
+        }
       }
 
       if (match) {
