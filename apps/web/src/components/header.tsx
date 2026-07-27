@@ -15,7 +15,7 @@ export function Header() {
     .slice(0, 2);
 
   return (
-    <header className="flex h-14 lg:h-16 items-center justify-between border-b border-card-border bg-surface px-4 lg:px-6">
+    <header className="flex h-14 lg:h-16 items-center justify-between border-b border-card-border bg-surface px-4 lg:px-6 pt-[env(safe-area-inset-top)]">
       {/* Left: Hamburger (mobile) + Business Name */}
       <div className="flex items-center gap-3">
         {/* Hamburger button — only on mobile */}

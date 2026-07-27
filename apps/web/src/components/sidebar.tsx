@@ -143,7 +143,7 @@ export function Sidebar() {
             onClick={close}
           />
           {/* Drawer */}
-          <aside className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col vspro-sidebar shadow-2xl animate-slide-in">
+          <aside className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col vspro-sidebar shadow-2xl animate-slide-in pt-[env(safe-area-inset-top)]">
             {/* Close button */}
             <button
               onClick={close}
