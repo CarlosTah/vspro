@@ -79,8 +79,25 @@ export class AiEngineService {
       if (!isOwnerCheck) {
         const scheduleCheck = this.checkBusinessHours(aiConfig.businessHours);
         if (!scheduleCheck.isOpen) {
+          // Check if we already sent an away message recently (avoid spamming)
+          const recentAway = await this.prisma.$queryRawUnsafe<any[]>(`
+            SELECT 1 FROM "${schemaName}".messages
+            WHERE conversation_id = $1::uuid AND direction = 'outbound'
+              AND content LIKE '%no estamos disponibles%' OR content LIKE '%estamos cerrados%' OR content LIKE '%horario%'
+              AND created_at > NOW() - INTERVAL '30 minutes'
+            LIMIT 1
+          `, conversation.id).catch(() => []);
+
+          if (recentAway.length > 0) {
+            // Already sent away message — don't spam, return silently
+            return { text: '' };
+          }
+
+          // Build informative away message with schedule
+          const scheduleInfo = scheduleCheck.nextOpen ? ` Abrimos ${scheduleCheck.nextOpen}.` : '';
           const awayMsg = aiConfig.awayMessage
-            || `¡Hola! En este momento estamos cerrados. ${scheduleCheck.nextOpen ? `Abrimos ${scheduleCheck.nextOpen}.` : 'Consulta nuestros horarios.'} ¡Te esperamos! 🙌`;
+            ? `${aiConfig.awayMessage}${scheduleInfo}`
+            : `¡Hola! En este momento estamos cerrados.${scheduleInfo} ¡Te esperamos! 🙌`;
           return { text: awayMsg };
         }
       }

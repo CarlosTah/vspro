@@ -193,9 +193,9 @@ export class StateMachineOrchestratorService {
     }
 
     // Update total
-    if (actionResults.includes('"total"')) {
+    if (actionResults.includes('"total"') || actionResults.includes('"newTotal"')) {
       try {
-        const totalMatch = actionResults.match(/"total"\s*:\s*"?(\d+\.?\d*)"?/);
+        const totalMatch = actionResults.match(/"(?:total|newTotal)"\s*:\s*"?(\d+\.?\d*)"?/);
         if (totalMatch) newState.total = parseFloat(totalMatch[1]);
       } catch {}
     }
@@ -513,7 +513,13 @@ export class StateMachineOrchestratorService {
             this.customerMemory.upsertProfile(custId3, 'delivery_preference', { type: 'delivery' }, schemaName).catch(() => {});
           }
 
-          return JSON.stringify({ success: true, deliveryCost: shipCost });
+          // Get updated total from DB
+          const updatedOrder = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT total FROM "${schemaName}".orders WHERE id = $1::uuid`, orderId,
+          );
+          const newTotal = updatedOrder[0]?.total ? parseFloat(updatedOrder[0].total) : null;
+
+          return JSON.stringify({ success: true, deliveryCost: shipCost, newTotal });
         }
 
         case 'set_payment_method': {

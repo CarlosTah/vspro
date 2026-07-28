@@ -155,10 +155,13 @@ export class OrderStateMachine {
             fixedResponse: `Tu pedido:\n${summary}\n\n💰 Total: $${total}${invalidNote}\n\n¿Todo correcto? ✅`,
           };
         }
+        const suggestionIdle = this.findClosestProduct(intent.text);
         return {
           newState: OrderState.TAKING_ORDER,
           actions: [],
-          llmContext: `El cliente pidió "${intent.text}" pero esos productos NO están en el catálogo. Informa que no los tenemos y muestra lo que sí hay:\n${this.formatCatalog()}`,
+          llmContext: suggestionIdle
+            ? `"${intent.text}" no lo tenemos, pero tenemos "${suggestionIdle.name}" a $${suggestionIdle.price}. ¿Te interesa? Si no, dime qué más se te antoja.`
+            : `No encontré ese producto. Pregunta por el menú o dime qué te gustaría pedir.`,
         };
 
       case 'check_status':
@@ -238,6 +241,19 @@ export class OrderStateMachine {
             llmContext: 'Envía las promociones al cliente y pregunta si le interesa alguna.',
           };
         }
+        // Check if the message asks about a specific product ("tienes X?", "hay X?", "venden X?")
+        const askWords = ['tienes', 'tienen', 'hay', 'venden', 'manejan', 'cuentan con'];
+        if (askWords.some(w => intent.text.toLowerCase().includes(w))) {
+          const productInquiry = this.findClosestProduct(intent.text);
+          if (productInquiry) {
+            return {
+              newState: OrderState.TAKING_ORDER,
+              actions: [],
+              llmContext: `El cliente pregunta si tenemos algo. SÍ tenemos "${productInquiry.name}" a $${productInquiry.price}. Responde confirmando que sí lo tenemos y pregunta cuántos quiere.`,
+            };
+          }
+        }
+
         return {
           newState: OrderState.IDLE,
           actions: [],
@@ -267,10 +283,14 @@ export class OrderStateMachine {
             fixedResponse: `Tu pedido:\n${summary}\n\n💰 Total: $${total}${invalidNote}\n\n¿Todo correcto? ✅`,
           };
         }
+        // Try to find closest match to suggest
+        const suggestion = this.findClosestProduct(intent.text);
         return {
           newState: OrderState.TAKING_ORDER,
           actions: [],
-          llmContext: `"${intent.text}" no está en nuestro catálogo. Lo que tenemos:\n${this.formatCatalog()}\n¿Qué te pongo?`,
+          llmContext: suggestion
+            ? `"${intent.text}" no lo tenemos exactamente, pero tenemos "${suggestion.name}" a $${suggestion.price}. ¿Te lo agrego? Si no, dime qué se te antoja.`
+            : `"${intent.text}" no está en nuestro catálogo. Pregunta qué tenemos disponible o pide el menú.`,
         };
 
       case 'check_menu': {
@@ -705,6 +725,27 @@ export class OrderStateMachine {
         }
       }
 
+      // Strategy 3b: Spanish preposition normalization
+      // "tacos de pastor" → "taco al pastor", "sopes de suadero" → "sope de suadero"
+      if (!match) {
+        // Normalize: remove plural, normalize prepositions
+        const normalized = inputName
+          .replace(/^(tacos|sopes|tortas|gringas|burritos|costras|nachos|huaraches)/i, (m) => m.slice(0, -1)) // plural → singular (remove trailing 's')
+          .replace(/\btacos?\b/i, 'taco')
+          .replace(/\bsopes?\b/i, 'sope')
+          .replace(/\btortas?\b/i, 'torta')
+          .replace(/\bde pastor\b/i, 'al pastor') // "de pastor" → "al pastor"
+          .replace(/\bde asada\b/i, 'de asada de puerco') // shorthand
+          .trim();
+        
+        if (normalized !== inputName) {
+          match = this.catalog.find(p => p.name.toLowerCase() === normalized);
+          if (!match) {
+            match = this.catalog.find(p => p.name.toLowerCase().includes(normalized) || normalized.includes(p.name.toLowerCase()));
+          }
+        }
+      }
+
       // Strategy 4: Keyword match — find product whose name contains the most words from input
       if (!match) {
         const inputWords = inputName.split(/\s+/).filter(w => w.length > 2);
@@ -764,5 +805,29 @@ export class OrderStateMachine {
       const price = i.price ?? this.catalog.find(p => p.name.toLowerCase() === i.productName.toLowerCase())?.price ?? 0;
       return `- ${i.quantity}x ${i.productName} ($${price * i.quantity})${i.notes ? ` [${i.notes}]` : ''}`;
     }).join('\n');
+  }
+
+  private findClosestProduct(input: string): { name: string; price: number } | null {
+    const words = input.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    if (words.length === 0) return null;
+
+    let best: { name: string; price: number } | null = null;
+    let bestScore = 0;
+
+    for (const product of this.catalog) {
+      const prodLower = product.name.toLowerCase();
+      let score = 0;
+      for (const word of words) {
+        if (prodLower.includes(word)) score += 2;
+        // Partial match (first 4 chars)
+        else if (word.length >= 4 && prodLower.includes(word.substring(0, 4))) score += 1;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = product;
+      }
+    }
+
+    return bestScore >= 1 ? best : null;
   }
 }
