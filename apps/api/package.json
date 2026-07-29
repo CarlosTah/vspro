@@ -6,7 +6,7 @@
     "build": "nest build",
     "dev": "node --require @swc-node/register src/main.ts",
     "start": "node dist/main",
-    "lint": "eslint 'src/**/*.ts' --fix",
+    "lint": "npx eslint 'src/**/*.ts' --fix",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "jest",
     "test:unit": "jest --testPathPattern='src/.*\\.spec\\.ts$' --testPathIgnorePatterns='integration|isolation|smoke'",
