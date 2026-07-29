@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { AuthProvider } from '@/lib/auth-context';
 import { OfflineBanner } from '@/components/offline-banner';
 import { ServiceWorkerRegister } from '@/components/sw-register';
+import { SwUpdateBanner } from '@/components/sw-update-banner';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen bg-background font-body">
         <ServiceWorkerRegister />
+        <SwUpdateBanner />
         <OfflineBanner />
         <AuthProvider>{children}</AuthProvider>
       </body>

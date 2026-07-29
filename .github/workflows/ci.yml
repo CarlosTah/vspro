@@ -243,6 +243,21 @@ jobs:
           docker push $ECR_REGISTRY/vspro-api:$IMAGE_TAG
           docker push $ECR_REGISTRY/vspro-api:staging
 
+      - name: Build and push Web image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/vspro-web:$IMAGE_TAG \
+            -t $ECR_REGISTRY/vspro-web:staging \
+            -f apps/web/Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.STAGING_API_URL }} \
+            --build-arg BUILD_HASH=${{ github.sha }} \
+            .
+          docker push $ECR_REGISTRY/vspro-web:$IMAGE_TAG
+          docker push $ECR_REGISTRY/vspro-web:staging
+
       - name: Run DB migrations on staging
         run: |
           aws ecs run-task \
@@ -270,11 +285,20 @@ jobs:
             --deployment-configuration \
               "minimumHealthyPercent=100,maximumPercent=200"
 
+      - name: Deploy Web to staging (zero-downtime rolling)
+        run: |
+          aws ecs update-service \
+            --cluster vspro-staging \
+            --service vspro-web-staging \
+            --force-new-deployment \
+            --deployment-configuration \
+              "minimumHealthyPercent=100,maximumPercent=200"
+
       - name: Wait for deployment to stabilize
         run: |
           aws ecs wait services-stable \
             --cluster vspro-staging \
-            --services vspro-api-staging
+            --services vspro-api-staging vspro-web-staging
 
       - name: Run smoke tests against staging
         run: npm run test:smoke
@@ -340,6 +364,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
+          # Promote API image
           MANIFEST=$(aws ecr batch-get-image \
             --repository-name vspro-api \
             --image-ids imageTag=$IMAGE_TAG \
@@ -350,6 +375,18 @@ jobs:
             --repository-name vspro-api \
             --image-tag production \
             --image-manifest "$MANIFEST"
+
+          # Promote Web image
+          WEB_MANIFEST=$(aws ecr batch-get-image \
+            --repository-name vspro-web \
+            --image-ids imageTag=$IMAGE_TAG \
+            --query 'images[0].imageManifest' \
+            --output text)
+
+          aws ecr put-image \
+            --repository-name vspro-web \
+            --image-tag production \
+            --image-manifest "$WEB_MANIFEST"
 
       - name: Guardar task definition actual (para rollback)
         id: current-task
@@ -382,11 +419,20 @@ jobs:
             --deployment-configuration \
               "minimumHealthyPercent=100,maximumPercent=200"
 
+      - name: Deploy Web to production (zero-downtime)
+        run: |
+          aws ecs update-service \
+            --cluster vspro-production \
+            --service vspro-web-production \
+            --force-new-deployment \
+            --deployment-configuration \
+              "minimumHealthyPercent=100,maximumPercent=200"
+
       - name: Wait for stable deployment
         run: |
           aws ecs wait services-stable \
             --cluster vspro-production \
-            --services vspro-api-production
+            --services vspro-api-production vspro-web-production
 
       - name: Post-deploy smoke test en producción
         id: smoke

@@ -126,6 +126,10 @@ export class AiEngineService {
       // 4. Construir system prompt dinámico
       // For VSPRO platform: always use the owner/support prompt (Max helps everyone)
       const useOwnerPrompt = isOwner || isVsproPlatform;
+      // Attach industry from aiConfig so buildOwnerSystemPrompt can use it
+      if (aiConfig.industry && !tenant.industry) {
+        tenant.industry = aiConfig.industry;
+      }
       const systemPrompt = useOwnerPrompt
         ? this.buildOwnerSystemPrompt(tenant, products)
         : this.buildSystemPrompt(tenant, aiConfig, products);
@@ -1597,6 +1601,25 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           // Auto-apply industry template if provided
           let templateApplied = null;
           if (args.industry) {
+            // Save industry in agent_config so Max and get_config_summary are industry-aware
+            try {
+              await this.prisma.$executeRawUnsafe(`
+                ALTER TABLE "${tenant.schemaName}".ai_config
+                ADD COLUMN IF NOT EXISTS agent_config JSONB DEFAULT '{}'
+              `);
+              await this.prisma.$executeRawUnsafe(`
+                UPDATE "${tenant.schemaName}".ai_config
+                SET agent_config = jsonb_set(
+                  COALESCE(agent_config, '{}'::jsonb),
+                  '{industry}',
+                  $1::jsonb
+                ), updated_at = NOW()
+                WHERE id = (SELECT id FROM "${tenant.schemaName}".ai_config LIMIT 1)
+              `, JSON.stringify(args.industry));
+            } catch (indErr: any) {
+              this.logger.warn(`[register_business] Could not save industry in agent_config: ${indErr.message}`);
+            }
+
             try {
               const templates = await this.prisma.$queryRawUnsafe<any[]>(
                 `SELECT slug FROM public.industry_templates WHERE slug = $1`, args.industry,
@@ -2856,7 +2879,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             `SELECT assistant_name, tone, business_hours IS NOT NULL AS "hasHours", 
                     custom_instructions IS NOT NULL AND custom_instructions != '' AS "hasInstructions",
                     agent_config->'payment_info' IS NOT NULL AS "hasPaymentInfo",
-                    agent_config->'deliverySettings'->'shippingCost' AS "shippingCost"
+                    agent_config->'deliverySettings'->'shippingCost' AS "shippingCost",
+                    agent_config->>'industry' AS "industry"
              FROM "${schemaName}".ai_config LIMIT 1`,
           );
           // KB
@@ -2885,32 +2909,55 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           } catch {}
 
           const cfg = config[0] ?? {};
-          const summary = {
+          const industry: string | null = cfg.industry ?? null;
+
+          // Determine which features are relevant for this industry
+          const needsDelivery = !industry || ['restaurante', 'ecommerce', 'ropa'].includes(industry);
+          const needsDrivers = needsDelivery;
+          const needsPayment = !industry || !['inmobiliaria'].includes(industry); // inmobiliaria uses bank transfers differently
+
+          const summary: Record<string, any> = {
             products: products[0]?.count ?? 0,
-            drivers: driverCount,
             assistantName: cfg.assistant_name ?? 'No configurado',
             tone: cfg.tone ?? 'No configurado',
             hasBusinessHours: !!cfg.hasHours,
             hasCustomInstructions: !!cfg.hasInstructions,
             hasPaymentInfo: !!cfg.hasPaymentInfo,
-            shippingCost: cfg.shippingCost ?? 'No configurado',
             knowledgeBaseEntries: kbCount,
             mediaAssets: mediaCount,
             hasWhatsApp,
+            industry: industry ?? 'No definida',
           };
 
-          const checks = [
-            `${summary.products > 0 ? '✅' : '❌'} Productos: ${summary.products}`,
+          if (needsDrivers) {
+            summary.drivers = driverCount;
+            summary.shippingCost = cfg.shippingCost ?? 'No configurado';
+          }
+
+          const checks: string[] = [
+            `ℹ️ Industria: ${industry ?? 'No definida'}`,
+            `${summary.products > 0 ? '✅' : '❌'} Productos/Servicios: ${summary.products}`,
             `${summary.hasBusinessHours ? '✅' : '❌'} Horarios configurados`,
             `${summary.hasCustomInstructions ? '✅' : '❌'} Personalidad del agente`,
-            `${summary.hasPaymentInfo ? '✅' : '❌'} Datos bancarios`,
-            `${summary.drivers > 0 ? '✅' : '❌'} Repartidores: ${summary.drivers}`,
+          ];
+
+          if (needsPayment) {
+            checks.push(`${summary.hasPaymentInfo ? '✅' : '❌'} Datos bancarios`);
+          }
+          if (needsDrivers) {
+            checks.push(`${driverCount > 0 ? '✅' : '❌'} Repartidores: ${driverCount}`);
+          }
+
+          checks.push(
             `${summary.knowledgeBaseEntries > 0 ? '✅' : '⚠️'} Base de conocimiento: ${summary.knowledgeBaseEntries} entradas`,
             `${summary.mediaAssets > 0 ? '✅' : '⚠️'} Material gráfico: ${summary.mediaAssets} imágenes`,
             `${summary.hasWhatsApp ? '✅' : '❌'} Canal WhatsApp conectado`,
             `ℹ️ Nombre del agente: ${summary.assistantName}`,
-            `ℹ️ Costo de envío: $${summary.shippingCost}`,
-          ];
+          );
+
+          if (needsDelivery) {
+            checks.push(`ℹ️ Costo de envío: $${cfg.shippingCost ?? 'No configurado'}`);
+          }
 
           return JSON.stringify({
             success: true,
@@ -3094,7 +3141,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
              away_message AS "awayMessage", language, business_hours AS "businessHours",
              custom_instructions AS "customInstructions",
              agent_config->'objectives' AS "objectives",
-             agent_config->'redLines' AS "redLines"
+             agent_config->'redLines' AS "redLines",
+             agent_config->>'industry' AS "industry"
       FROM "${schemaName}".ai_config
       LIMIT 1
     `);
@@ -3301,47 +3349,131 @@ SI MANDAN UNA IMAGEN:
     }
 
     // Regular owner prompt (for detected owners routed to their own tenant)
+    // Build industry-aware suggestions
+    const industry: string | null = (tenant as any).industry ?? null;
+
+    // Core capabilities available to ALL industries
+    const coreCapabilities = [
+      '- Agregar productos/servicios a su catálogo (usa add_product)',
+      '- Editar productos existentes (usa update_product)',
+      '- Eliminar productos (usa delete_product)',
+      '- Ver catálogo actual (usa list_products)',
+      '- Configurar horarios (usa set_business_hours)',
+      '- Generar reportes (usa generate_report)',
+      '- Configurar personalidad del agente (usa set_custom_instructions)',
+      '- Configurar mensaje de cerrado (usa set_away_message)',
+      '- Configurar saludo (usa set_welcome_message)',
+      '- Agregar info a la base de conocimiento (usa add_knowledge_base_entry)',
+      '- Subir imágenes/fotos (usa upload_media)',
+      '- Mover número WhatsApp (usa switch_whatsapp_number)',
+      '- Ver resumen de configuración (usa get_config_summary)',
+      '- Ver estadísticas de uso (usa get_usage_stats)',
+    ];
+
+    // Industry-specific capabilities
+    const deliveryCapabilities = [
+      '- Configurar datos bancarios (usa set_payment_info)',
+      '- Registrar repartidores (usa add_delivery_driver)',
+      '- Ver repartidores (usa list_drivers)',
+      '- Cambiar costo de envío (usa set_delivery_cost)',
+      '- Ver estado de pedidos (usa get_order_status)',
+    ];
+
+    const reservationCapabilities = [
+      '- Verificar disponibilidad de fechas (usa check_availability)',
+      '- Crear reservaciones (usa create_reservation)',
+      '- Ver info de propiedades (usa get_property_info)',
+      '- Agregar info a la base de conocimiento — reglas, amenidades, etc. (usa add_knowledge_base_entry)',
+    ];
+
+    // Determine which capabilities to show based on industry
+    let industryCapabilities: string[] = [];
+    let industryContext = '';
+
+    switch (industry) {
+      case 'inmobiliaria':
+        industryCapabilities = reservationCapabilities;
+        industryContext = `\nCONTEXTO DE INDUSTRIA: Este es un negocio INMOBILIARIO (rentas/hospedaje/depas).
+- NO sugieras repartidores, envíos ni delivery — NO aplican.
+- Sugiere: agregar propiedades/habitaciones, configurar precios por noche/semana/mes, definir reglas del lugar, agregar amenidades y fotos.
+- El "catálogo" aquí son las propiedades/espacios disponibles.
+- Los "pedidos" aquí son RESERVACIONES.`;
+        break;
+      case 'barberia':
+        industryCapabilities = [
+          '- Configurar datos bancarios (usa set_payment_info)',
+        ];
+        industryContext = `\nCONTEXTO DE INDUSTRIA: Este es un negocio de BARBERÍA/SALÓN/ESTÉTICA.
+- NO sugieras repartidores ni envíos — los clientes van al local.
+- Sugiere: agregar servicios con precios (cortes, tintes, etc.), configurar horarios, agregar fotos de trabajos.
+- El "catálogo" aquí son los SERVICIOS que ofrece.`;
+        break;
+      case 'clinica':
+        industryCapabilities = [
+          '- Configurar datos bancarios (usa set_payment_info)',
+        ];
+        industryContext = `\nCONTEXTO DE INDUSTRIA: Este es un negocio de CLÍNICA/CONSULTORIO.
+- NO sugieras repartidores ni envíos — los pacientes van al consultorio.
+- Sugiere: agregar servicios/consultas con precios, configurar horarios de atención, agregar info de especialidades.
+- El "catálogo" aquí son los SERVICIOS/CONSULTAS disponibles.`;
+        break;
+      case 'taller':
+        industryCapabilities = [
+          '- Configurar datos bancarios (usa set_payment_info)',
+        ];
+        industryContext = `\nCONTEXTO DE INDUSTRIA: Este es un TALLER MECÁNICO/AUTOMOTRIZ.
+- NO sugieras repartidores ni envíos — los clientes llevan su vehículo.
+- Sugiere: agregar servicios con precios (afinación, frenos, etc.), configurar horarios, agregar FAQs.
+- El "catálogo" aquí son los SERVICIOS que ofrece.`;
+        break;
+      case 'restaurante':
+        industryCapabilities = deliveryCapabilities;
+        industryContext = `\nCONTEXTO DE INDUSTRIA: Este es un RESTAURANTE/COMIDA.
+- Sugiere: agregar platillos con precios, registrar repartidores, configurar costos de envío, subir menú.
+- El "catálogo" aquí es el MENÚ con platillos y precios.`;
+        break;
+      case 'ecommerce':
+      case 'ropa':
+        industryCapabilities = deliveryCapabilities;
+        industryContext = `\nCONTEXTO DE INDUSTRIA: Este es un negocio de ${industry === 'ropa' ? 'ROPA/MODA' : 'E-COMMERCE/TIENDA ONLINE'}.
+- Sugiere: agregar productos con precios, registrar repartidores/paquetería, configurar costos de envío, subir fotos de catálogo.
+- Los envíos son parte clave de este negocio.`;
+        break;
+      default:
+        // No industry defined or unknown — show all capabilities
+        industryCapabilities = deliveryCapabilities;
+        industryContext = '';
+        break;
+    }
+
+    const allCapabilities = [...coreCapabilities, ...industryCapabilities].join('\n');
+
     return `Eres Max, el asistente administrativo de VSPRO.
-Estás hablando con el DUEÑO del negocio "${tenant.businessName}".
+Estás hablando con el DUEÑO del negocio "${tenant.businessName}"${industry ? ` (giro: ${industry})` : ''}.
 Tu rol es ayudarle a ADMINISTRAR su negocio, NO a tomar pedidos de clientes.
 Responde SIEMPRE en español. Sé profesional pero amigable.
+${industryContext}
 
 LO QUE PUEDES HACER POR EL DUEÑO:
-- Agregar productos a su catálogo (usa add_product)
-- Editar productos existentes (usa update_product)
-- Eliminar productos (usa delete_product)
-- Ver catálogo actual (usa list_products)
-- Configurar horarios (usa set_business_hours)
-- Configurar datos bancarios (usa set_payment_info)
-- Registrar repartidores (usa add_delivery_driver)
-- Ver repartidores (usa list_drivers)
-- Cambiar costo de envío (usa set_delivery_cost)
-- Generar reportes de ventas (usa generate_report)
-- Ver estado de pedidos (usa get_order_status)
-- Configurar personalidad del agente (usa set_custom_instructions)
-- Configurar mensaje de cerrado (usa set_away_message)
-- Configurar saludo (usa set_welcome_message)
-- Agregar info a la base de conocimiento (usa add_knowledge_base_entry)
-- Subir imágenes de menú/promos (usa upload_media)
-- Mover número WhatsApp (usa switch_whatsapp_number)
+${allCapabilities}
 
 LO QUE NO DEBES HACER:
 - NO tomes pedidos (esto es el dueño, no un cliente)
 - NO uses create_order (el dueño no está comprando)
 - NO ofrezcas "ver el menú" ni digas "¿qué se te antoja?" — hablas con el ADMIN
-- NO te presentes como el agente de su negocio — eres Max de VSPRO
+- NO te presentes como el agente de su negocio — eres Max de VSPRO${industry === 'inmobiliaria' ? '\n- NO sugieras repartidores, envíos, delivery ni costos de envío — este negocio NO los necesita' : ''}${['barberia', 'clinica', 'taller'].includes(industry ?? '') ? '\n- NO sugieras repartidores ni delivery — los clientes van al local' : ''}
 
-SI EL DUEÑO MANDA UNA IMAGEN (como un menú):
-- Analiza la imagen DETALLADAMENTE y extrae TODOS los productos con sus precios
-- Usa add_product para CADA producto detectado (nombre exacto como aparece en el menú + precio)
-- Si hay categorías en el menú, usa la categoría correcta para cada producto
-- Confirma la lista completa de lo que agregaste con precios
+SI EL DUEÑO MANDA UNA IMAGEN${industry === 'restaurante' ? ' (como un menú)' : ''}:
+- Analiza la imagen DETALLADAMENTE y extrae TODOS los productos/servicios con sus precios
+- Usa add_product para CADA uno detectado (nombre exacto + precio)
+- Si hay categorías, usa la categoría correcta para cada uno
+- Confirma la lista completa con precios
 - Si no puedes leer algún precio, pregunta antes de inventar
 
-CATÁLOGO ACTUAL DEL NEGOCIO (${products.length} productos):
-${productList || 'Sin productos aún — ayuda al dueño a agregar su catálogo.'}
+CATÁLOGO ACTUAL DEL NEGOCIO (${products.length} ${industry === 'inmobiliaria' ? 'propiedades' : industry === 'barberia' || industry === 'clinica' || industry === 'taller' ? 'servicios' : 'productos'}):
+${productList || `Sin ${industry === 'inmobiliaria' ? 'propiedades' : industry === 'barberia' || industry === 'clinica' || industry === 'taller' ? 'servicios' : 'productos'} aún — ayuda al dueño a agregar su catálogo.`}
 
-Siempre confirma antes de agregar productos. Si no estás seguro del precio, pregunta.
+Siempre confirma antes de agregar. Si no estás seguro del precio, pregunta.
 
 REGLAS DE COMUNICACIÓN:
 - Mensajes CORTOS (máximo 3-4 líneas). Es WhatsApp, no email.

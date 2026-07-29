@@ -113,8 +113,11 @@ function LoginContent() {
             {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
           </button>
 
-          <div className="text-center">
-            <a href="/register" className="text-sm text-blue-400 hover:text-blue-300">
+          <div className="text-center space-y-2">
+            <a href="/forgot-password" className="block text-sm text-gray-400 hover:text-gray-300">
+              ¿Olvidaste tu contraseña?
+            </a>
+            <a href="/register" className="block text-sm text-blue-400 hover:text-blue-300">
               ¿No tienes cuenta? Regístrate gratis
             </a>
           </div>

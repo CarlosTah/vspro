@@ -4,6 +4,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { TenantProvisioningService } from '../tenants/tenant-provisioning.service';
 import { IndustryTemplatesService } from '../tenants/industry-templates.service';
 
@@ -112,5 +114,15 @@ export class AuthController {
     // Ensure phone column exists
     await this.authService.updateUserProfile(userId, dto, schema);
     return { success: true };
+  }
+
+  @Post('forgot-password')
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email, dto.tenantSlug);
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.token, dto.newPassword);
   }
 }

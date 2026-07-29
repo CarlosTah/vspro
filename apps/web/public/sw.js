@@ -3,9 +3,13 @@
  * Strategy: Network-first for API calls, cache fallback when offline.
  * Caches GET responses for KDS, products, orders.
  * Queues POST/PATCH/DELETE for background sync.
+ *
+ * CACHE VERSIONING: Change CACHE_VERSION on every deploy to bust old caches.
+ * The build process injects the git SHA or timestamp here.
  */
 
-const CACHE_NAME = 'vspro-offline-v1';
+const CACHE_VERSION = '__BUILD_HASH__'; // Replaced at build time
+const CACHE_NAME = `vspro-v${CACHE_VERSION}`;
 const API_CACHE_PATHS = [
   '/products',
   '/orders',

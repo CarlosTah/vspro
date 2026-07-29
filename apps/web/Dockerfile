@@ -22,10 +22,13 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ARG NEXT_PUBLIC_API_URL=https://api.vspro.app
+ARG BUILD_HASH=dev
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 # Ensure public dir exists for the COPY step
 RUN mkdir -p apps/web/public
+# Inject build hash into service worker for cache busting
+RUN sed -i "s/__BUILD_HASH__/$BUILD_HASH/g" apps/web/public/sw.js
 RUN npm run build --workspace=@vspro/web
 
 # ─────────────────────────────────────────────────────────────
