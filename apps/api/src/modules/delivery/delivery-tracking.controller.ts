@@ -127,9 +127,9 @@ export class DeliveryTrackingController {
 
       let message: string;
       if (status === 'shipped') {
-        message = `🛵 *¡Tu pedido va en camino!*\n\n${name}, el repartidor ya recogió tu pedido *${num}* y va hacia ti.\n\n⏱ Llegará en aproximadamente 20-30 minutos.`;
+        message = `🛵 *En camino*\n\n📋 ${name}, tu pedido *${num}* va en camino.\n\n⏱ Llegará en aprox. 20-30 min.`;
       } else {
-        message = `✅ *¡Pedido entregado!*\n\n${name}, tu pedido *${num}* fue entregado.\n\n¡Gracias por tu compra! 🙏 Que lo disfrutes.\n\nSi tienes algún comentario, escríbenos aquí.`;
+        message = `✅ *¡Entregado!*\n\n📋 ${name}, tu pedido *${num}* fue entregado.\n\n¡Gracias por tu compra! 🙏`;
       }
 
       // Send via Meta API directly

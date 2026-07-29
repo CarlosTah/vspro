@@ -152,7 +152,7 @@ export class OrderStateMachine {
             actions: [],
             llmContext: '',
             skipLlm: true,
-            fixedResponse: `Tu pedido:\n${summary}\n\n💰 Total: $${total}${invalidNote}\n\n¿Todo correcto? ✅`,
+            fixedResponse: `🛒 *Tu pedido:*\n\n${summary}\n\n━━━━━━━━━━━━━━\n💰 *Total: $${total}*${invalidNote}\n\n¿Correcto? Responde *Sí* o *No*`,
           };
         }
         const suggestionIdle = this.findClosestProduct(intent.text);
@@ -280,7 +280,7 @@ export class OrderStateMachine {
             actions: [],
             llmContext: '',
             skipLlm: true,
-            fixedResponse: `Tu pedido:\n${summary}\n\n💰 Total: $${total}${invalidNote}\n\n¿Todo correcto? ✅`,
+            fixedResponse: `🛒 *Tu pedido:*\n\n${summary}\n\n━━━━━━━━━━━━━━\n💰 *Total: $${total}*${invalidNote}\n\n¿Correcto? Responde *Sí* o *No*`,
           };
         }
         // Try to find closest match to suggest
@@ -369,7 +369,7 @@ export class OrderStateMachine {
           actions: [{ tool: 'create_order', args: { items: state.items ?? intent.items ?? [] } }],
           llmContext: '',
           skipLlm: true,
-          fixedResponse: `¡Pedido creado! Total: $${orderTotal}. ¿Pasas a recoger o te lo enviamos a domicilio? El envío tiene un costo de $${this.deliveryCost}. 😊`,
+          fixedResponse: `✅ *¡Pedido creado!*\n\n💰 Total: $${orderTotal}\n🛵 Envío a domicilio: +$${this.deliveryCost}\n\n¿Pasas a *recoger* o te lo *enviamos*?`,
         };
       }
 
@@ -392,7 +392,7 @@ export class OrderStateMachine {
           actions: [],
           llmContext: '',
           skipLlm: true,
-          fixedResponse: `Pedido actualizado:\n${summaryConf}\n\n💰 Total: $${totalConf}\n\n¿Todo correcto? ✅`,
+          fixedResponse: `🛒 *Pedido actualizado:*\n\n${summaryConf}\n\n━━━━━━━━━━━━━━\n💰 *Total: $${totalConf}*\n\n¿Correcto? Responde *Sí* o *No*`,
         };
 
       default:
@@ -468,7 +468,7 @@ export class OrderStateMachine {
           actions: [{ tool: 'set_delivery_address', args: addressArgs }],
           llmContext: '',
           skipLlm: true,
-          fixedResponse: `Dirección guardada. Total con envío: $${totalWithShip}. ¿Pagas por transferencia o efectivo al repartidor? 💳💵`,
+          fixedResponse: `📍 *Dirección guardada*\n\n💰 Total con envío: *$${totalWithShip}*\n\n¿Cómo pagas?\n• *Efectivo* al repartidor\n• *Transferencia* bancaria`,
         };
 
       default: {
@@ -493,7 +493,7 @@ export class OrderStateMachine {
               actions: [{ tool: 'set_delivery_address', args: { street: intent.text } }],
               llmContext: '',
               skipLlm: true,
-              fixedResponse: `Dirección guardada. Total con envío: $${totalAddr}. ¿Pagas por transferencia o efectivo al repartidor? 💳💵`,
+              fixedResponse: `📍 *Dirección guardada*\n\n💰 Total con envío: *$${totalAddr}*\n\n¿Cómo pagas?\n• *Efectivo* al repartidor\n• *Transferencia* bancaria`,
             };
           }
         }
@@ -525,7 +525,7 @@ export class OrderStateMachine {
           actions: [{ tool: 'set_payment_method', args: { orderId: state.orderId, method: 'cod' } }],
           llmContext: '',
           skipLlm: true,
-          fixedResponse: `¡Tu pedido fue enviado a cocina! Te avisamos cuando esté listo. Pagas $${state.total ?? '?'} al repartidor. 🙌`,
+          fixedResponse: `✅ *¡Pedido confirmado!*\n\n💵 Pagas: *$${state.total ?? '?'}* al repartidor\n👨‍🍳 Estado: En cocina\n\nTe avisamos cuando esté listo 🙌`,
         };
 
       case 'want_transfer':
@@ -544,7 +544,7 @@ export class OrderStateMachine {
             actions: [{ tool: 'set_payment_method', args: { orderId: state.orderId, method: 'cod' } }],
             llmContext: '',
             skipLlm: true,
-            fixedResponse: `¡Tu pedido fue enviado a cocina! Te avisamos cuando esté listo. Pagas $${state.total ?? '?'} en efectivo. 🙌`,
+            fixedResponse: `✅ *¡Pedido confirmado!*\n\n💵 Pagas: *$${state.total ?? '?'}* en efectivo\n👨‍🍳 Estado: En cocina\n\nTe avisamos cuando esté listo 🙌`,
           };
         }
         // Check for transfer keywords
@@ -561,7 +561,7 @@ export class OrderStateMachine {
           actions: [],
           llmContext: '',
           skipLlm: true,
-          fixedResponse: `Total: $${state.total ?? '?'}. ¿Pagas por transferencia bancaria o efectivo contra entrega? 💳💵`,
+          fixedResponse: `💰 Total: *$${state.total ?? '?'}*\n\n¿Cómo pagas?\n• *Efectivo* al repartidor\n• *Transferencia* bancaria`,
         };
       }
     }

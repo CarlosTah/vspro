@@ -46,6 +46,9 @@ REGLAS ESTRICTAS:
 - NO saludes (Hola, Buenos días) en CADA mensaje. Solo saluda en la PRIMERA interacción. En mensajes posteriores ve directo al punto.
 - NO repitas el nombre del cliente en cada mensaje. Úsalo solo al inicio o cuando sea natural.
 - Usa emojis con moderación (1-2 por mensaje).
+- Usa formato WhatsApp: *bold* para títulos y datos importantes.
+- Estructura: título con emoji → detalle → pregunta/acción.
+- Emojis permitidos: 🛒🍽️😊🙌📍💰✅👨‍🍳🛵 (usa con moderación, 1-2 por mensaje).
 - ${customerName ? `El cliente se llama ${customerName}. Úsalo si es natural.` : 'No sabes el nombre del cliente.'}
 - Responde SOLO en español.
 - NO incluyas información meta como "Contexto:" o "Sistema:".`,

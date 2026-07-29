@@ -247,9 +247,9 @@ export class StateMachineOrchestratorService {
           } catch {}
         }
         if (storedAddress) {
-          responseText = `El envío cuesta $${deliveryCost}. Total con envío: $${totalWithShip}.\n\n¿Te lo enviamos a *${storedAddress}* o a otra dirección? 📍`;
+          responseText = `🛵 Envío: $${deliveryCost}\n💰 Total con envío: *$${totalWithShip}*\n\n¿Te lo enviamos a *${storedAddress}*?\nO envía tu nueva dirección 📍`;
         } else {
-          responseText = `El envío cuesta $${deliveryCost}. Total con envío: $${totalWithShip}.\n\nPor favor, envíame tu dirección completa (calle, colonia, referencias) y tu ubicación 📍.`;
+          responseText = `🛵 Envío: $${deliveryCost}\n💰 Total con envío: *$${totalWithShip}*\n\nEnvíame tu dirección y ubicación 📍`;
         }
       } else {
         // IMPORTANT: Only pass memory hint to LLM when NOT showing items/totals

@@ -151,19 +151,19 @@ export class OrderNotificationsService {
         return `✅ *Pago confirmado*\n\n${name}, recibimos tu pago de $${total} para el pedido *${num}*.\n\nTu pedido será enviado a cocina en breve. 👨‍🍳`;
 
       case 'in_production':
-        return `👨‍🍳 *Pedido en cocina*\n\n${name}, tu pedido *${num}* fue enviado a cocina.\n\n⏳ Te avisamos cuando esté listo.`;
+        return `👨‍🍳 *Pedido en cocina*\n\n📋 ${name}, tu pedido *${num}* se está preparando.\n\n⏳ Te avisamos cuando esté listo.`;
 
       case 'ready':
         if (isDelivery) {
-          return `🎉 *¡Pedido listo!*\n\n${name}, tu pedido *${num}* está listo.\n\n🛵 Estamos contactando a un repartidor para enviártelo. Te avisamos cuando salga.`;
+          return `🎉 *¡Pedido listo!*\n\n📋 ${name}, tu pedido *${num}* está listo.\n\n🛵 Un repartidor te contactará pronto.`;
         }
-        return `🎉 *¡Pedido listo!*\n\n${name}, tu pedido *${num}* está listo para recoger.\n\n📍 Pasa cuando gustes. ¡Te esperamos!`;
+        return `🎉 *¡Pedido listo!*\n\n📋 ${name}, tu pedido *${num}* está listo para recoger.\n\n📍 Pasa cuando gustes. ¡Te esperamos!`;
 
       case 'shipped':
-        return `🛵 *En camino*\n\n${name}, tu pedido *${num}* ya va en camino.\n\n⏱ Llegará en aproximadamente 20-30 minutos.`;
+        return `🛵 *En camino*\n\n📋 ${name}, tu pedido *${num}* va en camino.\n\n⏱ Llegará en aprox. 20-30 min.`;
 
       case 'delivered':
-        return `✅ *Entregado*\n\n${name}, tu pedido *${num}* fue entregado.\n\n¡Gracias por tu compra! 🙏 Que lo disfrutes.`;
+        return `✅ *¡Entregado!*\n\n📋 ${name}, tu pedido *${num}* fue entregado.\n\n¡Gracias por tu compra! 🙏`;
 
       case 'cancelled':
         return `❌ *Pedido cancelado*\n\n${name}, tu pedido *${num}* fue cancelado.\n\nSi necesitas ayuda, escríbenos.`;
