@@ -76,8 +76,8 @@ export class AiEngineService {
 
       // 2.5. BLOQUEO POR HORARIO — si el negocio está cerrado, no tomar pedidos
       const isOwnerCheck = (conversation.context as any)?.isOwner === true;
+      const scheduleCheck = this.checkBusinessHours(aiConfig.businessHours);
       if (!isOwnerCheck) {
-        const scheduleCheck = this.checkBusinessHours(aiConfig.businessHours);
         if (!scheduleCheck.isOpen) {
           // Check if we already sent an away message recently (avoid spamming)
           const recentAway = await this.prisma.$queryRawUnsafe<any[]>(`
@@ -193,6 +193,11 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         } catch {
           orderContext = `\n\nPEDIDO ACTIVO: ${convCtx.lastOrderId} (${convCtx.lastOrderNumber ?? 'N/A'})\n`;
         }
+      }
+
+      // Inject closing-soon warning if applicable
+      if (scheduleCheck && scheduleCheck.minutesToClose && scheduleCheck.minutesToClose <= 30) {
+        orderContext += `\n⚠️ NOTA: El negocio cierra en ${scheduleCheck.minutesToClose} minutos. Si el cliente está pidiendo, dale prioridad y menciónalo brevemente.\n`;
       }
 
       const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -3371,7 +3376,7 @@ REGLAS DE COMUNICACIÓN:
   }
 
   /** Verifica si el negocio está dentro de su horario de atención */
-  private checkBusinessHours(businessHours: any): { isOpen: boolean; nextOpen?: string } {
+  private checkBusinessHours(businessHours: any): { isOpen: boolean; nextOpen?: string; minutesToClose?: number } {
     if (!businessHours) return { isOpen: true }; // Sin horario configurado = siempre abierto
 
   // Parse format: could be {timezone, schedule: {mon: {open, close}}} or {mon: {open, close}}
@@ -3462,7 +3467,8 @@ REGLAS DE COMUNICACIÓN:
     }
 
     if (currentMinutes >= openMinutes && currentMinutes < closeMinutes) {
-      return { isOpen: true };
+      const minutesToClose = closeMinutes - currentMinutes;
+      return { isOpen: true, minutesToClose };
     }
 
     // Closed — determine if before opening or after closing

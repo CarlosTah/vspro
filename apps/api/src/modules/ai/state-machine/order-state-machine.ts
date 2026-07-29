@@ -129,12 +129,25 @@ export class OrderStateMachine {
       case 'want_to_order': {
         // WhatsApp names with ~ or special chars are display names, not real names
         const hasRealName = state.customerName && !state.customerName.includes('~') && state.customerName.length > 2;
+        // Adaptive greeting based on time of day
+        const hour = new Date().getHours();
+        const timeGreeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Buenas noches';
+        // Check if returning customer with previous orders
+        const hasHistory = state.orderId || state.orderNumber;
+        
+        let greetingContext: string;
+        if (hasRealName && hasHistory) {
+          greetingContext = `${timeGreeting}! Saluda a ${state.customerName} de ${this.businessName}. Es cliente recurrente. Pregunta: "¿Lo mismo de siempre o algo diferente?" Sé breve y cálido.`;
+        } else if (hasRealName) {
+          greetingContext = `${timeGreeting}! Saluda a ${state.customerName} de ${this.businessName}. Pregunta qué se le antoja hoy. Sé breve.`;
+        } else {
+          greetingContext = `${timeGreeting}! Saluda al cliente de ${this.businessName}. Pregúntale su nombre y qué se le antoja. Sé breve y cálido.`;
+        }
+        
         return {
           newState: OrderState.TAKING_ORDER,
           actions: [],
-          llmContext: hasRealName
-            ? `Saluda a ${state.customerName} de ${this.businessName}. Pregunta qué se le antoja. Catálogo:\n${this.formatCatalog()}\nSé breve.`
-            : `Saluda al cliente de ${this.businessName}. Pregúntale su nombre y qué se le antoja. Catálogo:\n${this.formatCatalog()}\nSé breve.`,
+          llmContext: greetingContext,
         };
       }
 
@@ -252,6 +265,18 @@ export class OrderStateMachine {
               llmContext: `El cliente pregunta si tenemos algo. SÍ tenemos "${productInquiry.name}" a $${productInquiry.price}. Responde confirmando que sí lo tenemos y pregunta cuántos quiere.`,
             };
           }
+        }
+
+        // OFF-TOPIC: If message has nothing to do with food/ordering/business
+        const offTopicPatterns = ['programar', 'código', 'python', 'javascript', 'política', 'religión', 'fútbol', 'novia', 'novio', 'cita', 'amor', 'sexo'];
+        if (offTopicPatterns.some(w => intent.text.toLowerCase().includes(w))) {
+          return {
+            newState: OrderState.IDLE,
+            actions: [],
+            skipLlm: true,
+            llmContext: '',
+            fixedResponse: `Soy el asistente de *${this.businessName}* 😊\n\nTe puedo ayudar con:\n• 🛒 Hacer un pedido\n• 📋 Ver el menú\n• 📍 Ubicación y horario\n\n¿En qué te ayudo?`,
+          };
         }
 
         return {

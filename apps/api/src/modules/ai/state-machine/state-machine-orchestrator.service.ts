@@ -93,6 +93,35 @@ export class StateMachineOrchestratorService {
 
     this.logger.log(`[${schemaName}] SM: ${currentState.state} → ${intent.type} | msg: "${(message.text ?? '').substring(0, 40)}"`);
 
+    // FRUSTRATION DETECTION: If last 3 messages from user had the same intent or state didn't progress
+    try {
+      const recentMsgs = await this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT content FROM "${schemaName}".messages
+        WHERE conversation_id = $1::uuid AND direction = 'inbound'
+        ORDER BY created_at DESC LIMIT 3
+      `, conversation.id);
+      
+      if (recentMsgs.length >= 3) {
+        // Check if user is repeating themselves (frustrated)
+        const msgs = recentMsgs.map(m => (m.content ?? '').toLowerCase().trim());
+        const allSimilar = msgs.every(m => m.length > 0) && 
+          (msgs[0] === msgs[1] || msgs[0] === msgs[2] || msgs[1] === msgs[2]);
+        // Check for frustration signals
+        const frustrationSignals = ['!!!', '??', 'NO ENTIENDES', 'YA TE DIJE', 'OTRA VEZ', 'NO ME AYUDAS', 'HABLAR CON ALGUIEN', 'PERSONA REAL'];
+        const isFrustrated = allSimilar || frustrationSignals.some(s => (message.text ?? '').toUpperCase().includes(s));
+        
+        if (isFrustrated && currentState.state !== OrderState.IDLE) {
+          this.logger.warn(`[${schemaName}] Frustration detected — escalating`);
+          // Auto-escalate
+          await this.executeAction('escalate_complaint', { reason: `Cliente frustrado: "${message.text}"`, priority: 'high' }, conversation, schemaName);
+          await this.persistState(conversation.id, { ...currentState, state: OrderState.IDLE }, schemaName);
+          return {
+            text: `Lamento la confusión 🙏 Ya notifiqué al equipo para que te atiendan directamente. ¿Hay algo más en lo que pueda ayudarte?`,
+            newState: { ...currentState, state: OrderState.IDLE },
+          };
+        }
+      }
+    } catch {}
     // Detect if message contains a name introduction (Soy X, Me llamo X, Mi nombre es X)
     const nameMatch = (message.text ?? '').match(/(?:soy|me llamo|mi nombre es)\s+([A-ZÁÉÍÓÚÑa-záéíóúñ]+(?:\s[A-ZÁÉÍÓÚÑa-záéíóúñ]+)?)/i);
     if (nameMatch && nameMatch[1] && nameMatch[1].length > 2) {
@@ -263,6 +292,17 @@ export class StateMachineOrchestratorService {
         try {
           ragContext = await this.knowledgeBase.buildRAGContext(message.text ?? '', schemaName);
         } catch {}
+
+        // RAG FALLBACK: If no relevant KB info found and this is a question we can't answer
+        if (!ragContext && transition.newState === OrderState.IDLE && intent.type === 'other') {
+          const isQuestion = (message.text ?? '').includes('?') || ['qué', 'cómo', 'cuándo', 'dónde', 'cuánto', 'por qué'].some(q => (message.text ?? '').toLowerCase().includes(q));
+          if (isQuestion) {
+            // No info available — use safe fallback instead of letting LLM hallucinate
+            responseText = `No tengo esa información disponible. Si necesitas ayuda, te puedo conectar con el encargado 📞\n\nMientras tanto, ¿te gustaría:\n• 🛒 Hacer un pedido\n• 📋 Ver el menú`;
+            await this.persistState(conversation.id, newState, schemaName);
+            return { text: responseText, newState };
+          }
+        }
 
         const safeLlmContext = `${transition.llmContext}${actionResults ? `\n\nResultado de acciones:${actionResults}` : ''}${safeMemory}${ragContext}`;
         responseText = await this.textGenerator.generate(safeLlmContext, personality, customerName);
@@ -542,6 +582,14 @@ export class StateMachineOrchestratorService {
           // COD → go to production directly
           if (args.method === 'cod') {
             try { await this.ordersService.transition(orderId, 'in_production' as any, schemaName); } catch {}
+            // Schedule post-delivery follow-up (45 min from now)
+            try {
+              await this.prisma.$executeRawUnsafe(`
+                UPDATE "${schemaName}".conversations
+                SET next_follow_up_at = NOW() + INTERVAL '45 minutes'
+                WHERE id = $1::uuid
+              `, conversation.id);
+            } catch {}
           }
 
           return JSON.stringify({ success: true, method: args.method });
