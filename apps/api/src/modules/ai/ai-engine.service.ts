@@ -201,6 +201,21 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
       ];
 
       // Agregar mensaje actual (con imagen si aplica)
+      // Prevent repeated image-error messages: if last 3 outbound messages mention "imagen" or "image", skip
+      if (message.mediaUrl && message.type === 'image') {
+        const recentImageErrors = await this.prisma.$queryRawUnsafe<any[]>(`
+          SELECT COUNT(*)::int AS cnt FROM "${schemaName}".messages
+          WHERE conversation_id = $1::uuid AND direction = 'outbound'
+            AND (content ILIKE '%imagen%' OR content ILIKE '%image%' OR content ILIKE '%foto%')
+            AND created_at > NOW() - INTERVAL '5 minutes'
+        `, conversation.id).catch(() => [{ cnt: 0 }]);
+        
+        if ((recentImageErrors[0]?.cnt ?? 0) >= 2) {
+          // Already told the user about the image issue — don't spam
+          return { text: '' };
+        }
+      }
+
       if (message.mediaUrl && message.type === 'image') {
         // Download image from Meta and convert to base64 for GPT-4o Vision
         let imageUrl = message.mediaUrl;
@@ -212,17 +227,19 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             `SELECT access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`
           );
           const accessToken = channelRows[0]?.access_token;
-          if (accessToken) {
+          // Fallback: if this tenant has no WhatsApp channel, try VSPRO's token
+          const finalToken = accessToken || await this.getVsproToken();
+          if (finalToken) {
             // Get media download URL from Meta
             const mediaInfo = await axios.get(message.mediaUrl, {
-              headers: { Authorization: `Bearer ${accessToken}` },
+              headers: { Authorization: `Bearer ${finalToken}` },
               timeout: 10000,
             });
             const downloadUrl = mediaInfo.data?.url;
             if (downloadUrl) {
               // Download actual image
               const imgResponse = await axios.get(downloadUrl, {
-                headers: { Authorization: `Bearer ${accessToken}` },
+                headers: { Authorization: `Bearer ${finalToken}` },
                 responseType: 'arraybuffer',
                 timeout: 15000,
               });
@@ -1540,6 +1557,26 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
 
       case 'register_business': {
         try {
+          // Check if slug already exists AND belongs to the same owner
+          const existingTenant = await this.prisma.tenant.findFirst({ where: { slug: args.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-') } });
+          if (existingTenant) {
+            // Check if the sender is already the admin of this tenant
+            const senderPhone2 = (conversation.context as any)?.senderPhone ?? '';
+            const existingAdmin = await this.prisma.$queryRawUnsafe<any[]>(
+              `SELECT 1 FROM "${(existingTenant as any).schemaName}".users WHERE role = 'admin' AND (phone = $1 OR phone = $2) LIMIT 1`,
+              senderPhone2, senderPhone2.replace(/^52/, ''),
+            ).catch(() => []);
+            
+            if (existingAdmin.length > 0) {
+              return JSON.stringify({
+                success: true,
+                alreadyExists: true,
+                tenantSlug: existingTenant.slug,
+                message: `Tu negocio "${existingTenant.businessName}" ya está registrado en VSPRO con el slug "${existingTenant.slug}". Puedes acceder al panel en app.vspro.app. ¿En qué más te puedo ayudar?`,
+              });
+            }
+          }
+
           // Get sender's phone from conversation context to link their WhatsApp
           const senderPhone = (conversation.context as any)?.senderPhone ?? null;
 
@@ -3227,6 +3264,9 @@ REGLAS ESTRICTAS:
 - Si te preguntan "qué vendes", responde: "Yo no vendo productos, soy el soporte de VSPRO. VSPRO es una plataforma que ayuda a tu negocio a vender más con IA."
 - NO uses emojis de comida (🍽️🍕🌮). Usa emojis profesionales (🚀📊✅💼).
 - Si te piden el catálogo, explica que primero deben registrar su negocio.
+- Mensajes CORTOS — máximo 4 líneas por respuesta.
+- Para el registro, guía PASO A PASO: primero nombre del negocio, luego email, luego contraseña, etc. NO pidas todo de golpe.
+- Si el slug está ocupado, sugiere alternativas inmediatamente (ej: "room359-chetumal", "room359-renta").
 
 LO QUE PUEDES HACER:
 - Registrar negocios nuevos (register_business)
@@ -3296,7 +3336,15 @@ SI EL DUEÑO MANDA UNA IMAGEN (como un menú):
 CATÁLOGO ACTUAL DEL NEGOCIO (${products.length} productos):
 ${productList || 'Sin productos aún — ayuda al dueño a agregar su catálogo.'}
 
-Siempre confirma antes de agregar productos. Si no estás seguro del precio, pregunta.`.trim();
+Siempre confirma antes de agregar productos. Si no estás seguro del precio, pregunta.
+
+REGLAS DE COMUNICACIÓN:
+- Mensajes CORTOS (máximo 3-4 líneas). Es WhatsApp, no email.
+- NO uses **markdown**. Usa *WhatsApp bold* con asteriscos simples o emojis para separar.
+- Guía al dueño PASO A PASO — no pidas 6 datos de golpe.
+- Si falla algo técnico, responde UNA VEZ con el error y sugiere alternativa. No repitas el mismo error.
+- NO repitas la misma respuesta si el usuario envía varios mensajes seguidos (ej: múltiples fotos).
+- Si recibes varias imágenes, procesa cada una en silencio y da UN resumen al final.`.trim();
   }
 
   /** Formatea el horario para incluirlo en el system prompt */
@@ -3437,6 +3485,18 @@ Siempre confirma antes de agregar productos. Si no estás seguro del precio, pre
       }
     }
     return { isOpen: false };
+  }
+
+  /** Get the VSPRO platform's WhatsApp token (fallback for image downloads) */
+  private async getVsproToken(): Promise<string | null> {
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT access_token FROM tenant_vspro.channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`,
+      );
+      return rows[0]?.access_token ?? null;
+    } catch {
+      return null;
+    }
   }
 
   /** Respuesta de desarrollo cuando no hay API key de OpenAI */
