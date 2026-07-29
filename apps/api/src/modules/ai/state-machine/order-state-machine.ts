@@ -421,6 +421,21 @@ export class OrderStateMachine {
         };
 
       default:
+        // Handle compound messages starting with "sí" + additional text
+        if (intent.type === 'other' || intent.type === 'want_to_order' || intent.type === 'check_menu') {
+          const startsWithYes = /^(s[ií]|si[,.]?\s|claro|dale|va|ok)/i.test(intent.text.trim());
+          if (startsWithYes) {
+            // Treat as confirm_yes — the customer said yes but also asked/said something else
+            const orderTotal = this.calculateTotal(state.items ?? []);
+            return {
+              newState: OrderState.ASKING_DELIVERY,
+              actions: [{ tool: 'create_order', args: { items: state.items ?? [] } }],
+              llmContext: '',
+              skipLlm: true,
+              fixedResponse: `✅ *¡Pedido creado!*\n\n💰 Total: $${orderTotal}\n🛵 Envío a domicilio: +$${this.deliveryCost}\n\n¿Pasas a *recoger* o te lo *enviamos*?`,
+            };
+          }
+        }
         return {
           newState: OrderState.CONFIRMING_ORDER,
           actions: [],
@@ -446,11 +461,27 @@ export class OrderStateMachine {
         };
 
       case 'add_items':
-        // Customer wants to add more items after confirming — go back to taking order
+        // Customer wants to add more items AFTER order was already created
+        // If order already exists (orderId), add to it instead of creating new
+        if (state.orderId) {
+          const validatedAdd = this.validateItems(intent.items ?? []);
+          if (validatedAdd.valid.length > 0) {
+            const addTotal = this.calculateTotal(validatedAdd.valid);
+            const addSummary = this.formatOrderSummary(validatedAdd.valid);
+            return {
+              newState: OrderState.ASKING_DELIVERY,
+              actions: [{ tool: 'add_items_to_order', args: { orderId: state.orderId, items: validatedAdd.valid } }],
+              llmContext: '',
+              skipLlm: true,
+              fixedResponse: `✅ *Agregado a tu pedido:*\n\n${addSummary}\n\n💰 +$${addTotal} al total\n\n¿Pasas a *recoger* o te lo *enviamos*?`,
+            };
+          }
+        }
+        // No existing order — go back to taking order
         return {
           newState: OrderState.TAKING_ORDER,
           actions: [],
-          llmContext: 'El cliente quiere agregar algo más a su pedido. Pregunta qué más quiere.',
+          llmContext: 'El cliente quiere agregar algo más. Pregunta qué más quiere.',
         };
 
       default: {
@@ -737,7 +768,19 @@ export class OrderStateMachine {
             const variant = inputName.replace(/^(sope|torta|taco|gringa|burrito|costra|nacho|nachos|huarache|papa rellena)s?\s*(de\s*)?/i, '').trim();
             
             if (variant) {
-              match = categoryProducts.find(p => p.name.toLowerCase().includes(variant));
+              // Size-aware matching for beverages: if variant includes a number (ml), prefer that size
+              const sizeMatch = variant.match(/(\d{3,4})\s*(ml)?/);
+              if (sizeMatch && category === 'Bebidas') {
+                const size = sizeMatch[1];
+                match = categoryProducts.find(p => p.name.toLowerCase().includes(variant.replace(sizeMatch[0], '').trim()) && p.name.includes(size));
+                if (!match) {
+                  // Try just the size
+                  match = categoryProducts.find(p => p.name.includes(size) && (variant.includes('coca') ? p.name.toLowerCase().includes('coca') : true));
+                }
+              }
+              if (!match) {
+                match = categoryProducts.find(p => p.name.toLowerCase().includes(variant));
+              }
             }
             if (!match && categoryProducts.length > 0) {
               // Try full input against category products
@@ -828,7 +871,8 @@ export class OrderStateMachine {
   private formatOrderSummary(items: Array<{ productName: string; quantity: number; notes?: string; price?: number }>): string {
     return items.map(i => {
       const price = i.price ?? this.catalog.find(p => p.name.toLowerCase() === i.productName.toLowerCase())?.price ?? 0;
-      return `- ${i.quantity}x ${i.productName} ($${price * i.quantity})${i.notes ? ` [${i.notes}]` : ''}`;
+      const notesStr = i.notes && typeof i.notes === 'string' ? ` [${i.notes}]` : '';
+      return `• ${i.quantity}× ${i.productName} — $${price * i.quantity}${notesStr}`;
     }).join('\n');
   }
 

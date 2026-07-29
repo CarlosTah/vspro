@@ -450,6 +450,53 @@ export class StateMachineOrchestratorService {
   ): Promise<string> {
     try {
       switch (tool) {
+        case 'add_items_to_order': {
+          const orderId = args.orderId || conversation.context.lastOrderId;
+          if (!orderId) return JSON.stringify({ success: false, message: 'No order to add to' });
+
+          // Resolve product IDs
+          const newItems: { productId: string; quantity: number; productName: string; unitPrice: number }[] = [];
+          for (const item of (args.items ?? [])) {
+            const found = await this.productsService.search(item.productName, schemaName);
+            if (found.length > 0) {
+              newItems.push({ productId: found[0].id, quantity: item.quantity, productName: found[0].name, unitPrice: parseFloat(found[0].price) });
+            }
+          }
+          if (newItems.length === 0) return JSON.stringify({ success: false, message: 'Products not found' });
+
+          // Get current order items and update
+          const orderRows = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT items, subtotal FROM "${schemaName}".orders WHERE id = $1::uuid`, orderId,
+          );
+          if (!orderRows[0]) return JSON.stringify({ success: false, message: 'Order not found' });
+
+          const currentItems = typeof orderRows[0].items === 'string' ? JSON.parse(orderRows[0].items) : (orderRows[0].items ?? []);
+          const addedSubtotal = newItems.reduce((sum, i) => sum + (i.unitPrice * i.quantity), 0);
+
+          // Append new items
+          const updatedItems = [...currentItems, ...newItems.map(i => ({
+            productId: i.productId,
+            productName: i.productName,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            subtotal: i.unitPrice * i.quantity,
+            sku: null,
+          }))];
+
+          // Update order
+          await this.prisma.$executeRawUnsafe(`
+            UPDATE "${schemaName}".orders
+            SET items = $1::jsonb, subtotal = subtotal + $2, total = total + $2, updated_at = NOW()
+            WHERE id = $3::uuid
+          `, JSON.stringify(updatedItems), addedSubtotal, orderId);
+
+          const updatedOrder = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT total FROM "${schemaName}".orders WHERE id = $1::uuid`, orderId,
+          );
+
+          return JSON.stringify({ success: true, addedItems: newItems.length, newTotal: updatedOrder[0]?.total });
+        }
+
         case 'create_order': {
           const customerId = conversation.context.customerId;
           if (!customerId) return JSON.stringify({ success: false, message: 'No customer ID' });
