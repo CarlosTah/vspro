@@ -26,7 +26,11 @@ export default function ChannelsPage() {
   }, []);
 
   const loadChannels = () => {
-    api.get('/channels').then(setChannels).catch(console.error).finally(() => setLoading(false));
+    api
+      .get('/channels')
+      .then(setChannels)
+      .catch(console.error)
+      .finally(() => setLoading(false));
   };
 
   const handleConnect = async (type: string) => {
@@ -86,7 +90,9 @@ export default function ChannelsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">Canales de mensajería</h1>
-        <p className="text-sm text-gray-400">Conecta WhatsApp, Messenger o Instagram para recibir pedidos</p>
+        <p className="text-sm text-gray-400">
+          Conecta WhatsApp, Messenger o Instagram para recibir pedidos
+        </p>
       </div>
 
       {/* Canales conectados */}
@@ -95,7 +101,10 @@ export default function ChannelsPage() {
           {channels.map((ch) => {
             const info = CHANNEL_INFO[ch.type];
             return (
-              <div key={ch.id} className={`rounded-xl border ${info?.color ?? ''} p-5 flex items-center justify-between`}>
+              <div
+                key={ch.id}
+                className={`rounded-xl border ${info?.color ?? ''} p-5 flex items-center justify-between`}
+              >
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{info?.icon}</span>
                   <div>
@@ -105,9 +114,13 @@ export default function ChannelsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {ch.isActive ? (
-                    <span className="rounded-full bg-green-900/40 px-2.5 py-0.5 text-xs font-medium text-green-300">Activo</span>
+                    <span className="rounded-full bg-green-900/40 px-2.5 py-0.5 text-xs font-medium text-green-300">
+                      Activo
+                    </span>
                   ) : (
-                    <span className="rounded-full bg-red-900/40 px-2.5 py-0.5 text-xs font-medium text-red-300">Inactivo</span>
+                    <span className="rounded-full bg-red-900/40 px-2.5 py-0.5 text-xs font-medium text-red-300">
+                      Inactivo
+                    </span>
                   )}
                   <button
                     onClick={() => handleTest(ch.id)}
@@ -142,7 +155,10 @@ export default function ChannelsPage() {
           const isOpen = showSetup === type;
 
           return (
-            <div key={type} className="rounded-xl border border-gray-700 bg-gray-800 overflow-hidden">
+            <div
+              key={type}
+              className="rounded-xl border border-gray-700 bg-gray-800 overflow-hidden"
+            >
               <button
                 onClick={() => setShowSetup(isOpen ? null : type)}
                 className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-750"
@@ -184,7 +200,9 @@ export default function ChannelsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">Access Token</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      Access Token
+                    </label>
                     <input
                       value={accessToken}
                       onChange={(e) => setAccessToken(e.target.value)}
@@ -202,16 +220,27 @@ export default function ChannelsPage() {
                     disabled={saving || !externalId || !accessToken}
                     className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                   >
-                    {saving ? 'Guardando...' : editingChannel ? 'Actualizar canal' : `Conectar ${info.name}`}
+                    {saving
+                      ? 'Guardando...'
+                      : editingChannel
+                        ? 'Actualizar canal'
+                        : `Conectar ${info.name}`}
                   </button>
 
                   {/* Instrucciones post-conexión */}
                   {setupResult && setupResult.channel?.type === type && (
                     <div className="mt-4 rounded-lg border border-green-700 bg-green-900/20 p-4">
-                      <p className="text-sm font-medium text-green-300 mb-2">✅ Canal conectado. Configura el webhook:</p>
+                      <p className="text-sm font-medium text-green-300 mb-2">
+                        ✅ Canal conectado. Configura el webhook:
+                      </p>
                       <div className="space-y-1 text-xs text-green-400 font-mono">
-                        <p>Webhook URL: <span className="select-all">{setupResult.webhookUrl}</span></p>
-                        <p>Verify Token: <span className="select-all">{setupResult.verifyToken}</span></p>
+                        <p>
+                          Webhook URL: <span className="select-all">{setupResult.webhookUrl}</span>
+                        </p>
+                        <p>
+                          Verify Token:{' '}
+                          <span className="select-all">{setupResult.verifyToken}</span>
+                        </p>
                       </div>
                       <ol className="mt-3 space-y-1 text-xs text-green-400 list-decimal list-inside">
                         {setupResult.setupInstructions?.steps?.map((step: string, i: number) => (

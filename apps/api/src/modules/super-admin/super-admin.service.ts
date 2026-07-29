@@ -76,7 +76,11 @@ export class SuperAdminService {
   async getTenantDetail(tenantId: string) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
-      include: { plan: true, subscription: true, usageRecords: { orderBy: { period: 'desc' }, take: 3 } },
+      include: {
+        plan: true,
+        subscription: true,
+        usageRecords: { orderBy: { period: 'desc' }, take: 3 },
+      },
     });
     if (!tenant) throw new NotFoundException('Tenant no encontrado');
     return tenant;
@@ -179,7 +183,15 @@ export class SuperAdminService {
 
   // ─── Tenant Detail Actions ────────────────────────────────────
 
-  async updateTenantData(tenantId: string, dto: { businessName?: string; ownerEmail?: string; ownerName?: string; settings?: Record<string, any> }) {
+  async updateTenantData(
+    tenantId: string,
+    dto: {
+      businessName?: string;
+      ownerEmail?: string;
+      ownerName?: string;
+      settings?: Record<string, any>;
+    },
+  ) {
     const data: any = {};
     if (dto.businessName) data.businessName = dto.businessName;
     if (dto.ownerEmail) data.ownerEmail = dto.ownerEmail;
@@ -224,7 +236,10 @@ export class SuperAdminService {
     return { success: true, trialEndsAt: newEnd, graceDaysAdded: days };
   }
 
-  async recordManualPayment(tenantId: string, dto: { amount: number; reference?: string; note?: string }) {
+  async recordManualPayment(
+    tenantId: string,
+    dto: { amount: number; reference?: string; note?: string },
+  ) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundException('Tenant no encontrado');
 
@@ -249,10 +264,16 @@ export class SuperAdminService {
       )
     `);
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO public.payment_history (tenant_id, amount, reference, note, type)
       VALUES ($1::uuid, $2, $3, $4, 'manual')
-    `, tenantId, dto.amount, dto.reference ?? '', dto.note ?? 'Pago manual admin');
+    `,
+      tenantId,
+      dto.amount,
+      dto.reference ?? '',
+      dto.note ?? 'Pago manual admin',
+    );
 
     // Activate tenant if currently suspended or trial
     if (tenant.status !== 'ACTIVE') {
@@ -275,10 +296,18 @@ export class SuperAdminService {
 
     try {
       const [orders, products, customers, messages] = await Promise.all([
-        this.prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*) as total FROM "${tenant.schemaName}".orders`),
-        this.prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*) as total FROM "${tenant.schemaName}".products WHERE is_active = true`),
-        this.prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*) as total FROM "${tenant.schemaName}".customers`),
-        this.prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*) as total FROM "${tenant.schemaName}".messages`),
+        this.prisma.$queryRawUnsafe<any[]>(
+          `SELECT COUNT(*) as total FROM "${tenant.schemaName}".orders`,
+        ),
+        this.prisma.$queryRawUnsafe<any[]>(
+          `SELECT COUNT(*) as total FROM "${tenant.schemaName}".products WHERE is_active = true`,
+        ),
+        this.prisma.$queryRawUnsafe<any[]>(
+          `SELECT COUNT(*) as total FROM "${tenant.schemaName}".customers`,
+        ),
+        this.prisma.$queryRawUnsafe<any[]>(
+          `SELECT COUNT(*) as total FROM "${tenant.schemaName}".messages`,
+        ),
       ]);
 
       const ordersThisMonth = await this.prisma.$queryRawUnsafe<any[]>(`
@@ -296,45 +325,69 @@ export class SuperAdminService {
         revenueThisMonth: parseFloat(ordersThisMonth[0]?.revenue) || 0,
       };
     } catch {
-      return { totalOrders: 0, totalProducts: 0, totalCustomers: 0, totalMessages: 0, ordersThisMonth: 0, revenueThisMonth: 0 };
+      return {
+        totalOrders: 0,
+        totalProducts: 0,
+        totalCustomers: 0,
+        totalMessages: 0,
+        ordersThisMonth: 0,
+        revenueThisMonth: 0,
+      };
     }
   }
 
   async getTenantPayments(tenantId: string) {
     try {
-      const payments = await this.prisma.$queryRawUnsafe<any[]>(`
+      const payments = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT id, amount, reference, note, type, created_at AS "createdAt"
         FROM public.payment_history
         WHERE tenant_id = $1::uuid
         ORDER BY created_at DESC
         LIMIT 50
-      `, tenantId);
+      `,
+        tenantId,
+      );
       return payments;
     } catch {
       return [];
     }
   }
 
-  async addProductToTenant(tenantId: string, dto: { name: string; price: number; category?: string; description?: string }) {
+  async addProductToTenant(
+    tenantId: string,
+    dto: { name: string; price: number; category?: string; description?: string },
+  ) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundException('Tenant no encontrado');
 
     const sku = `PRD-${Date.now().toString(36).toUpperCase()}`;
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${tenant.schemaName}".products (name, price, category, description, sku, is_active)
       VALUES ($1, $2, $3, $4, $5, true)
-    `, dto.name, dto.price, dto.category ?? 'General', dto.description ?? '', sku);
+    `,
+      dto.name,
+      dto.price,
+      dto.category ?? 'General',
+      dto.description ?? '',
+      sku,
+    );
 
     // Create inventory
     const products = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT id FROM "${tenant.schemaName}".products WHERE sku = $1`, sku,
+      `SELECT id FROM "${tenant.schemaName}".products WHERE sku = $1`,
+      sku,
     );
     if (products[0]) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${tenant.schemaName}".inventory (product_id, stock_available, stock_minimum)
         VALUES ($1::uuid, 50, 5)
         ON CONFLICT (product_id) DO NOTHING
-      `, products[0].id);
+      `,
+        products[0].id,
+      );
     }
 
     return { success: true, product: { name: dto.name, price: dto.price, sku } };
@@ -367,14 +420,17 @@ export class SuperAdminService {
     });
   }
 
-  async updatePlan(id: string, dto: {
-    name?: string;
-    priceMonthly?: number;
-    priceYearly?: number;
-    features?: Record<string, any>;
-    stripePriceIdMonthly?: string;
-    stripePriceIdYearly?: string;
-  }) {
+  async updatePlan(
+    id: string,
+    dto: {
+      name?: string;
+      priceMonthly?: number;
+      priceYearly?: number;
+      features?: Record<string, any>;
+      stripePriceIdMonthly?: string;
+      stripePriceIdYearly?: string;
+    },
+  ) {
     const plan = await this.prisma.plan.findUnique({ where: { id } });
     if (!plan) throw new NotFoundException('Plan no encontrado');
 
@@ -385,8 +441,12 @@ export class SuperAdminService {
         ...(dto.priceMonthly !== undefined && { priceMonthly: dto.priceMonthly }),
         ...(dto.priceYearly !== undefined && { priceYearly: dto.priceYearly }),
         ...(dto.features !== undefined && { features: dto.features }),
-        ...(dto.stripePriceIdMonthly !== undefined && { stripePriceIdMonthly: dto.stripePriceIdMonthly }),
-        ...(dto.stripePriceIdYearly !== undefined && { stripePriceIdYearly: dto.stripePriceIdYearly }),
+        ...(dto.stripePriceIdMonthly !== undefined && {
+          stripePriceIdMonthly: dto.stripePriceIdMonthly,
+        }),
+        ...(dto.stripePriceIdYearly !== undefined && {
+          stripePriceIdYearly: dto.stripePriceIdYearly,
+        }),
       },
     });
   }
@@ -416,33 +476,43 @@ export class SuperAdminService {
 
     // ─── Churn Rate (last 30 days) ───
     // Tenants that went from ACTIVE/TRIAL to SUSPENDED or CANCELLED in last 30 days
-    const activeLast30 = tenants.filter(t => t.status === 'ACTIVE' || t.status === 'TRIAL').length;
-    const suspended = tenants.filter(t => t.status === 'SUSPENDED').length;
+    const activeLast30 = tenants.filter(
+      (t) => t.status === 'ACTIVE' || t.status === 'TRIAL',
+    ).length;
+    const suspended = tenants.filter((t) => t.status === 'SUSPENDED').length;
     const totalActive = activeLast30 + suspended; // approximate base
     const churnRate = totalActive > 0 ? (suspended / totalActive) * 100 : 0;
 
     // ─── Conversion Rate (trial → paid) ───
     const totalTrialEver = tenants.length; // all tenants started as trial
-    const totalPaid = tenants.filter(t => t.status === 'ACTIVE').length;
+    const totalPaid = tenants.filter((t) => t.status === 'ACTIVE').length;
     const conversionRate = totalTrialEver > 0 ? (totalPaid / totalTrialEver) * 100 : 0;
 
     // ─── LTV (Lifetime Value) ───
     const planPrices: Record<string, number> = {};
-    tenants.forEach(t => { if (t.plan) planPrices[t.plan.slug] = parseFloat(String(t.plan.priceMonthly)); });
-    const avgMonthlyRevenue = totalPaid > 0
-      ? tenants.filter(t => t.status === 'ACTIVE').reduce((sum, t) => sum + (planPrices[t.plan?.slug] ?? 0), 0) / totalPaid
-      : 0;
+    tenants.forEach((t) => {
+      if (t.plan) planPrices[t.plan.slug] = parseFloat(String(t.plan.priceMonthly));
+    });
+    const avgMonthlyRevenue =
+      totalPaid > 0
+        ? tenants
+            .filter((t) => t.status === 'ACTIVE')
+            .reduce((sum, t) => sum + (planPrices[t.plan?.slug] ?? 0), 0) / totalPaid
+        : 0;
     const avgLifetimeMonths = churnRate > 0 ? 100 / churnRate : 12; // estimate
     const ltv = avgMonthlyRevenue * Math.min(avgLifetimeMonths, 24);
 
     // ─── Growth Rate (new tenants last 30 days vs previous 30 days) ───
-    const newLast30 = tenants.filter(t => new Date(t.createdAt) >= thirtyDaysAgo).length;
-    const newPrev30 = tenants.filter(t => new Date(t.createdAt) >= sixtyDaysAgo && new Date(t.createdAt) < thirtyDaysAgo).length;
-    const growthRate = newPrev30 > 0 ? ((newLast30 - newPrev30) / newPrev30) * 100 : (newLast30 > 0 ? 100 : 0);
+    const newLast30 = tenants.filter((t) => new Date(t.createdAt) >= thirtyDaysAgo).length;
+    const newPrev30 = tenants.filter(
+      (t) => new Date(t.createdAt) >= sixtyDaysAgo && new Date(t.createdAt) < thirtyDaysAgo,
+    ).length;
+    const growthRate =
+      newPrev30 > 0 ? ((newLast30 - newPrev30) / newPrev30) * 100 : newLast30 > 0 ? 100 : 0;
 
     // ─── MRR ───
     const mrr = tenants
-      .filter(t => t.status === 'ACTIVE')
+      .filter((t) => t.status === 'ACTIVE')
       .reduce((sum, t) => sum + (planPrices[t.plan?.slug] ?? 0), 0);
 
     // ─── Most Active Tenants (by usage) ───
@@ -460,7 +530,7 @@ export class SuperAdminService {
         ORDER BY u."ordersCount" DESC
         LIMIT 10
       `;
-      topTenants = usageData.map(d => ({
+      topTenants = usageData.map((d) => ({
         businessName: d.businessName,
         slug: d.slug,
         status: d.status,
@@ -478,7 +548,7 @@ export class SuperAdminService {
     for (let i = 5; i >= 0; i--) {
       const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
-      const count = tenants.filter(t => {
+      const count = tenants.filter((t) => {
         const d = new Date(t.createdAt);
         return d >= start && d < end;
       }).length;
@@ -497,7 +567,7 @@ export class SuperAdminService {
       newLast30Days: newLast30,
       totalTenants: tenants.length,
       activeTenants: totalPaid,
-      trialTenants: tenants.filter(t => t.status === 'TRIAL').length,
+      trialTenants: tenants.filter((t) => t.status === 'TRIAL').length,
       topTenants,
       monthlySignups,
     };
@@ -520,16 +590,19 @@ export class SuperAdminService {
     `);
 
     // Get target tenants based on filter
-    const statusFilter = filter === 'all'
-      ? { in: ['ACTIVE', 'TRIAL', 'SUSPENDED'] as any[] }
-      : filter === 'active'
-        ? 'ACTIVE'
-        : filter === 'trial'
-          ? 'TRIAL'
-          : 'SUSPENDED';
+    const statusFilter =
+      filter === 'all'
+        ? { in: ['ACTIVE', 'TRIAL', 'SUSPENDED'] as any[] }
+        : filter === 'active'
+          ? 'ACTIVE'
+          : filter === 'trial'
+            ? 'TRIAL'
+            : 'SUSPENDED';
 
     const tenants = await this.prisma.tenant.findMany({
-      where: { status: typeof statusFilter === 'string' ? statusFilter as any : { in: statusFilter.in } },
+      where: {
+        status: typeof statusFilter === 'string' ? (statusFilter as any) : { in: statusFilter.in },
+      },
       select: { id: true, slug: true, schemaName: true, ownerEmail: true, businessName: true },
     });
 
@@ -544,19 +617,29 @@ export class SuperAdminService {
       try {
         // Get owner's phone from customers table in vspro schema or from channel
         // We'll look for the tenant owner's phone in their own schema
-        const phones = await this.prisma.$queryRawUnsafe<any[]>(`
+        const phones = await this.prisma
+          .$queryRawUnsafe<any[]>(
+            `
           SELECT phone FROM "${tenant.schemaName}".users
           WHERE role = 'admin' AND phone IS NOT NULL
           LIMIT 1
-        `).catch(() => []);
+        `,
+          )
+          .catch(() => []);
 
         // Alternatively look for the owner as a customer in VSPRO's schema
         if (!phones?.[0]?.phone) {
-          const customers = await this.prisma.$queryRawUnsafe<any[]>(`
+          const customers = await this.prisma
+            .$queryRawUnsafe<any[]>(
+              `
             SELECT channel_id FROM "${vsproPlatformSchema}".customers
             WHERE email = $1 OR name ILIKE $2
             LIMIT 1
-          `, tenant.ownerEmail, `%${tenant.businessName}%`).catch(() => []);
+          `,
+              tenant.ownerEmail,
+              `%${tenant.businessName}%`,
+            )
+            .catch(() => []);
 
           if (customers?.[0]?.channel_id) {
             const result = await this.messaging.sendText(
@@ -589,10 +672,17 @@ export class SuperAdminService {
     }
 
     // Save broadcast record
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO public.broadcasts (message, filter, recipients_count, sent_count, failed_count)
       VALUES ($1, $2, $3, $4, $5)
-    `, message, filter, tenants.length, sentCount, failedCount);
+    `,
+      message,
+      filter,
+      tenants.length,
+      sentCount,
+      failedCount,
+    );
 
     return {
       success: true,
@@ -653,8 +743,10 @@ export class SuperAdminService {
     return {
       assigned: !!currentTenant,
       phoneNumberId,
-      currentTenant: currentTenant ? { slug: currentTenant.slug, businessName: currentTenant.businessName } : null,
-      tenants: tenants.map(t => ({ slug: t.slug, businessName: t.businessName })),
+      currentTenant: currentTenant
+        ? { slug: currentTenant.slug, businessName: currentTenant.businessName }
+        : null,
+      tenants: tenants.map((t) => ({ slug: t.slug, businessName: t.businessName })),
     };
   }
 
@@ -686,7 +778,8 @@ export class SuperAdminService {
       } catch {}
     }
 
-    if (!phoneNumberId || !accessToken) throw new NotFoundException('No hay número de WhatsApp configurado en ningún tenant');
+    if (!phoneNumberId || !accessToken)
+      throw new NotFoundException('No hay número de WhatsApp configurado en ningún tenant');
 
     // Find target tenant
     const target = await this.prisma.tenant.findUnique({ where: { slug: tenantSlug } });
@@ -714,10 +807,14 @@ export class SuperAdminService {
       )
     `);
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${target.schemaName}".channels (type, external_id, access_token, is_active)
       VALUES ('whatsapp', $1, $2, true)
-    `, phoneNumberId, accessToken);
+    `,
+      phoneNumberId,
+      accessToken,
+    );
 
     return {
       success: true,
@@ -746,18 +843,24 @@ export class SuperAdminService {
 
       // Get last 5 messages for each conversation
       for (const conv of conversations) {
-        conv.messages = await this.prisma.$queryRawUnsafe<any[]>(`
+        conv.messages = await this.prisma.$queryRawUnsafe<any[]>(
+          `
           SELECT direction, type, content, created_at AS "createdAt"
           FROM "${tenant.schemaName}".messages
           WHERE conversation_id = $1::uuid
           ORDER BY created_at DESC LIMIT 5
-        `, conv.id);
+        `,
+          conv.id,
+        );
         conv.messages.reverse();
       }
 
       return { tenant: { slug: tenant.slug, businessName: tenant.businessName }, conversations };
     } catch {
-      return { tenant: { slug: tenant.slug, businessName: tenant.businessName }, conversations: [] };
+      return {
+        tenant: { slug: tenant.slug, businessName: tenant.businessName },
+        conversations: [],
+      };
     }
   }
 }

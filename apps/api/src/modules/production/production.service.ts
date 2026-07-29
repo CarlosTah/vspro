@@ -58,11 +58,7 @@ export class ProductionService {
    * Iniciar producción de un pedido.
    * Cambia estado a in_production y opcionalmente asigna a un operador.
    */
-  async startProduction(
-    orderId: string,
-    assignedTo: string | undefined,
-    schemaName: string,
-  ) {
+  async startProduction(orderId: string, assignedTo: string | undefined, schemaName: string) {
     // Transicionar el pedido
     const order = await this.ordersService.transition(
       orderId,
@@ -86,7 +82,8 @@ export class ProductionService {
     const fullOrder = await this.ordersService.findById(orderId, schemaName);
 
     // Notificar al cliente
-    const message = `🎉 ¡Tu pedido ${fullOrder.orderNumber} está listo!\n\n` +
+    const message =
+      `🎉 ¡Tu pedido ${fullOrder.orderNumber} está listo!\n\n` +
       `Total: $${fullOrder.total}\n\n` +
       `Para coordinar la entrega, ¿confirmas tu dirección de envío?`;
 

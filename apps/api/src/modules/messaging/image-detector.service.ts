@@ -24,9 +24,8 @@ export class ImageDetectorService {
     private readonly config: ConfigService,
   ) {
     const key = this.config.get('OPENAI_API_KEY');
-    this.openai = key && !key.startsWith('sk-test') && key !== 'sk-...'
-      ? new OpenAI({ apiKey: key })
-      : null;
+    this.openai =
+      key && !key.startsWith('sk-test') && key !== 'sk-...' ? new OpenAI({ apiKey: key }) : null;
   }
 
   /**
@@ -133,7 +132,8 @@ Responde SOLO con JSON:
     classification: ImageClassification,
   ): Promise<ImageProcessingResult> {
     // Find the most recent pending payment for this conversation's customer
-    const pending = await this.prisma.$queryRawUnsafe<any[]>(`
+    const pending = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT o.id AS order_id, o.order_number, o.total, p.id AS payment_id
       FROM "${schemaName}".conversations c
       JOIN "${schemaName}".orders o ON o.customer_id = c.customer_id
@@ -143,12 +143,15 @@ Responde SOLO con JSON:
         AND p.status = 'pending'
       ORDER BY o.created_at DESC
       LIMIT 1
-    `, conversationId);
+    `,
+      conversationId,
+    );
 
     if (!pending[0]) {
       return {
         action: 'no_pending_payment',
-        message: '📷 Recibí una imagen que parece un comprobante de pago, pero no encuentro un pedido pendiente de pago. ¿Podrías indicarme el número de pedido?',
+        message:
+          '📷 Recibí una imagen que parece un comprobante de pago, pero no encuentro un pedido pendiente de pago. ¿Podrías indicarme el número de pedido?',
         data: { classification },
       };
     }
@@ -156,9 +159,13 @@ Responde SOLO con JSON:
     const order = pending[0];
 
     // Save image URL on payment record
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".payments SET proof_image_url = $1 WHERE id = $2::uuid
-    `, imageUrl, order.payment_id);
+    `,
+      imageUrl,
+      order.payment_id,
+    );
 
     // Now run OCR to extract amount
     const ocrResult = await this.extractPaymentData(imageUrl);
@@ -178,30 +185,48 @@ Responde SOLO con JSON:
 
     if (discrepancy <= TOLERANCE) {
       // AUTO-VERIFY ✅
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".payments
         SET status = 'verified', ocr_data = $1::jsonb, verified_at = NOW()
         WHERE id = $2::uuid
-      `, JSON.stringify(ocrResult), order.payment_id);
+      `,
+        JSON.stringify(ocrResult),
+        order.payment_id,
+      );
 
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".orders SET status = 'paid', updated_at = NOW()
         WHERE id = $1::uuid
-      `, order.order_id);
+      `,
+        order.order_id,
+      );
 
-      this.logger.log(`[${schemaName}] Payment auto-verified via image detection: ${order.order_number}`);
+      this.logger.log(
+        `[${schemaName}] Payment auto-verified via image detection: ${order.order_number}`,
+      );
 
       return {
         action: 'payment_verified',
         message: `✅ *¡Pago confirmado!*\n\n💰 Monto: $${ocrResult.amount.toLocaleString()}\n📋 Pedido: ${order.order_number}\n🏦 Banco: ${ocrResult.bank ?? 'detectado'}\n\nTu pedido ya está en proceso. ¡Gracias! 🎉`,
-        data: { orderId: order.order_id, orderNumber: order.order_number, amount: ocrResult.amount, bank: ocrResult.bank },
+        data: {
+          orderId: order.order_id,
+          orderNumber: order.order_number,
+          amount: ocrResult.amount,
+          bank: ocrResult.bank,
+        },
       };
     }
 
     // Amount mismatch
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".payments SET status = 'review', ocr_data = $1::jsonb WHERE id = $2::uuid
-    `, JSON.stringify({ ...ocrResult, expected, discrepancy }), order.payment_id);
+    `,
+      JSON.stringify({ ...ocrResult, expected, discrepancy }),
+      order.payment_id,
+    );
 
     return {
       action: 'amount_mismatch',
@@ -224,7 +249,8 @@ Responde SOLO con JSON:
       data: {
         classification,
         imageUrl,
-        instruction: 'El cliente envió una foto de un producto. Describe lo que ves y pregunta si quiere algo similar de tu catálogo.',
+        instruction:
+          'El cliente envió una foto de un producto. Describe lo que ves y pregunta si quiere algo similar de tu catálogo.',
       },
     };
   }
@@ -239,7 +265,8 @@ Responde SOLO con JSON:
   ): Promise<ImageProcessingResult> {
     return {
       action: 'delivery_proof',
-      message: '📦 ¡Gracias por confirmar la recepción! Esperamos que disfrutes tu compra. Si necesitas algo más, aquí estamos. 😊',
+      message:
+        '📦 ¡Gracias por confirmar la recepción! Esperamos que disfrutes tu compra. Si necesitas algo más, aquí estamos. 😊',
       data: { imageUrl },
     };
   }
@@ -286,7 +313,12 @@ Responde SOLO JSON: {"amount": number|null, "bank": "string"|null, "reference": 
 
 // ─── Types ──────────────────────────────────────────────────────
 
-export type ImageType = 'payment_receipt' | 'product_inquiry' | 'delivery_proof' | 'other' | 'unknown';
+export type ImageType =
+  | 'payment_receipt'
+  | 'product_inquiry'
+  | 'delivery_proof'
+  | 'other'
+  | 'unknown';
 
 export interface ImageClassification {
   type: ImageType;

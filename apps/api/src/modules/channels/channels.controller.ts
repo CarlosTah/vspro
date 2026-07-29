@@ -1,6 +1,14 @@
 import {
-  Controller, Get, Post, Patch, Delete,
-  Body, Param, UseGuards, Req, ParseUUIDPipe,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  Req,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -24,19 +32,12 @@ export class ChannelsController {
   }
 
   @Get(':id')
-  findOne(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantSchema() schema: string,
-  ) {
+  findOne(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
     return this.channelsService.findById(id, schema);
   }
 
   @Post()
-  create(
-    @Body() dto: CreateChannelDto,
-    @Req() req: any,
-    @TenantSchema() schema: string,
-  ) {
+  create(@Body() dto: CreateChannelDto, @Req() req: any, @TenantSchema() schema: string) {
     return this.channelsService.create(dto, req.user.tenantSlug, schema);
   }
 
@@ -50,18 +51,12 @@ export class ChannelsController {
   }
 
   @Delete(':id')
-  remove(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantSchema() schema: string,
-  ) {
+  remove(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
     return this.channelsService.delete(id, schema);
   }
 
   @Post(':id/test')
-  testConnection(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantSchema() schema: string,
-  ) {
+  testConnection(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
     return this.channelsService.testConnection(id, schema);
   }
 }

@@ -62,12 +62,26 @@ export function VsproLogo({ size = 'md', showSlogan = true, className = '' }: Vs
               strokeLinejoin="round"
             />
             <defs>
-              <linearGradient id="vGradient" x1="20" y1="20" x2="60" y2="65" gradientUnits="userSpaceOnUse">
+              <linearGradient
+                id="vGradient"
+                x1="20"
+                y1="20"
+                x2="60"
+                y2="65"
+                gradientUnits="userSpaceOnUse"
+              >
                 <stop offset="0%" stopColor="#818cf8" />
                 <stop offset="50%" stopColor="#a78bfa" />
                 <stop offset="100%" stopColor="#7c3aed" />
               </linearGradient>
-              <linearGradient id="arrowGradient" x1="40" y1="5" x2="60" y2="18" gradientUnits="userSpaceOnUse">
+              <linearGradient
+                id="arrowGradient"
+                x1="40"
+                y1="5"
+                x2="60"
+                y2="18"
+                gradientUnits="userSpaceOnUse"
+              >
                 <stop offset="0%" stopColor="#c084fc" />
                 <stop offset="100%" stopColor="#a855f7" />
               </linearGradient>

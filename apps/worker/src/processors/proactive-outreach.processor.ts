@@ -65,19 +65,30 @@ export class ProactiveOutreachProcessor {
     }
 
     // Build context and generate message
-    const memoryContext = await this.customerMemory.buildMemoryContext(customerId, 'follow-up', schemaName);
+    const memoryContext = await this.customerMemory.buildMemoryContext(
+      customerId,
+      'follow-up',
+      schemaName,
+    );
 
     // Store proactive message
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${schemaName}".messages
         (conversation_id, direction, type, content, ai_processed)
       VALUES ($1::uuid, 'outbound', 'text', $2, true)
-    `, conversationId, '[PROACTIVE] Mensaje de seguimiento generado');
+    `,
+      conversationId,
+      '[PROACTIVE] Mensaje de seguimiento generado',
+    );
 
     // Record sent
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".conversations SET last_proactive_at = NOW() WHERE id = $1::uuid
-    `, conversationId);
+    `,
+      conversationId,
+    );
 
     this.logger.log(`[${schemaName}] Proactive outreach sent for conv ${conversationId}`);
   }

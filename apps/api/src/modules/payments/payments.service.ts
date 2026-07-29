@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { PrismaService } from '../../database/prisma.service';
@@ -42,7 +37,8 @@ export class PaymentsService {
   // ─── Consultas ────────────────────────────────────────────────
 
   async findByOrder(orderId: string, schemaName: string) {
-    return this.prisma.$queryRawUnsafe<any[]>(`
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         id, order_id AS "orderId", method, amount, status,
         reference, proof_image_url AS "proofImageUrl",
@@ -52,16 +48,14 @@ export class PaymentsService {
       FROM "${schemaName}".payments
       WHERE order_id = $1::uuid
       ORDER BY created_at DESC
-    `, orderId);
+    `,
+      orderId,
+    );
   }
 
   // ─── Verificación por imagen (OCR con GPT-4o Vision) ─────────
 
-  async verifyByImage(
-    dto: VerifyPaymentByImageDto,
-    schemaName: string,
-    verifiedByUserId?: string,
-  ) {
+  async verifyByImage(dto: VerifyPaymentByImageDto, schemaName: string, verifiedByUserId?: string) {
     // 1. Obtener el pedido
     const order = await this.ordersService.findById(dto.orderId, schemaName);
 
@@ -79,13 +73,13 @@ export class PaymentsService {
 
     // 3. Evaluar si el monto coincide
     const amountMatches =
-      ocrResult.amount !== null &&
-      Math.abs(ocrResult.amount - orderTotal) <= AMOUNT_TOLERANCE;
+      ocrResult.amount !== null && Math.abs(ocrResult.amount - orderTotal) <= AMOUNT_TOLERANCE;
 
     const paymentStatus = amountMatches ? 'verified' : 'pending_review';
 
     // 4. Registrar el pago
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".payments
         (order_id, method, amount, status, reference,
          proof_image_url, ocr_data, verified_by, verified_at)
@@ -139,14 +133,11 @@ export class PaymentsService {
 
   // ─── Verificación manual (operador confirma) ──────────────────
 
-  async verifyManually(
-    dto: ManualVerifyPaymentDto,
-    schemaName: string,
-    verifiedByUserId: string,
-  ) {
+  async verifyManually(dto: ManualVerifyPaymentDto, schemaName: string, verifiedByUserId: string) {
     const order = await this.ordersService.findById(dto.orderId, schemaName);
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".payments
         (order_id, method, amount, status, reference,
          verified_by, verified_at)
@@ -176,11 +167,14 @@ export class PaymentsService {
   // ─── Rechazar pago pendiente ──────────────────────────────────
 
   async rejectPayment(paymentId: string, schemaName: string) {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".payments
       SET status = 'rejected'
       WHERE id = $1::uuid
-    `, paymentId);
+    `,
+      paymentId,
+    );
 
     return { success: true, message: 'Pago rechazado' };
   }
@@ -189,7 +183,10 @@ export class PaymentsService {
 
   private async extractPaymentData(imageUrl: string): Promise<OcrResult> {
     // Si no hay API key configurada (desarrollo sin clave), retornar mock
-    if (!this.config.get('OPENAI_API_KEY') || this.config.get('OPENAI_API_KEY') === 'sk-test-not-real') {
+    if (
+      !this.config.get('OPENAI_API_KEY') ||
+      this.config.get('OPENAI_API_KEY') === 'sk-test-not-real'
+    ) {
       this.logger.warn('OPENAI_API_KEY no configurada — usando OCR simulado');
       return this.mockOcrResult();
     }

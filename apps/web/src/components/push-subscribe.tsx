@@ -3,10 +3,11 @@
 import { useEffect } from 'react';
 import { api } from '@/lib/api';
 
-const VAPID_PUBLIC_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LNgDLnwZIHiRJ18TL8FnRXmm-JFGNZfJzJPC0g-b0hGEaA';
+const VAPID_PUBLIC_KEY =
+  'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LNgDLnwZIHiRJ18TL8FnRXmm-JFGNZfJzJPC0g-b0hGEaA';
 
 function urlBase64ToUint8Array(base64String: string) {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
   const rawData = window.atob(base64);
   const outputArray = new Uint8Array(rawData.length);

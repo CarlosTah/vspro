@@ -84,7 +84,13 @@ export class MessagingFactory {
     const config = await this.getChannelConfig(channelType, schemaName);
     if (!config) return { success: false, error: `No ${channelType} channel configured` };
 
-    return channel.sendTemplate({ recipientId, templateName, language, components, channelConfig: config });
+    return channel.sendTemplate({
+      recipientId,
+      templateName,
+      language,
+      components,
+      channelConfig: config,
+    });
   }
 
   /**
@@ -97,13 +103,16 @@ export class MessagingFactory {
     schemaName: string,
   ): Promise<SendResult> {
     // Get conversation details
-    const convs = await this.prisma.$queryRawUnsafe<any[]>(`
+    const convs = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT c.channel_type, c.customer_id,
              cu.channel_id AS recipient_id
       FROM "${schemaName}".conversations c
       JOIN "${schemaName}".customers cu ON cu.id = c.customer_id
       WHERE c.id = $1::uuid
-    `, conversationId);
+    `,
+      conversationId,
+    );
 
     if (!convs[0]) {
       return { success: false, error: 'Conversation not found' };
@@ -120,20 +129,26 @@ export class MessagingFactory {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`
       SELECT DISTINCT type FROM "${schemaName}".channels WHERE is_active = true
     `);
-    return rows.map(r => r.type as ChannelType);
+    return rows.map((r) => r.type as ChannelType);
   }
 
   // ─── Helpers ──────────────────────────────────────────────────
 
-  private async getChannelConfig(type: ChannelType, schemaName: string): Promise<ChannelConfig | null> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+  private async getChannelConfig(
+    type: ChannelType,
+    schemaName: string,
+  ): Promise<ChannelConfig | null> {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT type, external_id AS "externalId",
              access_token AS "accessToken",
              webhook_verify_token AS "webhookVerifyToken"
       FROM "${schemaName}".channels
       WHERE type = $1 AND is_active = true
       LIMIT 1
-    `, type);
+    `,
+      type,
+    );
 
     if (!rows[0]) return null;
 

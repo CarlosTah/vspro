@@ -10,7 +10,11 @@ export default function AiMemoryPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/customers').then(setCustomers).catch(console.error).finally(() => setLoading(false));
+    api
+      .get('/customers')
+      .then(setCustomers)
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
   const loadMemory = async (customerId: string) => {
@@ -24,7 +28,8 @@ export default function AiMemoryPage() {
   };
 
   const clearMemory = async (customerId: string) => {
-    if (!confirm('¿Borrar toda la memoria de este cliente? La IA olvidará sus preferencias.')) return;
+    if (!confirm('¿Borrar toda la memoria de este cliente? La IA olvidará sus preferencias.'))
+      return;
     try {
       await api.delete(`/customers/${customerId}/memory`);
       setMemory(null);
@@ -40,7 +45,8 @@ export default function AiMemoryPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">Memoria de IA</h1>
         <p className="text-sm text-gray-400">
-          Lo que la IA recuerda de cada cliente: preferencias, historial, contexto de conversaciones.
+          Lo que la IA recuerda de cada cliente: preferencias, historial, contexto de
+          conversaciones.
         </p>
       </div>
 
@@ -63,7 +69,9 @@ export default function AiMemoryPage() {
                   }`}
                 >
                   <p className="text-sm text-white font-medium">{c.name ?? 'Sin nombre'}</p>
-                  <p className="text-xs text-gray-500">{c.channelType} · {c.phone ?? c.channelId}</p>
+                  <p className="text-xs text-gray-500">
+                    {c.channelType} · {c.phone ?? c.channelId}
+                  </p>
                 </button>
               ))
             )}
@@ -77,7 +85,9 @@ export default function AiMemoryPage() {
               <p className="text-3xl mb-2">🧠</p>
               <p>Selecciona un cliente para ver su memoria</p>
             </div>
-          ) : !memory || ((!memory.profile || Object.keys(memory.profile).length === 0) && (!memory.episodes || memory.episodes.length === 0)) ? (
+          ) : !memory ||
+            ((!memory.profile || Object.keys(memory.profile).length === 0) &&
+              (!memory.episodes || memory.episodes.length === 0)) ? (
             <div className="text-center py-12 text-gray-500">
               <p className="text-3xl mb-2">💭</p>
               <p>La IA aún no ha guardado recuerdos de este cliente</p>
@@ -88,12 +98,21 @@ export default function AiMemoryPage() {
               {/* Profile data */}
               {memory.profile && Object.keys(memory.profile).length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-300 mb-3">📋 Perfil (datos estructurados)</h3>
+                  <h3 className="text-sm font-semibold text-gray-300 mb-3">
+                    📋 Perfil (datos estructurados)
+                  </h3>
                   <div className="space-y-2">
                     {Object.entries(memory.profile).map(([key, value]: [string, any]) => (
-                      <div key={key} className="flex items-start gap-3 bg-gray-800/50 rounded-lg px-3 py-2">
-                        <span className="text-xs font-medium text-accent min-w-[100px] capitalize">{key}</span>
-                        <span className="text-sm text-white">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+                      <div
+                        key={key}
+                        className="flex items-start gap-3 bg-gray-800/50 rounded-lg px-3 py-2"
+                      >
+                        <span className="text-xs font-medium text-accent min-w-[100px] capitalize">
+                          {key}
+                        </span>
+                        <span className="text-sm text-white">
+                          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -103,13 +122,19 @@ export default function AiMemoryPage() {
               {/* Episodes */}
               {memory.episodes && memory.episodes.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-300 mb-3">💬 Recuerdos conversacionales ({memory.episodes.length})</h3>
+                  <h3 className="text-sm font-semibold text-gray-300 mb-3">
+                    💬 Recuerdos conversacionales ({memory.episodes.length})
+                  </h3>
                   <div className="space-y-2 max-h-[300px] overflow-y-auto">
                     {memory.episodes.map((ep: any, i: number) => (
                       <div key={i} className="bg-gray-800/50 rounded-lg px-3 py-2">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="rounded-full bg-purple-900/40 text-purple-300 px-2 py-0.5 text-xs">{ep.category}</span>
-                          <span className="text-xs text-gray-500">{new Date(ep.createdAt).toLocaleDateString('es-MX')}</span>
+                          <span className="rounded-full bg-purple-900/40 text-purple-300 px-2 py-0.5 text-xs">
+                            {ep.category}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(ep.createdAt).toLocaleDateString('es-MX')}
+                          </span>
                         </div>
                         <p className="text-sm text-gray-200">{ep.content}</p>
                       </div>

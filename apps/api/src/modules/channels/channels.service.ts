@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  ConflictException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateChannelDto, UpdateChannelDto } from './dto/channel.dto';
@@ -31,7 +26,8 @@ export class ChannelsService {
   }
 
   async findById(id: string, schemaName: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         id, type, external_id AS "externalId",
         access_token AS "accessToken",
@@ -40,7 +36,9 @@ export class ChannelsService {
         created_at AS "createdAt"
       FROM "${schemaName}".channels
       WHERE id = $1::uuid
-    `, id);
+    `,
+      id,
+    );
 
     if (!rows[0]) throw new NotFoundException('Canal no encontrado');
     return rows[0];
@@ -53,13 +51,16 @@ export class ChannelsService {
       dto.type,
     );
     if (existing.length > 0) {
-      throw new ConflictException(`Ya existe un canal de tipo ${dto.type}. Edítalo en lugar de crear uno nuevo.`);
+      throw new ConflictException(
+        `Ya existe un canal de tipo ${dto.type}. Edítalo en lugar de crear uno nuevo.`,
+      );
     }
 
     // Generar verify token si no se proporcionó
     const verifyToken = dto.webhookVerifyToken ?? randomBytes(16).toString('hex');
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".channels
         (type, external_id, access_token, webhook_verify_token, is_active, config)
       VALUES ($1, $2, $3, $4, true, $5::jsonb)
@@ -101,9 +102,18 @@ export class ChannelsService {
     const values: any[] = [];
     let idx = 1;
 
-    if (dto.accessToken !== undefined) { fields.push(`access_token = $${idx++}`); values.push(dto.accessToken); }
-    if (dto.isActive !== undefined) { fields.push(`is_active = $${idx++}`); values.push(dto.isActive); }
-    if (dto.config !== undefined) { fields.push(`config = $${idx++}::jsonb`); values.push(JSON.stringify(dto.config)); }
+    if (dto.accessToken !== undefined) {
+      fields.push(`access_token = $${idx++}`);
+      values.push(dto.accessToken);
+    }
+    if (dto.isActive !== undefined) {
+      fields.push(`is_active = $${idx++}`);
+      values.push(dto.isActive);
+    }
+    if (dto.config !== undefined) {
+      fields.push(`config = $${idx++}::jsonb`);
+      values.push(JSON.stringify(dto.config));
+    }
 
     if (fields.length === 0) return this.findById(id, schemaName);
 
@@ -130,11 +140,10 @@ export class ChannelsService {
     const channel = await this.findById(id, schemaName);
 
     try {
-      const res = await fetch(
-        `https://graph.facebook.com/v19.0/${channel.externalId}`,
-        { headers: { Authorization: `Bearer ${channel.accessToken}` } },
-      );
-      const data = await res.json() as any;
+      const res = await fetch(`https://graph.facebook.com/v19.0/${channel.externalId}`, {
+        headers: { Authorization: `Bearer ${channel.accessToken}` },
+      });
+      const data = (await res.json()) as any;
 
       if (data.error) {
         return { connected: false, error: data.error.message };

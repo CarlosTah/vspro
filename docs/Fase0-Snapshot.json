@@ -166,12 +166,7 @@
       "ClientIntelligence",
       "Reports"
     ],
-    "agents": [
-      "SalesAgent",
-      "InventoryAgent",
-      "FinanceAgent",
-      "GeneralAgent"
-    ],
+    "agents": ["SalesAgent", "InventoryAgent", "FinanceAgent", "GeneralAgent"],
     "router": {
       "type": "heuristic+llm",
       "cacheBackend": "redis",

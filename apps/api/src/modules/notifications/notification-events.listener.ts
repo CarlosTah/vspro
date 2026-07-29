@@ -25,11 +25,18 @@ export class NotificationEventsListener {
   async handleOrderCreated(
     tenantId: string,
     schemaName: string,
-    order: { orderNumber: string; customerId: string; total: number; items: any[]; channelType: string },
+    order: {
+      orderNumber: string;
+      customerId: string;
+      total: number;
+      items: any[];
+      channelType: string;
+    },
   ): Promise<void> {
     // Get customer name
     const customers = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT name FROM "${schemaName}".customers WHERE id = $1::uuid`, order.customerId,
+      `SELECT name FROM "${schemaName}".customers WHERE id = $1::uuid`,
+      order.customerId,
     );
 
     await this.notifications.onNewOrder({
@@ -52,7 +59,8 @@ export class NotificationEventsListener {
     payment: { orderNumber: string; amount: number; method: string; customerId: string },
   ): Promise<void> {
     const customers = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT name FROM "${schemaName}".customers WHERE id = $1::uuid`, payment.customerId,
+      `SELECT name FROM "${schemaName}".customers WHERE id = $1::uuid`,
+      payment.customerId,
     );
 
     await this.notifications.onPaymentVerified({
@@ -74,7 +82,8 @@ export class NotificationEventsListener {
     shipment: { orderNumber: string; customerId: string; carrier: string },
   ): Promise<void> {
     const customers = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT name FROM "${schemaName}".customers WHERE id = $1::uuid`, shipment.customerId,
+      `SELECT name FROM "${schemaName}".customers WHERE id = $1::uuid`,
+      shipment.customerId,
     );
 
     await this.notifications.onShipmentDelivered({
@@ -105,14 +114,17 @@ export class NotificationEventsListener {
         const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
 
         // Get today's stats
-        const stats = await this.prisma.$queryRawUnsafe<any[]>(`
+        const stats = await this.prisma.$queryRawUnsafe<any[]>(
+          `
           SELECT
             COUNT(*) FILTER (WHERE created_at >= $1::date) AS orders_today,
             COALESCE(SUM(total) FILTER (WHERE created_at >= $1::date AND status != 'cancelled'), 0) AS revenue,
             COUNT(*) FILTER (WHERE status = 'payment_pending') AS pending_payments,
             COUNT(*) FILTER (WHERE status IN ('ready', 'paid')) AS pending_shipments
           FROM "${tenant.schemaName}".orders
-        `, today);
+        `,
+          today,
+        );
 
         const s = stats[0] ?? {};
         const ordersToday = parseInt(s.orders_today ?? '0');

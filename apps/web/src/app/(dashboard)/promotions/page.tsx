@@ -52,7 +52,8 @@ export default function PromotionsPage() {
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-white">Promociones</h1>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <CardSkeleton /><CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
         </div>
       </div>
     );
@@ -64,10 +65,15 @@ export default function PromotionsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Promociones y Combos</h1>
-          <p className="text-sm text-gray-400">Configura ofertas que el agente IA ofrecerá a tus clientes</p>
+          <p className="text-sm text-gray-400">
+            Configura ofertas que el agente IA ofrecerá a tus clientes
+          </p>
         </div>
         <button
-          onClick={() => { setEditingPromo(null); setShowForm(true); }}
+          onClick={() => {
+            setEditingPromo(null);
+            setShowForm(true);
+          }}
           className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90 transition-colors"
         >
           + Nueva promoción
@@ -78,17 +84,26 @@ export default function PromotionsPage() {
       {showForm && (
         <PromotionForm
           promotion={editingPromo}
-          onClose={() => { setShowForm(false); setEditingPromo(null); }}
-          onSaved={() => { setShowForm(false); setEditingPromo(null); refetch(); }}
+          onClose={() => {
+            setShowForm(false);
+            setEditingPromo(null);
+          }}
+          onSaved={() => {
+            setShowForm(false);
+            setEditingPromo(null);
+            refetch();
+          }}
         />
       )}
 
       {/* Promotions Grid */}
-      {(!promotions || promotions.length === 0) ? (
+      {!promotions || promotions.length === 0 ? (
         <div className="rounded-xl border border-card-border bg-card p-12 text-center">
           <p className="text-4xl mb-3">🎉</p>
           <p className="text-lg text-white font-medium">No hay promociones configuradas</p>
-          <p className="text-sm text-gray-400 mt-1">Crea tu primer combo o descuento para que el agente lo ofrezca</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Crea tu primer combo o descuento para que el agente lo ofrezca
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -96,7 +111,10 @@ export default function PromotionsPage() {
             <PromotionCard
               key={promo.id}
               promotion={promo}
-              onEdit={() => { setEditingPromo(promo); setShowForm(true); }}
+              onEdit={() => {
+                setEditingPromo(promo);
+                setShowForm(true);
+              }}
               onToggle={async () => {
                 const newStatus = promo.status === 'active' ? 'inactive' : 'active';
                 await api.patch(`/promotions/${promo.id}`, { status: newStatus });
@@ -116,7 +134,12 @@ export default function PromotionsPage() {
   );
 }
 
-function PromotionCard({ promotion, onEdit, onToggle, onDelete }: {
+function PromotionCard({
+  promotion,
+  onEdit,
+  onToggle,
+  onDelete,
+}: {
   promotion: Promotion;
   onEdit: () => void;
   onToggle: () => void;
@@ -133,9 +156,10 @@ function PromotionCard({ promotion, onEdit, onToggle, onDelete }: {
       }
       break;
     case 'discount':
-      details = rules.discountType === 'percentage'
-        ? `${rules.discountValue}% OFF`
-        : `$${rules.discountValue} OFF`;
+      details =
+        rules.discountType === 'percentage'
+          ? `${rules.discountValue}% OFF`
+          : `$${rules.discountValue} OFF`;
       if (rules.minOrderTotal) details += ` (min $${rules.minOrderTotal})`;
       break;
     case 'bogo':
@@ -156,33 +180,56 @@ function PromotionCard({ promotion, onEdit, onToggle, onDelete }: {
             <span className="text-xs text-gray-500">{typeLabels[promotion.type]}</span>
           </div>
         </div>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColors[promotion.status]}`}>
-          {promotion.status === 'active' ? 'Activa' : promotion.status === 'inactive' ? 'Inactiva' : 'Programada'}
+        <span
+          className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColors[promotion.status]}`}
+        >
+          {promotion.status === 'active'
+            ? 'Activa'
+            : promotion.status === 'inactive'
+              ? 'Inactiva'
+              : 'Programada'}
         </span>
       </div>
 
-      {promotion.description && (
-        <p className="text-sm text-gray-400">{promotion.description}</p>
-      )}
+      {promotion.description && <p className="text-sm text-gray-400">{promotion.description}</p>}
 
       <p className="text-sm text-accent font-medium">{details}</p>
 
       {promotion.maxUses && (
-        <p className="text-xs text-gray-500">Usos: {promotion.currentUses}/{promotion.maxUses}</p>
+        <p className="text-xs text-gray-500">
+          Usos: {promotion.currentUses}/{promotion.maxUses}
+        </p>
       )}
 
       <div className="flex items-center gap-2 pt-2 border-t border-card-border">
-        <button onClick={onEdit} className="text-xs text-gray-400 hover:text-white transition-colors">Editar</button>
-        <button onClick={onToggle} className="text-xs text-gray-400 hover:text-yellow-300 transition-colors">
+        <button
+          onClick={onEdit}
+          className="text-xs text-gray-400 hover:text-white transition-colors"
+        >
+          Editar
+        </button>
+        <button
+          onClick={onToggle}
+          className="text-xs text-gray-400 hover:text-yellow-300 transition-colors"
+        >
           {promotion.status === 'active' ? 'Desactivar' : 'Activar'}
         </button>
-        <button onClick={onDelete} className="text-xs text-gray-400 hover:text-red-400 transition-colors ml-auto">Eliminar</button>
+        <button
+          onClick={onDelete}
+          className="text-xs text-gray-400 hover:text-red-400 transition-colors ml-auto"
+        >
+          Eliminar
+        </button>
       </div>
     </div>
   );
 }
 
-function PromotionForm({ promotion, onClose, onSaved }: {
+function PromotionForm({
+  promotion,
+  onClose,
+  onSaved,
+}: {
   promotion: Promotion | null;
   onClose: () => void;
   onSaved: () => void;
@@ -194,7 +241,9 @@ function PromotionForm({ promotion, onClose, onSaved }: {
 
   // Type-specific fields
   const [comboPrice, setComboPrice] = useState(promotion?.rules?.comboPrice ?? '');
-  const [comboProducts, setComboProducts] = useState(promotion?.rules?.products ?? [{ productName: '', quantity: 1 }]);
+  const [comboProducts, setComboProducts] = useState(
+    promotion?.rules?.products ?? [{ productName: '', quantity: 1 }],
+  );
   const [discountType, setDiscountType] = useState(promotion?.rules?.discountType ?? 'percentage');
   const [discountValue, setDiscountValue] = useState(promotion?.rules?.discountValue ?? '');
   const [minOrderTotal, setMinOrderTotal] = useState(promotion?.rules?.minOrderTotal ?? '');
@@ -210,16 +259,27 @@ function PromotionForm({ promotion, onClose, onSaved }: {
     let rules: any = {};
     switch (type) {
       case 'combo':
-        rules = { comboPrice: parseFloat(comboPrice), products: comboProducts.filter((p: any) => p.productName) };
+        rules = {
+          comboPrice: parseFloat(comboPrice),
+          products: comboProducts.filter((p: any) => p.productName),
+        };
         break;
       case 'discount':
-        rules = { discountType, discountValue: parseFloat(discountValue), minOrderTotal: minOrderTotal ? parseFloat(minOrderTotal) : undefined };
+        rules = {
+          discountType,
+          discountValue: parseFloat(discountValue),
+          minOrderTotal: minOrderTotal ? parseFloat(minOrderTotal) : undefined,
+        };
         break;
       case 'bogo':
         rules = { buyQuantity: parseInt(buyQuantity), getQuantity: parseInt(getQuantity) };
         break;
       case 'bundle':
-        rules = { bundlePrice: parseFloat(bundlePrice), savings: savings ? parseFloat(savings) : undefined, products: comboProducts.filter((p: any) => p.productName) };
+        rules = {
+          bundlePrice: parseFloat(bundlePrice),
+          savings: savings ? parseFloat(savings) : undefined,
+          products: comboProducts.filter((p: any) => p.productName),
+        };
         break;
     }
 
@@ -243,8 +303,12 @@ function PromotionForm({ promotion, onClose, onSaved }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-lg rounded-xl border border-card-border bg-card p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">{promotion ? 'Editar' : 'Nueva'} Promoción</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">✕</button>
+          <h2 className="text-lg font-bold text-white">
+            {promotion ? 'Editar' : 'Nueva'} Promoción
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white">
+            ✕
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -291,7 +355,9 @@ function PromotionForm({ promotion, onClose, onSaved }: {
           {/* Type-specific fields */}
           {(type === 'combo' || type === 'bundle') && (
             <div className="space-y-3 rounded-lg border border-gray-700 p-3">
-              <label className="text-sm text-gray-300 font-medium">Productos del {type === 'combo' ? 'combo' : 'paquete'}</label>
+              <label className="text-sm text-gray-300 font-medium">
+                Productos del {type === 'combo' ? 'combo' : 'paquete'}
+              </label>
               {comboProducts.map((p: any, i: number) => (
                 <div key={i} className="flex gap-2">
                   <input
@@ -317,17 +383,39 @@ function PromotionForm({ promotion, onClose, onSaved }: {
                     min={1}
                   />
                   {i > 0 && (
-                    <button type="button" onClick={() => setComboProducts(comboProducts.filter((_: any, j: number) => j !== i))} className="text-red-400 text-sm">✕</button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setComboProducts(comboProducts.filter((_: any, j: number) => j !== i))
+                      }
+                      className="text-red-400 text-sm"
+                    >
+                      ✕
+                    </button>
                   )}
                 </div>
               ))}
-              <button type="button" onClick={() => setComboProducts([...comboProducts, { productName: '', quantity: 1 }])} className="text-xs text-accent">+ Agregar producto</button>
+              <button
+                type="button"
+                onClick={() =>
+                  setComboProducts([...comboProducts, { productName: '', quantity: 1 }])
+                }
+                className="text-xs text-accent"
+              >
+                + Agregar producto
+              </button>
               <div>
-                <label className="text-xs text-gray-500">Precio {type === 'combo' ? 'del combo' : 'del paquete'}</label>
+                <label className="text-xs text-gray-500">
+                  Precio {type === 'combo' ? 'del combo' : 'del paquete'}
+                </label>
                 <input
                   type="number"
                   value={type === 'combo' ? comboPrice : bundlePrice}
-                  onChange={(e) => type === 'combo' ? setComboPrice(e.target.value) : setBundlePrice(e.target.value)}
+                  onChange={(e) =>
+                    type === 'combo'
+                      ? setComboPrice(e.target.value)
+                      : setBundlePrice(e.target.value)
+                  }
                   placeholder="99.00"
                   step="0.01"
                   className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white"
@@ -416,11 +504,19 @@ function PromotionForm({ promotion, onClose, onSaved }: {
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-gray-700 px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-lg border border-gray-700 px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+            >
               Cancelar
             </button>
-            <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-50 transition-colors">
-              {saving ? 'Guardando...' : (promotion ? 'Actualizar' : 'Crear promoción')}
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Guardando...' : promotion ? 'Actualizar' : 'Crear promoción'}
             </button>
           </div>
         </form>

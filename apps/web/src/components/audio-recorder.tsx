@@ -21,8 +21,8 @@ export function AudioRecorder({ onRecorded, disabled }: AudioRecorderProps) {
       const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
         ? 'audio/ogg;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/mp4')
-        ? 'audio/mp4'
-        : 'audio/webm;codecs=opus';
+          ? 'audio/mp4'
+          : 'audio/webm;codecs=opus';
       const recorder = new MediaRecorder(stream, { mimeType });
       chunks.current = [];
 

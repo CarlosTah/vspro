@@ -10,7 +10,14 @@
  * - finanzas: Verifica pagos, ve reportes financieros
  */
 
-export type UserRole = 'admin' | 'manager' | 'vendedor' | 'produccion' | 'delivery' | 'finanzas' | 'operator';
+export type UserRole =
+  | 'admin'
+  | 'manager'
+  | 'vendedor'
+  | 'produccion'
+  | 'delivery'
+  | 'finanzas'
+  | 'operator';
 
 export interface Permission {
   /** Rutas del sidebar visibles para este rol */
@@ -32,7 +39,19 @@ export interface Permission {
 
 const PERMISSIONS: Record<UserRole, Permission> = {
   admin: {
-    visibleRoutes: ['/', '/orders', '/production', '/kitchen', '/products', '/customers', '/conversations', '/payments', '/deliveries', '/reports', '/settings'],
+    visibleRoutes: [
+      '/',
+      '/orders',
+      '/production',
+      '/kitchen',
+      '/products',
+      '/customers',
+      '/conversations',
+      '/payments',
+      '/deliveries',
+      '/reports',
+      '/settings',
+    ],
     canCreateProducts: true,
     canManageStock: true,
     canViewBilling: true,
@@ -47,7 +66,18 @@ const PERMISSIONS: Record<UserRole, Permission> = {
     canConfigureAI: true,
   },
   manager: {
-    visibleRoutes: ['/', '/orders', '/production', '/kitchen', '/products', '/customers', '/conversations', '/payments', '/deliveries', '/reports'],
+    visibleRoutes: [
+      '/',
+      '/orders',
+      '/production',
+      '/kitchen',
+      '/products',
+      '/customers',
+      '/conversations',
+      '/payments',
+      '/deliveries',
+      '/reports',
+    ],
     canCreateProducts: true,
     canManageStock: true,
     canViewBilling: false,
@@ -150,7 +180,13 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 /** Roles disponibles para invitar */
-export const INVITABLE_ROLES: UserRole[] = ['manager', 'vendedor', 'produccion', 'delivery', 'finanzas'];
+export const INVITABLE_ROLES: UserRole[] = [
+  'manager',
+  'vendedor',
+  'produccion',
+  'delivery',
+  'finanzas',
+];
 
 export function getPermissions(role: UserRole): Permission {
   return PERMISSIONS[role] ?? PERMISSIONS.operator;

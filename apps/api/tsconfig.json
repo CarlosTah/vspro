@@ -10,11 +10,7 @@
       "@vspro/shared/*": ["../../packages/shared/src/*"]
     }
   },
-  "include": [
-    "src/**/*",
-    "../../packages/database/src/**/*",
-    "../../packages/shared/src/**/*"
-  ],
+  "include": ["src/**/*", "../../packages/database/src/**/*", "../../packages/shared/src/**/*"],
   "exclude": [
     "node_modules",
     "dist",

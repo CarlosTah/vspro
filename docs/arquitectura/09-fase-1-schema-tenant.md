@@ -220,16 +220,16 @@ updated_at          TIMESTAMPTZ DEFAULT NOW()
 
 8 índices creados para optimizar las consultas más frecuentes:
 
-| Índice | Tabla | Columnas | Propósito |
-|--------|-------|----------|-----------|
-| `idx_orders_customer` | orders | customer_id | Pedidos por cliente |
-| `idx_orders_status` | orders | status | Filtrar por estado |
-| `idx_orders_created` | orders | created_at DESC | Listado cronológico |
-| `idx_messages_conv` | messages | conversation_id | Mensajes de una conversación |
-| `idx_conversations_cust` | conversations | customer_id | Conversaciones de un cliente |
-| `idx_customers_channel` | customers | channel_type, channel_id | Lookup por canal |
-| `idx_products_active` | products | is_active | Catálogo activo |
-| `idx_payments_order` | payments | order_id | Pagos de un pedido |
+| Índice                   | Tabla         | Columnas                 | Propósito                    |
+| ------------------------ | ------------- | ------------------------ | ---------------------------- |
+| `idx_orders_customer`    | orders        | customer_id              | Pedidos por cliente          |
+| `idx_orders_status`      | orders        | status                   | Filtrar por estado           |
+| `idx_orders_created`     | orders        | created_at DESC          | Listado cronológico          |
+| `idx_messages_conv`      | messages      | conversation_id          | Mensajes de una conversación |
+| `idx_conversations_cust` | conversations | customer_id              | Conversaciones de un cliente |
+| `idx_customers_channel`  | customers     | channel_type, channel_id | Lookup por canal             |
+| `idx_products_active`    | products      | is_active                | Catálogo activo              |
+| `idx_payments_order`     | payments      | order_id                 | Pagos de un pedido           |
 
 ---
 
@@ -273,6 +273,7 @@ Respuesta: datos del tenant creado
 `packages/database/prisma/tenant-schema.sql` — contiene el DDL completo con el placeholder `{{schema}}` que se reemplaza dinámicamente por el `schemaName` del tenant.
 
 El servicio de provisioning:
+
 1. Lee el archivo SQL una vez al iniciar (en el constructor)
 2. Reemplaza `{{schema}}` con el nombre real
 3. Elimina comentarios de línea (`--`)
@@ -337,14 +338,14 @@ docker exec vspro_postgres psql -U vspro -d vspro_db \
 
 ## 6. Pendiente para Fases Siguientes
 
-| Tarea | Fase |
-|-------|------|
-| Implementar `ProductsModule` (CRUD + búsqueda semántica) | Fase 1 Sem 7-8 |
-| Implementar `CustomersModule` | Fase 1 Sem 7-8 |
-| Implementar `OrdersModule` con máquina de estados | Fase 1 Sem 9-10 |
-| Implementar `PaymentsModule` con OCR de comprobantes | Fase 1 Sem 9-10 |
-| Implementar `ConversationsModule` + `MessagesModule` | Fase 1 Sem 7-8 |
-| Motor de IA con Function Calling | Fase 1 Sem 7-8 |
-| Integración WhatsApp (webhooks + envío) | Fase 1 Sem 7-8 |
-| Billing con Stripe | Fase 1 Sem 11-12 |
-| Panel admin (Next.js) | Fase 1 Sem 11-12 |
+| Tarea                                                    | Fase             |
+| -------------------------------------------------------- | ---------------- |
+| Implementar `ProductsModule` (CRUD + búsqueda semántica) | Fase 1 Sem 7-8   |
+| Implementar `CustomersModule`                            | Fase 1 Sem 7-8   |
+| Implementar `OrdersModule` con máquina de estados        | Fase 1 Sem 9-10  |
+| Implementar `PaymentsModule` con OCR de comprobantes     | Fase 1 Sem 9-10  |
+| Implementar `ConversationsModule` + `MessagesModule`     | Fase 1 Sem 7-8   |
+| Motor de IA con Function Calling                         | Fase 1 Sem 7-8   |
+| Integración WhatsApp (webhooks + envío)                  | Fase 1 Sem 7-8   |
+| Billing con Stripe                                       | Fase 1 Sem 11-12 |
+| Panel admin (Next.js)                                    | Fase 1 Sem 11-12 |

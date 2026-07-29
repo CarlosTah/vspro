@@ -32,14 +32,11 @@ export class OrderNotificationsService {
    * Send notification to customer when order status changes.
    * Non-blocking: errors are logged but don't break the transition.
    */
-  async notify(
-    orderId: string,
-    newStatus: OrderStatus,
-    schemaName: string,
-  ): Promise<void> {
+  async notify(orderId: string, newStatus: OrderStatus, schemaName: string): Promise<void> {
     try {
       // Get order + customer info
-      const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      const rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT o.order_number AS "orderNumber",
                o.total,
                o.items,
@@ -53,7 +50,9 @@ export class OrderNotificationsService {
         FROM "${schemaName}".orders o
         JOIN "${schemaName}".customers c ON c.id = o.customer_id
         WHERE o.id = $1::uuid
-      `, orderId);
+      `,
+        orderId,
+      );
 
       if (!rows[0]) return;
 
@@ -103,7 +102,9 @@ export class OrderNotificationsService {
           );
 
           if (result.success) {
-            this.logger.log(`[${schemaName}] Template notification sent: ${order.orderNumber} → ${newStatus}`);
+            this.logger.log(
+              `[${schemaName}] Template notification sent: ${order.orderNumber} → ${newStatus}`,
+            );
           }
         } else {
           this.logger.debug(`[${schemaName}] Outside 24h window, no template for ${newStatus}`);
@@ -116,25 +117,36 @@ export class OrderNotificationsService {
 
     // Schedule post-delivery survey (5 min after delivery)
     if (newStatus === 'delivered') {
-      setTimeout(async () => {
-        try {
-          const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      setTimeout(
+        async () => {
+          try {
+            const rows = await this.prisma.$queryRawUnsafe<any[]>(
+              `
             SELECT o.order_number AS "orderNumber", c.channel_id AS "channelId",
                    c.channel_type AS "customerChannelType", c.name AS "customerName"
             FROM "${schemaName}".orders o
             JOIN "${schemaName}".customers c ON c.id = o.customer_id
             WHERE o.id = $1::uuid
-          `, orderId);
-          const o = rows[0];
-          if (!o?.channelId || o.channelId.startsWith('manual-')) return;
+          `,
+              orderId,
+            );
+            const o = rows[0];
+            if (!o?.channelId || o.channelId.startsWith('manual-')) return;
 
-          const name = o.customerName?.split(' ')[0] ?? '';
-          const survey = `⭐ *¿Cómo estuvo tu pedido?*\n\n${name}, nos encantaría saber tu opinión sobre el pedido *${o.orderNumber}*.\n\nResponde con un número del 1 al 5:\n1️⃣ Malo\n2️⃣ Regular\n3️⃣ Bueno\n4️⃣ Muy bueno\n5️⃣ Excelente\n\nTu opinión nos ayuda a mejorar. ¡Gracias! 🙏`;
+            const name = o.customerName?.split(' ')[0] ?? '';
+            const survey = `⭐ *¿Cómo estuvo tu pedido?*\n\n${name}, nos encantaría saber tu opinión sobre el pedido *${o.orderNumber}*.\n\nResponde con un número del 1 al 5:\n1️⃣ Malo\n2️⃣ Regular\n3️⃣ Bueno\n4️⃣ Muy bueno\n5️⃣ Excelente\n\nTu opinión nos ayuda a mejorar. ¡Gracias! 🙏`;
 
-          await this.messagingFactory.sendText(o.channelId, survey, o.customerChannelType ?? 'whatsapp', schemaName);
-          this.logger.log(`[${schemaName}] Post-delivery survey sent for ${o.orderNumber}`);
-        } catch {}
-      }, 5 * 60 * 1000); // 5 minutes
+            await this.messagingFactory.sendText(
+              o.channelId,
+              survey,
+              o.customerChannelType ?? 'whatsapp',
+              schemaName,
+            );
+            this.logger.log(`[${schemaName}] Post-delivery survey sent for ${o.orderNumber}`);
+          } catch {}
+        },
+        5 * 60 * 1000,
+      ); // 5 minutes
     }
   }
 
@@ -176,24 +188,32 @@ export class OrderNotificationsService {
   private getTemplateName(status: OrderStatus): string | null {
     // These template names should be pre-approved in Meta Business Manager
     switch (status) {
-      case 'payment_verified': return 'order_payment_confirmed';
-      case 'ready': return 'order_ready';
-      case 'shipped': return 'order_shipped';
-      case 'delivered': return 'order_delivered';
-      default: return null;
+      case 'payment_verified':
+        return 'order_payment_confirmed';
+      case 'ready':
+        return 'order_ready';
+      case 'shipped':
+        return 'order_shipped';
+      case 'delivered':
+        return 'order_delivered';
+      default:
+        return null;
     }
   }
 
   // ─── Helpers ──────────────────────────────────────────────────
 
   private async isWithinWindow(customerId: string, schemaName: string): Promise<boolean> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT m.created_at
       FROM "${schemaName}".messages m
       JOIN "${schemaName}".conversations c ON c.id = m.conversation_id
       WHERE c.customer_id = $1::uuid AND m.direction = 'inbound'
       ORDER BY m.created_at DESC LIMIT 1
-    `, customerId);
+    `,
+      customerId,
+    );
 
     if (!rows[0]) return false;
 
@@ -202,19 +222,30 @@ export class OrderNotificationsService {
     return hoursSince <= 24;
   }
 
-  private async recordMessage(customerId: string, content: string, schemaName: string): Promise<void> {
+  private async recordMessage(
+    customerId: string,
+    content: string,
+    schemaName: string,
+  ): Promise<void> {
     // Find most recent conversation for this customer
-    const convs = await this.prisma.$queryRawUnsafe<any[]>(`
+    const convs = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id FROM "${schemaName}".conversations
       WHERE customer_id = $1::uuid ORDER BY created_at DESC LIMIT 1
-    `, customerId);
+    `,
+      customerId,
+    );
 
     if (convs[0]) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${schemaName}".messages
           (conversation_id, direction, type, content, ai_processed)
         VALUES ($1::uuid, 'outbound', 'text', $2, false)
-      `, convs[0].id, content);
+      `,
+        convs[0].id,
+        content,
+      );
     }
   }
 }

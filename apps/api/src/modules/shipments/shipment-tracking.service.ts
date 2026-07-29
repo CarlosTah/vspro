@@ -1,6 +1,12 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { CarrierAdapter, CreateShipmentParams, TrackingStatus, ShippingRate, RateParams } from './carriers/carrier.interface';
+import {
+  CarrierAdapter,
+  CreateShipmentParams,
+  TrackingStatus,
+  ShippingRate,
+  RateParams,
+} from './carriers/carrier.interface';
 import { LocalCarrierAdapter } from './carriers/local-carrier.adapter';
 import { NationalCarrierAdapter } from './carriers/national-carrier.adapter';
 
@@ -53,19 +59,24 @@ export class ShipmentTrackingService {
     }
 
     // Validate order state
-    const orders = await this.prisma.$queryRawUnsafe<any[]>(`
+    const orders = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT o.id, o.order_number, o.status, o.shipping_address,
              c.name AS customer_name, c.phone AS customer_phone
       FROM "${schemaName}".orders o
       JOIN "${schemaName}".customers c ON c.id = o.customer_id
       WHERE o.id = $1::uuid
-    `, orderId);
+    `,
+      orderId,
+    );
 
     if (!orders[0]) throw new NotFoundException('Order not found');
 
     const order = orders[0];
     if (order.status !== 'ready' && order.status !== 'paid') {
-      throw new BadRequestException(`Order must be in 'ready' state to ship. Current: '${order.status}'`);
+      throw new BadRequestException(
+        `Order must be in 'ready' state to ship. Current: '${order.status}'`,
+      );
     }
 
     // Create shipment via carrier adapter
@@ -80,21 +91,33 @@ export class ShipmentTrackingService {
     const result = await carrier.createShipment(params);
 
     // Persist shipment record
-    const shipments = await this.prisma.$queryRawUnsafe<any[]>(`
+    const shipments = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".shipments
         (order_id, carrier, tracking_number, tracking_url, status, estimated_delivery)
       VALUES ($1::uuid, $2, $3, $4, 'pending', $5::date)
       RETURNING id
-    `, orderId, carrier.name, result.trackingNumber, result.trackingUrl, result.estimatedDelivery ?? null);
+    `,
+      orderId,
+      carrier.name,
+      result.trackingNumber,
+      result.trackingUrl,
+      result.estimatedDelivery ?? null,
+    );
 
     // Transition order to shipped
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".orders
       SET status = 'shipped', updated_at = NOW()
       WHERE id = $1::uuid
-    `, orderId);
+    `,
+      orderId,
+    );
 
-    this.logger.log(`[${schemaName}] Shipment created: ${result.trackingNumber} via ${carrier.name} for ${order.order_number}`);
+    this.logger.log(
+      `[${schemaName}] Shipment created: ${result.trackingNumber} via ${carrier.name} for ${order.order_number}`,
+    );
 
     return {
       shipmentId: shipments[0].id,
@@ -109,10 +132,13 @@ export class ShipmentTrackingService {
    * Get real-time tracking status for a shipment.
    */
   async getTracking(shipmentId: string, schemaName: string): Promise<TrackingStatus> {
-    const shipments = await this.prisma.$queryRawUnsafe<any[]>(`
+    const shipments = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT carrier, tracking_number AS "trackingNumber"
       FROM "${schemaName}".shipments WHERE id = $1::uuid
-    `, shipmentId);
+    `,
+      shipmentId,
+    );
 
     if (!shipments[0]) throw new NotFoundException('Shipment not found');
 
@@ -136,11 +162,14 @@ export class ShipmentTrackingService {
    * Get tracking by order ID (for customer-facing queries).
    */
   async getTrackingByOrder(orderId: string, schemaName: string): Promise<TrackingStatus | null> {
-    const shipments = await this.prisma.$queryRawUnsafe<any[]>(`
+    const shipments = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id FROM "${schemaName}".shipments
       WHERE order_id = $1::uuid
       ORDER BY created_at DESC LIMIT 1
-    `, orderId);
+    `,
+      orderId,
+    );
 
     if (!shipments[0]) return null;
     return this.getTracking(shipments[0].id, schemaName);
@@ -149,24 +178,27 @@ export class ShipmentTrackingService {
   /**
    * Update shipment status (webhook from carrier or manual).
    */
-  async updateStatus(
-    shipmentId: string,
-    status: string,
-    schemaName: string,
-  ): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+  async updateStatus(shipmentId: string, status: string, schemaName: string): Promise<void> {
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".shipments
       SET status = $1
       WHERE id = $2::uuid
-    `, status, shipmentId);
+    `,
+      status,
+      shipmentId,
+    );
 
     // If delivered, update order status too
     if (status === 'delivered') {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".orders
         SET status = 'delivered', updated_at = NOW()
         WHERE id = (SELECT order_id FROM "${schemaName}".shipments WHERE id = $1::uuid)
-      `, shipmentId);
+      `,
+        shipmentId,
+      );
     }
   }
 

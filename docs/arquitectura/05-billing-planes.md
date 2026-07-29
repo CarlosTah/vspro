@@ -31,14 +31,12 @@ Cliente paga deuda → tenant se reactiva automáticamente
 
 @Injectable()
 export class BillingService {
-
   // Crear suscripción cuando el tenant activa su plan
   async createSubscription(
     tenantId: string,
     planId: string,
     paymentMethodId: string,
   ): Promise<Subscription> {
-
     const tenant = await this.tenantsRepo.findById(tenantId);
     const plan = await this.plansRepo.findById(planId);
 
@@ -48,7 +46,7 @@ export class BillingService {
       const customer = await this.stripe.customers.create({
         email: tenant.ownerEmail,
         name: tenant.businessName,
-        metadata: { tenantId, tenantSlug: tenant.slug }
+        metadata: { tenantId, tenantSlug: tenant.slug },
       });
       stripeCustomerId = customer.id;
       await this.tenantsRepo.update(tenantId, { stripeCustomerId });
@@ -56,7 +54,7 @@ export class BillingService {
 
     // Adjuntar método de pago
     await this.stripe.paymentMethods.attach(paymentMethodId, {
-      customer: stripeCustomerId
+      customer: stripeCustomerId,
     });
 
     // Crear suscripción
@@ -64,10 +62,8 @@ export class BillingService {
       customer: stripeCustomerId,
       items: [{ price: plan.stripePriceId }],
       default_payment_method: paymentMethodId,
-      trial_end: tenant.trialEndsAt
-        ? Math.floor(tenant.trialEndsAt.getTime() / 1000)
-        : undefined,
-      metadata: { tenantId, planId }
+      trial_end: tenant.trialEndsAt ? Math.floor(tenant.trialEndsAt.getTime() / 1000) : undefined,
+      metadata: { tenantId, planId },
     });
 
     // Guardar en BD local
@@ -88,11 +84,12 @@ export class BillingService {
 
     // Actualizar en Stripe (prorratea automáticamente)
     await this.stripe.subscriptions.update(subscription.stripeSubId, {
-      items: [{
-        id: (await this.stripe.subscriptions.retrieve(subscription.stripeSubId))
-          .items.data[0].id,
-        price: newPlan.stripePriceId,
-      }],
+      items: [
+        {
+          id: (await this.stripe.subscriptions.retrieve(subscription.stripeSubId)).items.data[0].id,
+          price: newPlan.stripePriceId,
+        },
+      ],
       proration_behavior: 'create_prorations',
     });
 
@@ -112,7 +109,6 @@ export class BillingService {
 
 @Controller('webhooks/stripe')
 export class StripeWebhookController {
-
   @Post()
   @HttpCode(200)
   async handleStripeWebhook(
@@ -122,7 +118,7 @@ export class StripeWebhookController {
     const event = this.stripe.webhooks.constructEvent(
       rawBody,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET
+      process.env.STRIPE_WEBHOOK_SECRET,
     );
 
     switch (event.type) {
@@ -158,13 +154,13 @@ export class StripeWebhookController {
 
       // Notificar al dueño
       await this.emailService.sendPaymentFailedFinal(
-        (await this.tenantsRepo.findById(tenantId)).ownerEmail
+        (await this.tenantsRepo.findById(tenantId)).ownerEmail,
       );
     } else {
       // Notificar intento fallido
       await this.emailService.sendPaymentFailed(
         (await this.tenantsRepo.findById(tenantId)).ownerEmail,
-        failedAttempts
+        failedAttempts,
       );
     }
   }
@@ -180,7 +176,6 @@ export class StripeWebhookController {
 
 @Injectable()
 export class UsageTrackerInterceptor implements NestInterceptor {
-
   async intercept(context: ExecutionContext, next: CallHandler) {
     const request = context.switchToHttp().getRequest();
     const tenant = request.tenant;
@@ -191,16 +186,13 @@ export class UsageTrackerInterceptor implements NestInterceptor {
     }
 
     // Verificar quota ANTES de ejecutar
-    const canProceed = await this.quotaService.checkAndIncrement(
-      tenant.id,
-      usageType
-    );
+    const canProceed = await this.quotaService.checkAndIncrement(tenant.id, usageType);
 
     if (!canProceed) {
       throw new ForbiddenException({
         code: 'QUOTA_EXCEEDED',
         message: `Has alcanzado el límite de tu plan para ${usageType}`,
-        upgradeUrl: 'https://app.vspro.app/billing/upgrade'
+        upgradeUrl: 'https://app.vspro.app/billing/upgrade',
       });
     }
 
@@ -211,7 +203,6 @@ export class UsageTrackerInterceptor implements NestInterceptor {
 // modules/billing/quota.service.ts
 @Injectable()
 export class QuotaService {
-
   async checkAndIncrement(tenantId: string, type: string): Promise<boolean> {
     const period = startOfMonth(new Date()).toISOString().split('T')[0];
 

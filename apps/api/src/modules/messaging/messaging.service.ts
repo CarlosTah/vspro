@@ -77,26 +77,22 @@ export class MessagingService {
       mediaUrl: msg.image?.id
         ? `${this.metaBaseUrl}/${msg.image.id}`
         : msg.document?.id
-        ? `${this.metaBaseUrl}/${msg.document.id}`
-        : msg.audio?.id
-        ? `${this.metaBaseUrl}/${msg.audio.id}`
-        : msg.voice?.id
-        ? `${this.metaBaseUrl}/${msg.voice.id}`
-        : undefined,
+          ? `${this.metaBaseUrl}/${msg.document.id}`
+          : msg.audio?.id
+            ? `${this.metaBaseUrl}/${msg.audio.id}`
+            : msg.voice?.id
+              ? `${this.metaBaseUrl}/${msg.voice.id}`
+              : undefined,
       timestamp: new Date(parseInt(msg.timestamp) * 1000),
       raw: payload,
     };
   }
 
-  private parseMessengerOrInstagram(
-    payload: any,
-    object: string,
-  ): IncomingMessage | null {
+  private parseMessengerOrInstagram(payload: any, object: string): IncomingMessage | null {
     const messaging = payload?.entry?.[0]?.messaging?.[0];
     if (!messaging?.message) return null;
 
-    const channelType: ChannelType =
-      object === 'instagram' ? 'instagram' : 'messenger';
+    const channelType: ChannelType = object === 'instagram' ? 'instagram' : 'messenger';
 
     return {
       channelType,
@@ -121,26 +117,15 @@ export class MessagingService {
     const channel = await this.getActiveChannel(channelType, schemaName);
 
     if (!channel) {
-      this.logger.warn(
-        `No hay canal ${channelType} activo para schema ${schemaName}`,
-      );
+      this.logger.warn(`No hay canal ${channelType} activo para schema ${schemaName}`);
       return;
     }
 
     try {
       if (channelType === 'whatsapp') {
-        await this.sendWhatsAppText(
-          channel.external_id,
-          channel.access_token,
-          recipientId,
-          text,
-        );
+        await this.sendWhatsAppText(channel.external_id, channel.access_token, recipientId, text);
       } else {
-        await this.sendMessengerText(
-          channel.access_token,
-          recipientId,
-          text,
-        );
+        await this.sendMessengerText(channel.access_token, recipientId, text);
       }
     } catch (error: any) {
       this.logger.error(
@@ -192,12 +177,15 @@ export class MessagingService {
   // ─── Helpers ──────────────────────────────────────────────────
 
   private async getActiveChannel(channelType: ChannelType, schemaName: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT external_id, access_token
       FROM "${schemaName}".channels
       WHERE type = $1 AND is_active = true
       LIMIT 1
-    `, channelType);
+    `,
+      channelType,
+    );
 
     return rows[0] ?? null;
   }
@@ -271,7 +259,10 @@ export class MessagingService {
 
       return { success: false, error: 'Envío de media solo soportado para WhatsApp' };
     } catch (error: any) {
-      this.logger.error(`Error enviando media a ${recipientId}:`, error?.response?.data ?? error.message);
+      this.logger.error(
+        `Error enviando media a ${recipientId}:`,
+        error?.response?.data ?? error.message,
+      );
       return { success: false, error: error?.response?.data?.error?.message ?? error.message };
     }
   }

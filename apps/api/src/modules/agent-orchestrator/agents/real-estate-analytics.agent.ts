@@ -22,8 +22,18 @@ export class RealEstateAnalyticsAgent implements OrchestratorAgent {
   private readonly openai: OpenAI;
 
   readonly name: OrchestratorAgentType = 'real-estate-analytics';
-  readonly description = 'Analítica inmobiliaria: ocupación, revenue, pricing dinámico, forecasting';
-  readonly domains = ['real-estate', 'properties', 'occupancy', 'revenue', 'pricing', 'bookings', 'rental', 'forecasting'];
+  readonly description =
+    'Analítica inmobiliaria: ocupación, revenue, pricing dinámico, forecasting';
+  readonly domains = [
+    'real-estate',
+    'properties',
+    'occupancy',
+    'revenue',
+    'pricing',
+    'bookings',
+    'rental',
+    'forecasting',
+  ];
   readonly riskLevel = 'low' as const;
   readonly requiresApproval = false;
 
@@ -80,7 +90,7 @@ export class RealEstateAnalyticsAgent implements OrchestratorAgent {
     const daysInMonth = 30;
     const portfolio = properties.map((p: any) => {
       const blockedDays = Array.isArray(p.blockingDates) ? p.blockingDates.length : 0;
-      const occupancy = (blockedDays / daysInMonth * 100).toFixed(1);
+      const occupancy = ((blockedDays / daysInMonth) * 100).toFixed(1);
       const rates = p.rates ?? {};
       return {
         name: p.name,
@@ -92,19 +102,24 @@ export class RealEstateAnalyticsAgent implements OrchestratorAgent {
       };
     });
 
-    const avgOccupancy = portfolio.reduce((s: number, p: any) => s + p.occupancy, 0) / portfolio.length;
+    const avgOccupancy =
+      portfolio.reduce((s: number, p: any) => s + p.occupancy, 0) / portfolio.length;
     const totalRevenue = portfolio.reduce((s: number, p: any) => s + p.revenue, 0);
 
     // AI analysis
     const analysis = await this.openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      messages: [{
-        role: 'system',
-        content: 'Eres un analista inmobiliario. Analiza el portfolio y da recomendaciones de pricing en español. Sé conciso.',
-      }, {
-        role: 'user',
-        content: `Portfolio: ${JSON.stringify(portfolio)}. Ocupación promedio: ${avgOccupancy.toFixed(1)}%. Revenue total 30d: $${totalRevenue.toLocaleString()}.`,
-      }],
+      messages: [
+        {
+          role: 'system',
+          content:
+            'Eres un analista inmobiliario. Analiza el portfolio y da recomendaciones de pricing en español. Sé conciso.',
+        },
+        {
+          role: 'user',
+          content: `Portfolio: ${JSON.stringify(portfolio)}. Ocupación promedio: ${avgOccupancy.toFixed(1)}%. Revenue total 30d: $${totalRevenue.toLocaleString()}.`,
+        },
+      ],
       temperature: 0.3,
       max_tokens: 400,
     });
@@ -114,7 +129,10 @@ export class RealEstateAnalyticsAgent implements OrchestratorAgent {
       toolsUsed: ['portfolio_analysis', 'ai_pricing_recommendation'],
       confidence: 0.85,
       data: { portfolio, avgOccupancy, totalRevenue, propertyCount: properties.length },
-      suggestedActions: avgOccupancy < 50 ? ['Reducir tarifas 10-15%', 'Activar campaña en redes'] : ['Considerar incremento de tarifa'],
+      suggestedActions:
+        avgOccupancy < 50
+          ? ['Reducir tarifas 10-15%', 'Activar campaña en redes']
+          : ['Considerar incremento de tarifa'],
     };
   }
 
@@ -129,16 +147,20 @@ export class RealEstateAnalyticsAgent implements OrchestratorAgent {
     `);
 
     return {
-      response: upcomingBookings.length > 0
-        ? `${upcomingBookings.length} reservaciones activas/próximas encontradas.`
-        : 'No hay reservaciones próximas.',
+      response:
+        upcomingBookings.length > 0
+          ? `${upcomingBookings.length} reservaciones activas/próximas encontradas.`
+          : 'No hay reservaciones próximas.',
       toolsUsed: ['bookings_query'],
       confidence: 0.9,
       data: { bookings: upcomingBookings, count: upcomingBookings.length },
     };
   }
 
-  private async generatePerformanceReport(task: AgentTask, schemaName: string): Promise<AgentTaskOutput> {
+  private async generatePerformanceReport(
+    task: AgentTask,
+    schemaName: string,
+  ): Promise<AgentTaskOutput> {
     const result = await this.analyzePortfolio(task, schemaName);
     return { ...result, response: `📊 Reporte de Portfolio Inmobiliario\n\n${result.response}` };
   }

@@ -26,7 +26,8 @@ export class PurchaseHistoryService {
   }
 
   private async getSummary(customerId: string, schema: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         COUNT(*) AS total_orders,
         COALESCE(SUM(total), 0) AS lifetime_value,
@@ -35,7 +36,9 @@ export class PurchaseHistoryService {
         MIN(created_at) AS first_order_date
       FROM "${schema}".orders
       WHERE customer_id = $1::uuid AND status NOT IN ('cancelled')
-    `, customerId);
+    `,
+      customerId,
+    );
 
     const r = rows[0] ?? {};
     return {
@@ -48,15 +51,18 @@ export class PurchaseHistoryService {
   }
 
   private async getFrequency(customerId: string, schema: string): Promise<PurchaseFrequency> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT created_at FROM "${schema}".orders
       WHERE customer_id = $1::uuid AND status NOT IN ('cancelled')
       ORDER BY created_at ASC
-    `, customerId);
+    `,
+      customerId,
+    );
 
     if (rows.length < 2) return { avgDaysBetween: null, isRecurring: false, segment: 'new' };
 
-    const dates = rows.map(r => new Date(r.created_at).getTime());
+    const dates = rows.map((r) => new Date(r.created_at).getTime());
     const gaps: number[] = [];
     for (let i = 1; i < dates.length; i++) {
       gaps.push((dates[i] - dates[i - 1]) / 86400000);
@@ -78,12 +84,15 @@ export class PurchaseHistoryService {
   }
 
   private async getRecentOrders(customerId: string, schema: string) {
-    return this.prisma.$queryRawUnsafe<any[]>(`
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id, order_number, status, total, created_at
       FROM "${schema}".orders
       WHERE customer_id = $1::uuid
       ORDER BY created_at DESC LIMIT 5
-    `, customerId);
+    `,
+      customerId,
+    );
   }
 }
 

@@ -125,7 +125,9 @@ export class BackupService {
         const cmd = `aws s3 ls s3://${this.bucket}/backups/ --recursive | awk '{print $4}' | grep -E "\\d{4}-\\d{2}-\\d{2}" | while read key; do date=$(echo $key | grep -oE "\\d{4}-\\d{2}-\\d{2}"); if [[ "$date" < "${cutoff}" ]]; then aws s3 rm "s3://${this.bucket}/$key"; fi; done`;
         execSync(cmd, { stdio: 'pipe', timeout: 60000 });
         this.logger.debug(`Old backups cleaned (before ${cutoff})`);
-      } catch { /* non-critical */ }
+      } catch {
+        /* non-critical */
+      }
     }
   }
 

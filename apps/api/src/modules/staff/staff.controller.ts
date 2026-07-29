@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, ParseUUIDPipe, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  ParseUUIDPipe,
+  Req,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { StaffService, CreateStaffDto, UpdateStaffDto } from './staff.service';
@@ -42,7 +53,12 @@ export class StaffController {
   /** Update staff member */
   @Patch(':id')
   @Roles('admin', 'manager')
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateStaffDto, @Req() req: any, @TenantSchema() schema: string) {
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateStaffDto,
+    @Req() req: any,
+    @TenantSchema() schema: string,
+  ) {
     const actor = { id: req.user.sub, role: req.user.role };
     return this.staff.updateStaff(id, dto, actor, schema);
   }
@@ -50,7 +66,11 @@ export class StaffController {
   /** Deactivate staff member */
   @Delete(':id')
   @Roles('admin')
-  deactivate(@Param('id', ParseUUIDPipe) id: string, @Req() req: any, @TenantSchema() schema: string) {
+  deactivate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: any,
+    @TenantSchema() schema: string,
+  ) {
     const actor = { id: req.user.sub, role: req.user.role };
     return this.staff.deactivateStaff(id, actor, schema);
   }
@@ -58,7 +78,12 @@ export class StaffController {
   /** Reset password */
   @Post(':id/reset-password')
   @Roles('admin')
-  resetPassword(@Param('id', ParseUUIDPipe) id: string, @Body() body: { password: string }, @Req() req: any, @TenantSchema() schema: string) {
+  resetPassword(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { password: string },
+    @Req() req: any,
+    @TenantSchema() schema: string,
+  ) {
     const actor = { id: req.user.sub, role: req.user.role };
     return this.staff.resetPassword(id, body.password, actor, schema);
   }

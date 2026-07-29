@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { TenantSchema } from '../../common/decorators/tenant.decorator';
@@ -75,13 +85,16 @@ export class PropertiesRentalController {
   @Roles('admin', 'manager')
   async getOne(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
     await this.ensureTable(schema);
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id, name, description, address, lat, lng, capacity, bedrooms, bathrooms,
              amenities, rules, images, price_per_night AS "pricePerNight",
              price_per_week AS "pricePerWeek", price_per_month AS "pricePerMonth",
              min_nights AS "minNights", is_active AS "isActive"
       FROM "${schema}".properties WHERE id = $1::uuid
-    `, id);
+    `,
+      id,
+    );
     return rows[0] ?? null;
   }
 
@@ -89,42 +102,104 @@ export class PropertiesRentalController {
   @Roles('admin')
   async create(@Body() dto: CreatePropertyDto, @TenantSchema() schema: string) {
     await this.ensureTable(schema);
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schema}".properties
         (name, description, address, lat, lng, capacity, bedrooms, bathrooms,
          amenities, rules, images, price_per_night, price_per_week, price_per_month, min_nights)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, $14, $15)
       RETURNING id, name, capacity, price_per_night AS "pricePerNight"
-    `, dto.name, dto.description ?? '', dto.address ?? '', dto.lat ?? null, dto.lng ?? null,
-       dto.capacity ?? 2, dto.bedrooms ?? 1, dto.bathrooms ?? 1,
-       JSON.stringify(dto.amenities ?? []), JSON.stringify(dto.rules ?? []),
-       JSON.stringify(dto.images ?? []),
-       dto.pricePerNight ?? 0, dto.pricePerWeek ?? null, dto.pricePerMonth ?? null, dto.minNights ?? 1);
+    `,
+      dto.name,
+      dto.description ?? '',
+      dto.address ?? '',
+      dto.lat ?? null,
+      dto.lng ?? null,
+      dto.capacity ?? 2,
+      dto.bedrooms ?? 1,
+      dto.bathrooms ?? 1,
+      JSON.stringify(dto.amenities ?? []),
+      JSON.stringify(dto.rules ?? []),
+      JSON.stringify(dto.images ?? []),
+      dto.pricePerNight ?? 0,
+      dto.pricePerWeek ?? null,
+      dto.pricePerMonth ?? null,
+      dto.minNights ?? 1,
+    );
     return rows[0];
   }
 
   @Patch(':id')
   @Roles('admin')
-  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: Partial<CreatePropertyDto>, @TenantSchema() schema: string) {
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: Partial<CreatePropertyDto>,
+    @TenantSchema() schema: string,
+  ) {
     const sets: string[] = [];
     const vals: any[] = [];
     let idx = 1;
 
-    if (dto.name !== undefined) { sets.push(`name = $${idx++}`); vals.push(dto.name); }
-    if (dto.description !== undefined) { sets.push(`description = $${idx++}`); vals.push(dto.description); }
-    if (dto.address !== undefined) { sets.push(`address = $${idx++}`); vals.push(dto.address); }
-    if (dto.lat !== undefined) { sets.push(`lat = $${idx++}`); vals.push(dto.lat); }
-    if (dto.lng !== undefined) { sets.push(`lng = $${idx++}`); vals.push(dto.lng); }
-    if (dto.capacity !== undefined) { sets.push(`capacity = $${idx++}`); vals.push(dto.capacity); }
-    if (dto.bedrooms !== undefined) { sets.push(`bedrooms = $${idx++}`); vals.push(dto.bedrooms); }
-    if (dto.bathrooms !== undefined) { sets.push(`bathrooms = $${idx++}`); vals.push(dto.bathrooms); }
-    if (dto.amenities !== undefined) { sets.push(`amenities = $${idx++}::jsonb`); vals.push(JSON.stringify(dto.amenities)); }
-    if (dto.rules !== undefined) { sets.push(`rules = $${idx++}::jsonb`); vals.push(JSON.stringify(dto.rules)); }
-    if (dto.images !== undefined) { sets.push(`images = $${idx++}::jsonb`); vals.push(JSON.stringify(dto.images)); }
-    if (dto.pricePerNight !== undefined) { sets.push(`price_per_night = $${idx++}`); vals.push(dto.pricePerNight); }
-    if (dto.pricePerWeek !== undefined) { sets.push(`price_per_week = $${idx++}`); vals.push(dto.pricePerWeek); }
-    if (dto.pricePerMonth !== undefined) { sets.push(`price_per_month = $${idx++}`); vals.push(dto.pricePerMonth); }
-    if (dto.minNights !== undefined) { sets.push(`min_nights = $${idx++}`); vals.push(dto.minNights); }
+    if (dto.name !== undefined) {
+      sets.push(`name = $${idx++}`);
+      vals.push(dto.name);
+    }
+    if (dto.description !== undefined) {
+      sets.push(`description = $${idx++}`);
+      vals.push(dto.description);
+    }
+    if (dto.address !== undefined) {
+      sets.push(`address = $${idx++}`);
+      vals.push(dto.address);
+    }
+    if (dto.lat !== undefined) {
+      sets.push(`lat = $${idx++}`);
+      vals.push(dto.lat);
+    }
+    if (dto.lng !== undefined) {
+      sets.push(`lng = $${idx++}`);
+      vals.push(dto.lng);
+    }
+    if (dto.capacity !== undefined) {
+      sets.push(`capacity = $${idx++}`);
+      vals.push(dto.capacity);
+    }
+    if (dto.bedrooms !== undefined) {
+      sets.push(`bedrooms = $${idx++}`);
+      vals.push(dto.bedrooms);
+    }
+    if (dto.bathrooms !== undefined) {
+      sets.push(`bathrooms = $${idx++}`);
+      vals.push(dto.bathrooms);
+    }
+    if (dto.amenities !== undefined) {
+      sets.push(`amenities = $${idx++}::jsonb`);
+      vals.push(JSON.stringify(dto.amenities));
+    }
+    if (dto.rules !== undefined) {
+      sets.push(`rules = $${idx++}::jsonb`);
+      vals.push(JSON.stringify(dto.rules));
+    }
+    if (dto.images !== undefined) {
+      sets.push(`images = $${idx++}::jsonb`);
+      vals.push(JSON.stringify(dto.images));
+    }
+    if (dto.pricePerNight !== undefined) {
+      sets.push(`price_per_night = $${idx++}`);
+      vals.push(dto.pricePerNight);
+    }
+    if (dto.pricePerWeek !== undefined) {
+      sets.push(`price_per_week = $${idx++}`);
+      vals.push(dto.pricePerWeek);
+    }
+    if (dto.pricePerMonth !== undefined) {
+      sets.push(`price_per_month = $${idx++}`);
+      vals.push(dto.pricePerMonth);
+    }
+    if (dto.minNights !== undefined) {
+      sets.push(`min_nights = $${idx++}`);
+      vals.push(dto.minNights);
+    }
 
     if (sets.length === 0) return { success: true };
 
@@ -141,7 +216,10 @@ export class PropertiesRentalController {
   @Delete(':id')
   @Roles('admin')
   async delete(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
-    await this.prisma.$executeRawUnsafe(`DELETE FROM "${schema}".properties WHERE id = $1::uuid`, id);
+    await this.prisma.$executeRawUnsafe(
+      `DELETE FROM "${schema}".properties WHERE id = $1::uuid`,
+      id,
+    );
     return { success: true };
   }
 }

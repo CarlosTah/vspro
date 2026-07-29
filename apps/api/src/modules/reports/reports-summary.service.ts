@@ -31,7 +31,8 @@ export class ReportsSummaryService {
   }
 
   private async getOrderStats(schema: string, from: string, to: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         COUNT(*) AS total,
         COUNT(*) FILTER (WHERE status = 'new') AS new,
@@ -41,7 +42,10 @@ export class ReportsSummaryService {
         COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled
       FROM "${schema}".orders
       WHERE created_at >= $1::date AND created_at < $2::date
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     const r = rows[0] ?? {};
     return {
@@ -55,7 +59,8 @@ export class ReportsSummaryService {
   }
 
   private async getRevenueStats(schema: string, from: string, to: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         COALESCE(SUM(total), 0) AS total_revenue,
         COALESCE(SUM(total) FILTER (WHERE status IN ('paid','in_production','ready','shipped','delivered')), 0) AS paid,
@@ -63,7 +68,10 @@ export class ReportsSummaryService {
         COALESCE(AVG(total) FILTER (WHERE status != 'cancelled'), 0) AS avg_order
       FROM "${schema}".orders
       WHERE created_at >= $1::date AND created_at < $2::date
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     const r = rows[0] ?? {};
     return {
@@ -75,12 +83,16 @@ export class ReportsSummaryService {
   }
 
   private async getCustomerStats(schema: string, from: string, to: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         (SELECT COUNT(*) FROM "${schema}".customers) AS total,
         COUNT(*) FILTER (WHERE created_at >= $1::date AND created_at < $2::date) AS new_in_period
       FROM "${schema}".customers
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     const r = rows[0] ?? {};
     const total = parseInt(r.total ?? '0');
@@ -89,14 +101,18 @@ export class ReportsSummaryService {
   }
 
   private async getConversationStats(schema: string, from: string, to: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         COUNT(*) AS total,
         COUNT(*) FILTER (WHERE status = 'active') AS active,
         COUNT(*) FILTER (WHERE status = 'resolved') AS resolved
       FROM "${schema}".conversations
       WHERE created_at >= $1::date AND created_at < $2::date
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     const r = rows[0] ?? {};
     return {

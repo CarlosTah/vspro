@@ -12,13 +12,13 @@ The AI assistant writes to both stores autonomously via an `update_customer_memo
 
 ### Key Design Decisions
 
-| Decision | Rationale |
-|----------|-----------|
-| Separate tables for profile vs episodes | Profile is 1:1 per customer (upsert semantics), episodes are 1:N (append-only with vector index). Different access patterns warrant separate tables. |
-| HNSW index over IVFFlat | HNSW provides better recall at low latency without requiring periodic retraining. Suitable for the expected episode volume (hundreds per customer, not millions). |
-| text-embedding-3-small (1536d) | Already used in the existing `ai_memories` table and `products.embedding`. Consistent dimensionality across the system. |
-| Tool registered as OpenAI function call | Matches the existing pattern in `AiEngineService.getTools()` and `AiToolsExtenderService`. No new infrastructure needed. |
-| Schema-per-tenant isolation | Continues the existing pattern — all new tables live inside `"{{schema}}"` ensuring zero cross-tenant data leakage at the PostgreSQL level. |
+| Decision                                | Rationale                                                                                                                                                         |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Separate tables for profile vs episodes | Profile is 1:1 per customer (upsert semantics), episodes are 1:N (append-only with vector index). Different access patterns warrant separate tables.              |
+| HNSW index over IVFFlat                 | HNSW provides better recall at low latency without requiring periodic retraining. Suitable for the expected episode volume (hundreds per customer, not millions). |
+| text-embedding-3-small (1536d)          | Already used in the existing `ai_memories` table and `products.embedding`. Consistent dimensionality across the system.                                           |
+| Tool registered as OpenAI function call | Matches the existing pattern in `AiEngineService.getTools()` and `AiToolsExtenderService`. No new infrastructure needed.                                          |
+| Schema-per-tenant isolation             | Continues the existing pattern — all new tables live inside `"{{schema}}"` ensuring zero cross-tenant data leakage at the PostgreSQL level.                       |
 
 ## Architecture
 
@@ -70,7 +70,7 @@ Replaces and extends the existing `AiMemoryService`. Responsible for all memory 
 @Injectable()
 export class CustomerMemoryService {
   // ─── Profile Operations ───────────────────────────────────
-  
+
   /** Upsert structured data into customer profile JSONB */
   async upsertProfile(
     customerId: string,
@@ -167,6 +167,7 @@ export class CustomerMemoryController {
 ### 3. AiEngineService (modified)
 
 Changes to the existing service:
+
 - Add `update_customer_memory` to the tools array in `getTools()`
 - Handle the tool call in `executeTool()` by delegating to `CustomerMemoryService.handleToolCall()`
 - Replace `AiMemoryService.buildMemoryContext()` call with `CustomerMemoryService.buildMemoryContext()`
@@ -217,8 +218,8 @@ CREATE INDEX IF NOT EXISTS idx_customer_memory_episodes_customer
 
 ```typescript
 interface CustomerProfile {
-  preferences?: Record<string, any>;      // e.g., { "color": "azul", "estilo": "casual" }
-  sizes?: Record<string, string>;          // e.g., { "camisa": "M", "zapatos": "42" }
+  preferences?: Record<string, any>; // e.g., { "color": "azul", "estilo": "casual" }
+  sizes?: Record<string, string>; // e.g., { "camisa": "M", "zapatos": "42" }
   addresses?: Array<{
     label: string;
     street: string;
@@ -232,7 +233,7 @@ interface CustomerProfile {
     last_order_date: string;
   };
   important_dates?: Record<string, string>; // e.g., { "cumpleaños": "1990-03-15" }
-  custom_facts?: Record<string, any>;       // freeform key-value
+  custom_facts?: Record<string, any>; // freeform key-value
 }
 ```
 
@@ -254,26 +255,31 @@ const updateCustomerMemoryTool: OpenAI.Chat.ChatCompletionTool = {
   type: 'function',
   function: {
     name: 'update_customer_memory',
-    description: 'Guarda información aprendida sobre el cliente para futuras conversaciones. Usa "profile" para datos estructurados (preferencias, tallas, direcciones) y "episode" para contexto conversacional.',
+    description:
+      'Guarda información aprendida sobre el cliente para futuras conversaciones. Usa "profile" para datos estructurados (preferencias, tallas, direcciones) y "episode" para contexto conversacional.',
     parameters: {
       type: 'object',
       properties: {
         memory_type: {
           type: 'string',
           enum: ['profile', 'episode'],
-          description: 'Tipo de memoria: "profile" para datos estructurados, "episode" para contexto conversacional',
+          description:
+            'Tipo de memoria: "profile" para datos estructurados, "episode" para contexto conversacional',
         },
         category: {
           type: 'string',
-          description: 'Categoría: para profile usa "preferences"|"sizes"|"addresses"|"purchase_history_summary"|"important_dates"|"custom_facts". Para episode usa "conversation_summary"|"preference_detected"|"complaint"|"product_interest"|"general_context".',
+          description:
+            'Categoría: para profile usa "preferences"|"sizes"|"addresses"|"purchase_history_summary"|"important_dates"|"custom_facts". Para episode usa "conversation_summary"|"preference_detected"|"complaint"|"product_interest"|"general_context".',
         },
         content: {
           type: 'string',
-          description: 'Texto descriptivo del recuerdo (requerido para episodes, opcional para profile)',
+          description:
+            'Texto descriptivo del recuerdo (requerido para episodes, opcional para profile)',
         },
         data: {
           type: 'object',
-          description: 'Datos estructurados para profile updates (ej: {"color": "azul", "talla": "M"})',
+          description:
+            'Datos estructurados para profile updates (ej: {"color": "azul", "talla": "M"})',
         },
       },
       required: ['memory_type', 'category'],
@@ -308,83 +314,82 @@ updated_at = NOW()
 WHERE customer_id = $1::uuid;
 ```
 
-
-
 ## Correctness Properties
 
-*A property is a characteristic or behavior that should hold true across all valid executions of a system — essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+_A property is a characteristic or behavior that should hold true across all valid executions of a system — essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees._
 
 ### Property 1: Profile upsert merge invariant
 
-*For any* existing customer profile with arbitrary keys populated, and *for any* valid partial update targeting a single category key, after the upsert completes, all keys not targeted by the update SHALL remain unchanged, AND the targeted key SHALL contain the new data merged with any pre-existing values under that key.
+_For any_ existing customer profile with arbitrary keys populated, and _for any_ valid partial update targeting a single category key, after the upsert completes, all keys not targeted by the update SHALL remain unchanged, AND the targeted key SHALL contain the new data merged with any pre-existing values under that key.
 
 **Validates: Requirements 2.1, 2.3**
 
 ### Property 2: Profile key validation
 
-*For any* string that is NOT one of the allowed profile keys (`preferences`, `sizes`, `addresses`, `purchase_history_summary`, `important_dates`, `custom_facts`), attempting to upsert data under that key SHALL be rejected, AND the profile SHALL remain unchanged.
+_For any_ string that is NOT one of the allowed profile keys (`preferences`, `sizes`, `addresses`, `purchase_history_summary`, `important_dates`, `custom_facts`), attempting to upsert data under that key SHALL be rejected, AND the profile SHALL remain unchanged.
 
 **Validates: Requirements 2.2**
 
 ### Property 3: Episode storage round-trip
 
-*For any* valid episode content string and *for any* valid category, after storing the episode, retrieving it by ID SHALL return the same content text, the same category, and (if an embedding was provided) the same embedding vector.
+_For any_ valid episode content string and _for any_ valid category, after storing the episode, retrieving it by ID SHALL return the same content text, the same category, and (if an embedding was provided) the same embedding vector.
 
 **Validates: Requirements 3.2**
 
 ### Property 4: Episode category validation
 
-*For any* string that is NOT one of the allowed episode categories (`conversation_summary`, `preference_detected`, `complaint`, `product_interest`, `general_context`), attempting to create an episode with that category SHALL be rejected, AND no new row SHALL be inserted.
+_For any_ string that is NOT one of the allowed episode categories (`conversation_summary`, `preference_detected`, `complaint`, `product_interest`, `general_context`), attempting to create an episode with that category SHALL be rejected, AND no new row SHALL be inserted.
 
 **Validates: Requirements 3.3**
 
 ### Property 5: Semantic search ordering and limit
 
-*For any* set of N episodes (N ≥ 5) belonging to a customer, each with a known embedding vector, and *for any* query vector, the semantic search SHALL return at most 5 results, AND those results SHALL be ordered by descending cosine similarity to the query vector.
+_For any_ set of N episodes (N ≥ 5) belonging to a customer, each with a known embedding vector, and _for any_ query vector, the semantic search SHALL return at most 5 results, AND those results SHALL be ordered by descending cosine similarity to the query vector.
 
 **Validates: Requirements 5.2**
 
 ### Property 6: Hybrid context completeness
 
-*For any* customer with a non-empty profile and at least one episodic memory, the formatted context string produced by `buildMemoryContext` SHALL contain a representation of the profile data AND SHALL contain the content text of at least one relevant episode.
+_For any_ customer with a non-empty profile and at least one episodic memory, the formatted context string produced by `buildMemoryContext` SHALL contain a representation of the profile data AND SHALL contain the content text of at least one relevant episode.
 
 **Validates: Requirements 5.1, 5.3**
 
 ### Property 7: Tenant isolation for memory operations
 
-*For any* customer_id that does not exist in a given tenant schema, all memory read and write operations (getProfile, createEpisode, upsertProfile, deleteAllMemory) executed against that schema SHALL fail with a not-found or forbidden error, AND no data SHALL be written.
+_For any_ customer_id that does not exist in a given tenant schema, all memory read and write operations (getProfile, createEpisode, upsertProfile, deleteAllMemory) executed against that schema SHALL fail with a not-found or forbidden error, AND no data SHALL be written.
 
 **Validates: Requirements 7.6**
 
 ### Property 8: Migration preserves data and maps categories
 
-*For any* set of legacy `ai_memories` records with type `conversation_summary` or `preference`, after migration, each record SHALL appear in `customer_memory_episodes` with the correct mapped category (`conversation_summary` → `conversation_summary`, `preference` → `preference_detected`), AND any non-null embedding SHALL be preserved identically.
+_For any_ set of legacy `ai_memories` records with type `conversation_summary` or `preference`, after migration, each record SHALL appear in `customer_memory_episodes` with the correct mapped category (`conversation_summary` → `conversation_summary`, `preference` → `preference_detected`), AND any non-null embedding SHALL be preserved identically.
 
 **Validates: Requirements 8.1, 8.2, 8.3**
 
 ### Property 9: Unique profile per customer
 
-*For any* customer_id, regardless of how many upsert operations are performed, the `customer_memories` table SHALL contain at most one row for that customer_id.
+_For any_ customer_id, regardless of how many upsert operations are performed, the `customer_memories` table SHALL contain at most one row for that customer_id.
 
 **Validates: Requirements 1.3**
 
 ## Error Handling
 
-| Scenario | Behavior | Recovery |
-|----------|----------|----------|
-| OpenAI embedding API unavailable | Store episode with NULL embedding, log warning | Background job retries embedding generation for NULL entries |
-| OpenAI embedding API rate-limited | Exponential backoff (3 retries, 1s/2s/4s) | Falls back to NULL embedding after retries exhausted |
-| customer_id not in conversation context | Return error JSON to AI: `{"error": "customer_not_identified"}` | AI informs user it cannot save memory without identification |
-| Invalid profile category key | Reject with validation error, return error to AI | AI receives error and can retry with valid key |
-| Invalid episode category | Reject with validation error | Same as above |
-| Database connection failure | Throw, caught by AiEngineService error handler | AI responds with generic error message; memory operation is lost |
-| JSONB merge conflict (concurrent writes) | PostgreSQL row-level lock on upsert ensures serialization | No data loss — second write merges on top of first |
-| Embedding dimension mismatch | Reject at insert (PostgreSQL vector type enforces 1536) | Log error, store with NULL embedding |
-| Migration: legacy record missing customer_id FK | Skip record, log warning with record ID | Manual review of skipped records |
+| Scenario                                        | Behavior                                                        | Recovery                                                         |
+| ----------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------- |
+| OpenAI embedding API unavailable                | Store episode with NULL embedding, log warning                  | Background job retries embedding generation for NULL entries     |
+| OpenAI embedding API rate-limited               | Exponential backoff (3 retries, 1s/2s/4s)                       | Falls back to NULL embedding after retries exhausted             |
+| customer_id not in conversation context         | Return error JSON to AI: `{"error": "customer_not_identified"}` | AI informs user it cannot save memory without identification     |
+| Invalid profile category key                    | Reject with validation error, return error to AI                | AI receives error and can retry with valid key                   |
+| Invalid episode category                        | Reject with validation error                                    | Same as above                                                    |
+| Database connection failure                     | Throw, caught by AiEngineService error handler                  | AI responds with generic error message; memory operation is lost |
+| JSONB merge conflict (concurrent writes)        | PostgreSQL row-level lock on upsert ensures serialization       | No data loss — second write merges on top of first               |
+| Embedding dimension mismatch                    | Reject at insert (PostgreSQL vector type enforces 1536)         | Log error, store with NULL embedding                             |
+| Migration: legacy record missing customer_id FK | Skip record, log warning with record ID                         | Manual review of skipped records                                 |
 
 ### Graceful Degradation
 
 The memory system is designed to degrade gracefully:
+
 1. **No embeddings available** → Episodic search falls back to most-recent ordering
 2. **No profile exists** → Hybrid retrieval returns only episodic results (or empty)
 3. **No episodes exist** → Hybrid retrieval returns only profile (or empty)
@@ -399,6 +404,7 @@ The project uses Jest as its test runner. Property-based tests will use **fast-c
 Each property test runs a minimum of **100 iterations** with randomized inputs.
 
 **Configuration:**
+
 ```typescript
 import fc from 'fast-check';
 
@@ -407,6 +413,7 @@ import fc from 'fast-check';
 ```
 
 **Properties to implement:**
+
 1. Profile merge invariant (Property 1) — Generate random initial profiles and partial updates
 2. Profile key validation (Property 2) — Generate arbitrary strings, test against allowlist
 3. Episode storage round-trip (Property 3) — Generate random content + categories
@@ -420,6 +427,7 @@ import fc from 'fast-check';
 ### Unit Tests (Jest)
 
 Focus on specific examples and edge cases:
+
 - Tool handler returns confirmation message (4.4)
 - Tool handler returns error when customer_id missing (4.5)
 - Empty memory returns empty context string (5.4)
@@ -441,6 +449,7 @@ Focus on specific examples and edge cases:
 ### Tenant Isolation Tests (Critical)
 
 Dedicated test suite ensuring cross-tenant data leakage is impossible:
+
 - Create memory in tenant A, query from tenant B → returns nothing
 - Vector search in tenant A never returns tenant B episodes
 - Profile upsert in tenant A never affects tenant B profiles

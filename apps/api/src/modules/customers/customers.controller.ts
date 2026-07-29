@@ -1,6 +1,12 @@
 import {
-  Controller, Get, Post, Patch,
-  Body, Param, UseGuards, ParseUUIDPipe,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -21,18 +27,12 @@ export class CustomersController {
   }
 
   @Get(':id')
-  findOne(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantSchema() schema: string,
-  ) {
+  findOne(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
     return this.customersService.findById(id, schema);
   }
 
   @Get(':id/orders')
-  getOrderHistory(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantSchema() schema: string,
-  ) {
+  getOrderHistory(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
     return this.customersService.getOrderHistory(id, schema);
   }
 

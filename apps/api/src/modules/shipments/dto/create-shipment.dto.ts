@@ -19,7 +19,7 @@ export class CreateShipmentDto {
   @IsOptional()
   trackingUrl?: string;
 
-  @ApiProperty({ example: 85.50, required: false })
+  @ApiProperty({ example: 85.5, required: false })
   @IsNumber()
   @Min(0)
   @IsOptional()

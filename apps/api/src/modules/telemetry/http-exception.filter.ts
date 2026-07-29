@@ -1,4 +1,11 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import { Request, Response } from 'express';
 import { SentryTelemetryService } from './sentry-telemetry.service';
 
@@ -26,20 +33,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
     const response = ctx.getResponse<Response>();
 
-    const status = exception instanceof HttpException
-      ? exception.getStatus()
-      : HttpStatus.INTERNAL_SERVER_ERROR;
+    const status =
+      exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const message = exception instanceof HttpException
-      ? exception.message
-      : 'Internal server error';
+    const message =
+      exception instanceof HttpException ? exception.message : 'Internal server error';
 
-    const errorResponse = exception instanceof HttpException
-      ? exception.getResponse()
-      : { message };
+    const errorResponse =
+      exception instanceof HttpException ? exception.getResponse() : { message };
 
     // Extract tenant context from request
-    const tenantSlug = (request.headers['x-tenant-slug'] as string) ?? (request as any).tenant?.slug;
+    const tenantSlug =
+      (request.headers['x-tenant-slug'] as string) ?? (request as any).tenant?.slug;
     const userId = (request as any).user?.sub;
     const requestId = (request.headers['x-request-id'] as string) ?? this.generateRequestId();
 
@@ -62,7 +67,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     // Standardized error response
     const body = {
       statusCode: status,
-      message: typeof errorResponse === 'object' ? (errorResponse as any).message ?? message : message,
+      message:
+        typeof errorResponse === 'object' ? ((errorResponse as any).message ?? message) : message,
       error: typeof errorResponse === 'object' ? (errorResponse as any).error : undefined,
       timestamp: new Date().toISOString(),
       path: request.url,

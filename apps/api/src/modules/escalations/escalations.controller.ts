@@ -43,12 +43,17 @@ export class EscalationsController {
     @TenantSchema() schema: string,
     @Body() dto: { resolutionNote?: string; resolvedBy?: string },
   ) {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schema}".escalations
       SET status = 'resolved', resolved_at = NOW(),
           resolved_by = $1, resolution_note = $2
       WHERE id = $3::uuid
-    `, dto.resolvedBy ?? 'admin', dto.resolutionNote ?? '', id);
+    `,
+      dto.resolvedBy ?? 'admin',
+      dto.resolutionNote ?? '',
+      id,
+    );
 
     return { success: true };
   }
@@ -61,11 +66,15 @@ export class EscalationsController {
     @Body() dto: { status: 'open' | 'in_progress' | 'resolved' },
   ) {
     const resolvedClause = dto.status === 'resolved' ? `, resolved_at = NOW()` : '';
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schema}".escalations
       SET status = $1 ${resolvedClause}
       WHERE id = $2::uuid
-    `, dto.status, id);
+    `,
+      dto.status,
+      id,
+    );
 
     return { success: true };
   }

@@ -35,7 +35,8 @@ const DEFAULT_SETTINGS: DeliverySettings = {
   autoPrintOnPayment: false,
   notifyClientOnShipped: true,
   notifyClientOnDelivered: true,
-  dispatchMessage: '📦 Pedido #{orderNumber} listo para entrega.\n📍 Dirección: {address}\n💰 Total: ${total}\n\n¿Puedes recogerlo? Responde SI o NO',
+  dispatchMessage:
+    '📦 Pedido #{orderNumber} listo para entrega.\n📍 Dirección: {address}\n💰 Total: ${total}\n\n¿Puedes recogerlo? Responde SI o NO',
   shippingCost: 30,
 };
 
@@ -58,7 +59,10 @@ export class DeliverySettingsController {
 
   @Patch()
   @Roles('admin')
-  async updateSettings(@Body() dto: DeliverySettingsDto, @TenantSchema() schema: string): Promise<DeliverySettings> {
+  async updateSettings(
+    @Body() dto: DeliverySettingsDto,
+    @TenantSchema() schema: string,
+  ): Promise<DeliverySettings> {
     await this.prisma.$executeRawUnsafe(`
       ALTER TABLE "${schema}".ai_config
       ADD COLUMN IF NOT EXISTS agent_config JSONB DEFAULT '{}'
@@ -67,7 +71,8 @@ export class DeliverySettingsController {
     const current = await this.getSettings(schema);
     const updated = { ...current, ...dto };
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schema}".ai_config
       SET agent_config = jsonb_set(
         COALESCE(agent_config, '{}'::jsonb),
@@ -75,7 +80,9 @@ export class DeliverySettingsController {
         $1::jsonb
       ), updated_at = NOW()
       WHERE id = (SELECT id FROM "${schema}".ai_config LIMIT 1)
-    `, JSON.stringify(updated));
+    `,
+      JSON.stringify(updated),
+    );
 
     return updated;
   }

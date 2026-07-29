@@ -33,16 +33,21 @@ export class AccountingShipmentIntegration {
     });
 
     if (!tenant || tenant.schemaName !== schemaName) {
-      this.logger.error(`Tenant isolation violation in AccountingShipment: ${tenantId} / ${schemaName}`);
+      this.logger.error(
+        `Tenant isolation violation in AccountingShipment: ${tenantId} / ${schemaName}`,
+      );
       return;
     }
 
     // 2. Get shipping cost from the order
-    const orders = await this.prisma.$queryRawUnsafe<any[]>(`
+    const orders = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT shipping_cost, order_number
       FROM "${schemaName}".orders
       WHERE id = $1::uuid
-    `, orderId);
+    `,
+      orderId,
+    );
 
     if (!orders[0]) {
       this.logger.error(`[${schemaName}] Order ${orderId} not found for accounting entry`);
@@ -54,7 +59,9 @@ export class AccountingShipmentIntegration {
 
     // 3. Skip if no shipping cost (free shipping)
     if (shippingCost <= 0) {
-      this.logger.debug(`[${schemaName}] Order ${orderNumber}: free shipping — no accounting entry`);
+      this.logger.debug(
+        `[${schemaName}] Order ${orderNumber}: free shipping — no accounting entry`,
+      );
       return;
     }
 
@@ -64,7 +71,8 @@ export class AccountingShipmentIntegration {
     const taxAmount = shippingCost - subtotal;
 
     // 5. Create accounting entry
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${schemaName}".accounting_entries
         (order_id, type, amount, tax_amount, description)
       VALUES ($1::uuid, 'shipping', $2, $3, $4)
@@ -95,9 +103,12 @@ export class AccountingShipmentIntegration {
     if (!tenant || tenant.schemaName !== schemaName) return;
 
     // Get original shipping cost
-    const orders = await this.prisma.$queryRawUnsafe<any[]>(`
+    const orders = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT shipping_cost, order_number FROM "${schemaName}".orders WHERE id = $1::uuid
-    `, orderId);
+    `,
+      orderId,
+    );
 
     if (!orders[0]) return;
 
@@ -109,7 +120,8 @@ export class AccountingShipmentIntegration {
     const taxAmount = shippingCost - subtotal;
 
     // Create refund entry (negative amount)
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${schemaName}".accounting_entries
         (order_id, type, amount, tax_amount, description)
       VALUES ($1::uuid, 'refund', $2, $3, $4)
@@ -120,13 +132,18 @@ export class AccountingShipmentIntegration {
       `Devolución envío — ${reason ?? 'Paquete retornado'} — Pedido ${orders[0].order_number}`,
     );
 
-    this.logger.log(`[${schemaName}] Refund accounting entry for shipping on ${orders[0].order_number}`);
+    this.logger.log(
+      `[${schemaName}] Refund accounting entry for shipping on ${orders[0].order_number}`,
+    );
   }
 
   /**
    * Get shipping accounting summary for a tenant (dashboard).
    */
-  async getShippingSummary(schemaName: string, period?: { from: string; to: string }): Promise<ShippingSummary> {
+  async getShippingSummary(
+    schemaName: string,
+    period?: { from: string; to: string },
+  ): Promise<ShippingSummary> {
     const dateFilter = period
       ? `AND created_at >= '${period.from}'::date AND created_at < '${period.to}'::date`
       : '';
@@ -148,7 +165,8 @@ export class AccountingShipmentIntegration {
       totalRevenue: parseFloat(data.total_shipping_revenue ?? '0'),
       totalTax: parseFloat(data.total_shipping_tax ?? '0'),
       totalRefunds: Math.abs(parseFloat(data.total_refunds ?? '0')),
-      netRevenue: parseFloat(data.total_shipping_revenue ?? '0') + parseFloat(data.total_refunds ?? '0'),
+      netRevenue:
+        parseFloat(data.total_shipping_revenue ?? '0') + parseFloat(data.total_refunds ?? '0'),
     };
   }
 }

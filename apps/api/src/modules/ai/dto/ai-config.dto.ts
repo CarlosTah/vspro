@@ -41,15 +41,26 @@ export class UpdateAiConfigDto {
   @IsOptional()
   humanHandoffEnabled?: boolean;
 
-  @ApiProperty({ description: 'Business data (name, phone, address, social media, location)', required: false })
+  @ApiProperty({
+    description: 'Business data (name, phone, address, social media, location)',
+    required: false,
+  })
   @IsOptional()
   businessData?: Record<string, any>;
 
-  @ApiProperty({ description: 'Agent objectives (what the agent should do)', example: ['vender', 'agendar_citas', 'soporte'], required: false })
+  @ApiProperty({
+    description: 'Agent objectives (what the agent should do)',
+    example: ['vender', 'agendar_citas', 'soporte'],
+    required: false,
+  })
   @IsOptional()
   objectives?: string[];
 
-  @ApiProperty({ description: 'Red lines — things the agent must NEVER say or do', example: ['No dar descuentos mayores a 20%', 'No prometer entregas el mismo día'], required: false })
+  @ApiProperty({
+    description: 'Red lines — things the agent must NEVER say or do',
+    example: ['No dar descuentos mayores a 20%', 'No prometer entregas el mismo día'],
+    required: false,
+  })
   @IsOptional()
   redLines?: string[];
 }

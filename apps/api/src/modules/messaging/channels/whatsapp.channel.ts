@@ -39,18 +39,22 @@ export class WhatsAppChannel implements MessagingChannel {
 
     // Template failed (not approved, format error, etc.) — try free text
     try {
-      const response = await axios.post(url, {
-        messaging_product: 'whatsapp',
-        recipient_type: 'individual',
-        to: recipientId,
-        type: 'text',
-        text: { preview_url: false, body: text },
-      }, {
-        headers: {
-          Authorization: `Bearer ${channelConfig.accessToken}`,
-          'Content-Type': 'application/json',
+      const response = await axios.post(
+        url,
+        {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: recipientId,
+          type: 'text',
+          text: { preview_url: false, body: text },
         },
-      });
+        {
+          headers: {
+            Authorization: `Bearer ${channelConfig.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
 
       const messageId = response.data?.messages?.[0]?.id;
       this.logger.debug(`WhatsApp text sent to ${recipientId}: ${messageId}`);
@@ -84,22 +88,26 @@ export class WhatsAppChannel implements MessagingChannel {
           ? [{ type: 'body', parameters: [{ type: 'text', text: text.substring(0, 900) }] }]
           : [];
 
-        const response = await axios.post(url, {
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: recipientId,
-          type: 'template',
-          template: {
-            name: templateName,
-            language: { code: 'es' },
-            components,
+        const response = await axios.post(
+          url,
+          {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: recipientId,
+            type: 'template',
+            template: {
+              name: templateName,
+              language: { code: 'es' },
+              components,
+            },
           },
-        }, {
-          headers: {
-            Authorization: `Bearer ${channelConfig.accessToken}`,
-            'Content-Type': 'application/json',
+          {
+            headers: {
+              Authorization: `Bearer ${channelConfig.accessToken}`,
+              'Content-Type': 'application/json',
+            },
           },
-        });
+        );
 
         const messageId = response.data?.messages?.[0]?.id;
         this.logger.log(`WhatsApp template '${templateName}' sent to ${recipientId}: ${messageId}`);
@@ -107,7 +115,11 @@ export class WhatsAppChannel implements MessagingChannel {
       } catch (err: any) {
         const errMsg = err.response?.data?.error?.message ?? '';
         // Template not found — try next one
-        if (errMsg.includes('template') || errMsg.includes('not found') || errMsg.includes('does not exist')) {
+        if (
+          errMsg.includes('template') ||
+          errMsg.includes('not found') ||
+          errMsg.includes('does not exist')
+        ) {
           continue;
         }
         // Other error — break
@@ -117,7 +129,11 @@ export class WhatsAppChannel implements MessagingChannel {
     }
 
     // All templates failed — return original error
-    return { success: false, error: 'Outside 24h window and no approved templates available. Create templates in Meta Business Manager.' };
+    return {
+      success: false,
+      error:
+        'Outside 24h window and no approved templates available. Create templates in Meta Business Manager.',
+    };
   }
 
   async sendTemplate(params: SendTemplateParams): Promise<SendResult> {
@@ -126,22 +142,26 @@ export class WhatsAppChannel implements MessagingChannel {
     const url = `${this.baseUrl}/${this.apiVersion}/${channelConfig.externalId}/messages`;
 
     try {
-      const response = await axios.post(url, {
-        messaging_product: 'whatsapp',
-        recipient_type: 'individual',
-        to: recipientId,
-        type: 'template',
-        template: {
-          name: templateName,
-          language: { code: language },
-          components: components ?? [],
+      const response = await axios.post(
+        url,
+        {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: recipientId,
+          type: 'template',
+          template: {
+            name: templateName,
+            language: { code: language },
+            components: components ?? [],
+          },
         },
-      }, {
-        headers: {
-          Authorization: `Bearer ${channelConfig.accessToken}`,
-          'Content-Type': 'application/json',
+        {
+          headers: {
+            Authorization: `Bearer ${channelConfig.accessToken}`,
+            'Content-Type': 'application/json',
+          },
         },
-      });
+      );
 
       const messageId = response.data?.messages?.[0]?.id;
       return { success: true, messageId };
@@ -161,18 +181,22 @@ export class WhatsAppChannel implements MessagingChannel {
     if (caption) mediaPayload.caption = caption;
 
     try {
-      const response = await axios.post(url, {
-        messaging_product: 'whatsapp',
-        recipient_type: 'individual',
-        to: recipientId,
-        type: mediaType,
-        [mediaType]: mediaPayload,
-      }, {
-        headers: {
-          Authorization: `Bearer ${channelConfig.accessToken}`,
-          'Content-Type': 'application/json',
+      const response = await axios.post(
+        url,
+        {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: recipientId,
+          type: mediaType,
+          [mediaType]: mediaPayload,
         },
-      });
+        {
+          headers: {
+            Authorization: `Bearer ${channelConfig.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
 
       const messageId = response.data?.messages?.[0]?.id;
       return { success: true, messageId };
@@ -185,13 +209,17 @@ export class WhatsAppChannel implements MessagingChannel {
     const url = `${this.baseUrl}/${this.apiVersion}/${channelConfig.externalId}/messages`;
 
     try {
-      await axios.post(url, {
-        messaging_product: 'whatsapp',
-        status: 'read',
-        message_id: messageId,
-      }, {
-        headers: { Authorization: `Bearer ${channelConfig.accessToken}` },
-      });
+      await axios.post(
+        url,
+        {
+          messaging_product: 'whatsapp',
+          status: 'read',
+          message_id: messageId,
+        },
+        {
+          headers: { Authorization: `Bearer ${channelConfig.accessToken}` },
+        },
+      );
     } catch {
       // Non-critical — don't throw
     }

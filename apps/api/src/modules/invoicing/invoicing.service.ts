@@ -54,7 +54,13 @@ export class InvoicingService {
         xmlUrl: `https://facturapi.io/mock/xml/${Date.now()}`,
       };
 
-      await this.recordAccountingEntry(dto.orderId, orderTotal, taxAmount, mockInvoice.id, schemaName);
+      await this.recordAccountingEntry(
+        dto.orderId,
+        orderTotal,
+        taxAmount,
+        mockInvoice.id,
+        schemaName,
+      );
 
       return {
         invoice: mockInvoice,
@@ -98,7 +104,8 @@ export class InvoicingService {
   // ─── Historial de facturas ────────────────────────────────────
 
   async getByOrder(orderId: string, schemaName: string) {
-    return this.prisma.$queryRawUnsafe<any[]>(`
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         id, order_id AS "orderId", type, amount,
         tax_amount AS "taxAmount", description,
@@ -107,7 +114,9 @@ export class InvoicingService {
       FROM "${schemaName}".accounting_entries
       WHERE order_id = $1::uuid
       ORDER BY created_at DESC
-    `, orderId);
+    `,
+      orderId,
+    );
   }
 
   // ─── Resumen contable del mes ─────────────────────────────────
@@ -173,7 +182,7 @@ export class InvoicingService {
     });
 
     if (!res.ok) {
-      const error = await res.json() as any;
+      const error = (await res.json()) as any;
       throw new BadRequestException(
         `Error de Facturapi: ${error.message ?? JSON.stringify(error)}`,
       );
@@ -205,10 +214,16 @@ export class InvoicingService {
     invoiceId: string,
     schemaName: string,
   ) {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${schemaName}".accounting_entries
         (order_id, type, amount, tax_amount, description, invoice_id)
       VALUES ($1::uuid, 'sale', $2, $3, 'Venta facturada', $4)
-    `, orderId, amount, taxAmount, invoiceId);
+    `,
+      orderId,
+      amount,
+      taxAmount,
+      invoiceId,
+    );
   }
 }

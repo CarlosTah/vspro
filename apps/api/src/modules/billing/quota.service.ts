@@ -21,7 +21,10 @@ export class QuotaService {
    * Verifica si el tenant tiene quota disponible para el tipo de uso.
    * Retorna true si puede proceder, false si excedió el límite.
    */
-  async checkQuota(tenantId: string, type: UsageType): Promise<{
+  async checkQuota(
+    tenantId: string,
+    type: UsageType,
+  ): Promise<{
     allowed: boolean;
     current: number;
     limit: number | null;
@@ -47,7 +50,7 @@ export class QuotaService {
       where: { tenantId_period: { tenantId, period } },
     });
 
-    const current = usage ? (usage as any)[mapping.dbField] ?? 0 : 0;
+    const current = usage ? ((usage as any)[mapping.dbField] ?? 0) : 0;
     const percentage = limit > 0 ? current / limit : 0;
 
     return {

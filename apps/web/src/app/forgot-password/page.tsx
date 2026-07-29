@@ -39,13 +39,24 @@ export default function ForgotPasswordPage() {
           <div className="rounded-2xl bg-gray-800 border border-gray-700 p-8 shadow-xl space-y-4">
             <div className="text-center">
               <div className="mx-auto w-12 h-12 rounded-full bg-green-900/50 flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-green-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                <svg
+                  className="w-6 h-6 text-green-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
+                  />
                 </svg>
               </div>
               <h2 className="text-lg font-semibold text-white mb-2">Revisa tu correo</h2>
               <p className="text-sm text-gray-400">
-                Si la cuenta existe, recibirás un enlace para restablecer tu contraseña. El enlace expira en 1 hora.
+                Si la cuenta existe, recibirás un enlace para restablecer tu contraseña. El enlace
+                expira en 1 hora.
               </p>
             </div>
 
@@ -64,7 +75,8 @@ export default function ForgotPasswordPage() {
             <div>
               <h2 className="text-lg font-semibold text-white mb-1">Recuperar contraseña</h2>
               <p className="text-sm text-gray-400">
-                Ingresa tu email y el slug de tu negocio. Te enviaremos un enlace para crear una nueva contraseña.
+                Ingresa tu email y el slug de tu negocio. Te enviaremos un enlace para crear una
+                nueva contraseña.
               </p>
             </div>
 
@@ -75,9 +87,7 @@ export default function ForgotPasswordPage() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                Tu negocio
-              </label>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">Tu negocio</label>
               <div className="flex items-center rounded-lg border border-gray-600 bg-gray-900 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
                 <input
                   type="text"
@@ -92,9 +102,7 @@ export default function ForgotPasswordPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                Email
-              </label>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
               <input
                 type="email"
                 value={email}

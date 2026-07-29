@@ -58,11 +58,15 @@ export class StateMachineOrchestratorService {
       const ctxPatch: Record<string, any> = {};
       if (initialCustId) ctxPatch.customerId = initialCustId;
       if (senderPhone) ctxPatch.senderPhone = senderPhone;
-      if (conversation.context.customerName) ctxPatch.customerName = conversation.context.customerName;
-      await this.prisma.$executeRawUnsafe(
-        `UPDATE "${schemaName}".conversations SET context = context || $1::jsonb WHERE id = $2::uuid`,
-        JSON.stringify(ctxPatch), conversation.id,
-      ).catch(() => {});
+      if (conversation.context.customerName)
+        ctxPatch.customerName = conversation.context.customerName;
+      await this.prisma
+        .$executeRawUnsafe(
+          `UPDATE "${schemaName}".conversations SET context = context || $1::jsonb WHERE id = $2::uuid`,
+          JSON.stringify(ctxPatch),
+          conversation.id,
+        )
+        .catch(() => {});
     }
 
     // 2. Classify the customer's intent
@@ -79,7 +83,10 @@ export class StateMachineOrchestratorService {
       // WhatsApp sometimes sends location as a URL text message
       const coordMatch = message.text.match(/q=([-\d.]+),([-\d.]+)/);
       if (coordMatch) {
-        intent = this.intentClassifier.classifyLocation(parseFloat(coordMatch[1]), parseFloat(coordMatch[2]));
+        intent = this.intentClassifier.classifyLocation(
+          parseFloat(coordMatch[1]),
+          parseFloat(coordMatch[2]),
+        );
       } else {
         intent = await this.intentClassifier.classify(message.text, currentState.state, hasImage);
       }
@@ -91,30 +98,56 @@ export class StateMachineOrchestratorService {
       );
     }
 
-    this.logger.log(`[${schemaName}] SM: ${currentState.state} → ${intent.type} | msg: "${(message.text ?? '').substring(0, 40)}"`);
+    this.logger.log(
+      `[${schemaName}] SM: ${currentState.state} → ${intent.type} | msg: "${(message.text ?? '').substring(0, 40)}"`,
+    );
 
     // FRUSTRATION DETECTION: If last 3 messages from user had the same intent or state didn't progress
     try {
-      const recentMsgs = await this.prisma.$queryRawUnsafe<any[]>(`
+      const recentMsgs = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT content FROM "${schemaName}".messages
         WHERE conversation_id = $1::uuid AND direction = 'inbound'
         ORDER BY created_at DESC LIMIT 3
-      `, conversation.id);
-      
+      `,
+        conversation.id,
+      );
+
       if (recentMsgs.length >= 3) {
         // Check if user is repeating themselves (frustrated)
-        const msgs = recentMsgs.map(m => (m.content ?? '').toLowerCase().trim());
-        const allSimilar = msgs.every(m => m.length > 0) && 
+        const msgs = recentMsgs.map((m) => (m.content ?? '').toLowerCase().trim());
+        const allSimilar =
+          msgs.every((m) => m.length > 0) &&
           (msgs[0] === msgs[1] || msgs[0] === msgs[2] || msgs[1] === msgs[2]);
         // Check for frustration signals
-        const frustrationSignals = ['!!!', '??', 'NO ENTIENDES', 'YA TE DIJE', 'OTRA VEZ', 'NO ME AYUDAS', 'HABLAR CON ALGUIEN', 'PERSONA REAL'];
-        const isFrustrated = allSimilar || frustrationSignals.some(s => (message.text ?? '').toUpperCase().includes(s));
-        
+        const frustrationSignals = [
+          '!!!',
+          '??',
+          'NO ENTIENDES',
+          'YA TE DIJE',
+          'OTRA VEZ',
+          'NO ME AYUDAS',
+          'HABLAR CON ALGUIEN',
+          'PERSONA REAL',
+        ];
+        const isFrustrated =
+          allSimilar ||
+          frustrationSignals.some((s) => (message.text ?? '').toUpperCase().includes(s));
+
         if (isFrustrated && currentState.state !== OrderState.IDLE) {
           this.logger.warn(`[${schemaName}] Frustration detected — escalating`);
           // Auto-escalate
-          await this.executeAction('escalate_complaint', { reason: `Cliente frustrado: "${message.text}"`, priority: 'high' }, conversation, schemaName);
-          await this.persistState(conversation.id, { ...currentState, state: OrderState.IDLE }, schemaName);
+          await this.executeAction(
+            'escalate_complaint',
+            { reason: `Cliente frustrado: "${message.text}"`, priority: 'high' },
+            conversation,
+            schemaName,
+          );
+          await this.persistState(
+            conversation.id,
+            { ...currentState, state: OrderState.IDLE },
+            schemaName,
+          );
           return {
             text: `Lamento la confusión 🙏 Ya notifiqué al equipo para que te atiendan directamente. ¿Hay algo más en lo que pueda ayudarte?`,
             newState: { ...currentState, state: OrderState.IDLE },
@@ -123,18 +156,25 @@ export class StateMachineOrchestratorService {
       }
     } catch {}
     // Detect if message contains a name introduction (Soy X, Me llamo X, Mi nombre es X)
-    const nameMatch = (message.text ?? '').match(/(?:soy|me llamo|mi nombre es)\s+([A-ZÁÉÍÓÚÑa-záéíóúñ]+(?:\s[A-ZÁÉÍÓÚÑa-záéíóúñ]+)?)/i);
+    const nameMatch = (message.text ?? '').match(
+      /(?:soy|me llamo|mi nombre es)\s+([A-ZÁÉÍÓÚÑa-záéíóúñ]+(?:\s[A-ZÁÉÍÓÚÑa-záéíóúñ]+)?)/i,
+    );
     if (nameMatch && nameMatch[1] && nameMatch[1].length > 2) {
       const detectedName = nameMatch[1].trim();
       // Update customer name in DB
       const custId = conversation.context.customerId;
       if (custId) {
-        await this.prisma.$executeRawUnsafe(
-          `UPDATE "${schemaName}".customers SET name = $1 WHERE id = $2::uuid`,
-          detectedName, custId,
-        ).catch(() => {});
+        await this.prisma
+          .$executeRawUnsafe(
+            `UPDATE "${schemaName}".customers SET name = $1 WHERE id = $2::uuid`,
+            detectedName,
+            custId,
+          )
+          .catch(() => {});
         // Also save in memory
-        this.customerMemory.upsertProfile(custId, 'profile_name', { name: detectedName }, schemaName).catch(() => {});
+        this.customerMemory
+          .upsertProfile(custId, 'profile_name', { name: detectedName }, schemaName)
+          .catch(() => {});
         // Update local state for this message
         currentState.customerName = detectedName;
         (conversation.context as any).customerName = detectedName;
@@ -142,7 +182,11 @@ export class StateMachineOrchestratorService {
     }
 
     // 3. Build the state machine with current catalog
-    const catalog = products.map((p: any) => ({ name: p.name, price: parseFloat(p.price), category: p.category ?? '' }));
+    const catalog = products.map((p: any) => ({
+      name: p.name,
+      price: parseFloat(p.price),
+      category: p.category ?? '',
+    }));
     // Load delivery cost from config (default $30)
     let deliveryCost = 30;
     try {
@@ -150,7 +194,8 @@ export class StateMachineOrchestratorService {
         `SELECT agent_config->'deliverySettings'->'shippingCost' AS cost FROM "${schemaName}".ai_config LIMIT 1`,
       );
       const cfgCost = costRows[0]?.cost;
-      if (cfgCost && !isNaN(parseFloat(String(cfgCost)))) deliveryCost = parseFloat(String(cfgCost));
+      if (cfgCost && !isNaN(parseFloat(String(cfgCost))))
+        deliveryCost = parseFloat(String(cfgCost));
     } catch {}
 
     const stateMachine = new OrderStateMachine(catalog, tenant.businessName, deliveryCost);
@@ -158,7 +203,9 @@ export class StateMachineOrchestratorService {
     // 4. Execute the transition
     const transition = stateMachine.transition(currentState, intent);
 
-    this.logger.log(`[${schemaName}] SM: → ${transition.newState} | actions: ${transition.actions.map(a => a.tool).join(',') || 'none'}`);
+    this.logger.log(
+      `[${schemaName}] SM: → ${transition.newState} | actions: ${transition.actions.map((a) => a.tool).join(',') || 'none'}`,
+    );
 
     // 5. Execute system actions (tools) automatically
     let actionResults = '';
@@ -174,9 +221,12 @@ export class StateMachineOrchestratorService {
     };
 
     // Reset items when transitioning to IDLE or starting a new order
-    if (transition.newState === OrderState.IDLE || 
-        (transition.newState === OrderState.TAKING_ORDER && currentState.state === OrderState.IDLE) ||
-        (transition.newState === OrderState.TAKING_ORDER && currentState.state === OrderState.ORDER_COMPLETE)) {
+    if (
+      transition.newState === OrderState.IDLE ||
+      (transition.newState === OrderState.TAKING_ORDER && currentState.state === OrderState.IDLE) ||
+      (transition.newState === OrderState.TAKING_ORDER &&
+        currentState.state === OrderState.ORDER_COMPLETE)
+    ) {
       newState.items = undefined;
       newState.orderId = undefined;
       newState.orderNumber = undefined;
@@ -184,12 +234,20 @@ export class StateMachineOrchestratorService {
     } else if (transition.newState === OrderState.CONFIRMING_ORDER) {
       // Determine items for the confirming state
       if (intent.items && intent.items.length > 0) {
-        const catalog2 = products.map((p: any) => ({ name: p.name, price: parseFloat(p.price), category: p.category ?? '' }));
+        const catalog2 = products.map((p: any) => ({
+          name: p.name,
+          price: parseFloat(p.price),
+          category: p.category ?? '',
+        }));
         const smTemp = new OrderStateMachine(catalog2, '', deliveryCost);
         const validated2 = (smTemp as any).validateItems(intent.items);
-        
+
         // If coming FROM CONFIRMING_ORDER (customer adding more items), MERGE with existing
-        if (currentState.state === OrderState.CONFIRMING_ORDER && currentState.items && currentState.items.length > 0) {
+        if (
+          currentState.state === OrderState.CONFIRMING_ORDER &&
+          currentState.items &&
+          currentState.items.length > 0
+        ) {
           newState.items = [...currentState.items, ...validated2.valid];
         } else {
           // Fresh confirmation from TAKING_ORDER or IDLE — use only new items
@@ -201,8 +259,12 @@ export class StateMachineOrchestratorService {
       // Calculate total from items
       if (newState.items && newState.items.length > 0) {
         newState.total = newState.items.reduce((sum, item: any) => {
-          const price = item.price ?? catalog.find(p => p.name.toLowerCase() === (item.productName || '').toLowerCase())?.price ?? 0;
-          return sum + (price * item.quantity);
+          const price =
+            item.price ??
+            catalog.find((p) => p.name.toLowerCase() === (item.productName || '').toLowerCase())
+              ?.price ??
+            0;
+          return sum + price * item.quantity;
         }, 0);
       }
     } else {
@@ -248,10 +310,13 @@ export class StateMachineOrchestratorService {
         if (memories.length > 0 && memories[0].profile) {
           const profile = memories[0].profile;
           const memParts: string[] = [];
-          if (profile.addresses?.last_delivery) memParts.push(`Su dirección: ${profile.addresses.last_delivery}`);
+          if (profile.addresses?.last_delivery)
+            memParts.push(`Su dirección: ${profile.addresses.last_delivery}`);
           if (profile.addresses?.name) memParts.push(`Nombre: ${profile.addresses.name}`);
-          if (profile.preferences) memParts.push(`Preferencias: ${JSON.stringify(profile.preferences)}`);
-          if (memParts.length > 0) memoryHint = `\n\nDatos del cliente en memoria:\n${memParts.join('\n')}`;
+          if (profile.preferences)
+            memParts.push(`Preferencias: ${JSON.stringify(profile.preferences)}`);
+          if (memParts.length > 0)
+            memoryHint = `\n\nDatos del cliente en memoria:\n${memParts.join('\n')}`;
         }
       } catch {}
     }
@@ -283,10 +348,12 @@ export class StateMachineOrchestratorService {
       } else {
         // IMPORTANT: Only pass memory hint to LLM when NOT showing items/totals
         // to prevent the LLM from confusing addresses with products
-        const safeMemory = (transition.newState === OrderState.SETTING_ADDRESS || 
-                            transition.newState === OrderState.ASKING_DELIVERY)
-          ? memoryHint : '';
-        
+        const safeMemory =
+          transition.newState === OrderState.SETTING_ADDRESS ||
+          transition.newState === OrderState.ASKING_DELIVERY
+            ? memoryHint
+            : '';
+
         // RAG: Search knowledge base for relevant context based on customer message
         let ragContext = '';
         try {
@@ -295,7 +362,11 @@ export class StateMachineOrchestratorService {
 
         // RAG FALLBACK: If no relevant KB info found and this is a question we can't answer
         if (!ragContext && transition.newState === OrderState.IDLE && intent.type === 'other') {
-          const isQuestion = (message.text ?? '').includes('?') || ['qué', 'cómo', 'cuándo', 'dónde', 'cuánto', 'por qué'].some(q => (message.text ?? '').toLowerCase().includes(q));
+          const isQuestion =
+            (message.text ?? '').includes('?') ||
+            ['qué', 'cómo', 'cuándo', 'dónde', 'cuánto', 'por qué'].some((q) =>
+              (message.text ?? '').toLowerCase().includes(q),
+            );
           if (isQuestion) {
             // No info available — use safe fallback instead of letting LLM hallucinate
             responseText = `No tengo esa información disponible. Si necesitas ayuda, te puedo conectar con el encargado 📞\n\nMientras tanto, ¿te gustaría:\n• 🛒 Hacer un pedido\n• 📋 Ver el menú`;
@@ -338,16 +409,29 @@ export class StateMachineOrchestratorService {
       for (const match of priceMatches) {
         const amount = parseFloat(match.replace('$', ''));
         // Check if this amount is a valid catalog price, the state total, or a known calculation
-        const isValidPrice = catalog.some(p => p.price === amount);
+        const isValidPrice = catalog.some((p) => p.price === amount);
         const isStateTotal = amount === state.total;
         const isWithDelivery = amount === state.total + 30; // common: total + shipping
         const isSubtotal = state.items?.some((i: any) => {
-          const price = i.price ?? catalog.find(p => p.name.toLowerCase() === (i.productName || '').toLowerCase())?.price ?? 0;
+          const price =
+            i.price ??
+            catalog.find((p) => p.name.toLowerCase() === (i.productName || '').toLowerCase())
+              ?.price ??
+            0;
           return price * i.quantity === amount;
         });
 
-        if (!isValidPrice && !isStateTotal && !isWithDelivery && !isSubtotal && amount > 0 && amount !== 30) {
-          this.logger.warn(`[V&V] Hallucinated price $${amount} detected in response. State total: $${state.total}`);
+        if (
+          !isValidPrice &&
+          !isStateTotal &&
+          !isWithDelivery &&
+          !isSubtotal &&
+          amount > 0 &&
+          amount !== 30
+        ) {
+          this.logger.warn(
+            `[V&V] Hallucinated price $${amount} detected in response. State total: $${state.total}`,
+          );
           // Replace the wrong amount with the correct total
           text = text.replace(match, `$${state.total}`);
         }
@@ -355,20 +439,31 @@ export class StateMachineOrchestratorService {
     }
 
     // 2. Check for invented products (names not in catalog)
-    const catalogNames = catalog.map(p => p.name.toLowerCase());
+    const catalogNames = catalog.map((p) => p.name.toLowerCase());
     // Look for patterns like "Nx ProductName" or "- ProductName" that might be hallucinated items
-    const itemPatterns = text.match(/(?:\d+x?\s+|[-•]\s+)([A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*[\($\n]|$)/gm);
+    const itemPatterns = text.match(
+      /(?:\d+x?\s+|[-•]\s+)([A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:\s*[\($\n]|$)/gm,
+    );
     if (itemPatterns && itemPatterns.length > 2) {
       // If the response lists 3+ items, verify they exist in catalog
       let inventedCount = 0;
       for (const pattern of itemPatterns) {
-        const cleaned = pattern.replace(/^[\d+x\-•\s]+/, '').replace(/[\($\n].*$/, '').trim().toLowerCase();
-        if (cleaned.length > 3 && !catalogNames.some(n => n.includes(cleaned) || cleaned.includes(n))) {
+        const cleaned = pattern
+          .replace(/^[\d+x\-•\s]+/, '')
+          .replace(/[\($\n].*$/, '')
+          .trim()
+          .toLowerCase();
+        if (
+          cleaned.length > 3 &&
+          !catalogNames.some((n) => n.includes(cleaned) || cleaned.includes(n))
+        ) {
           inventedCount++;
         }
       }
       if (inventedCount > 1) {
-        this.logger.warn(`[V&V] ${inventedCount} invented products detected in response. Blocking.`);
+        this.logger.warn(
+          `[V&V] ${inventedCount} invented products detected in response. Blocking.`,
+        );
         // Fall back to a safe message based on current state
         return this.getSafeFallback(state);
       }
@@ -419,7 +514,11 @@ export class StateMachineOrchestratorService {
     };
   }
 
-  private async persistState(conversationId: string, state: ConversationStateData, schemaName: string): Promise<void> {
+  private async persistState(
+    conversationId: string,
+    state: ConversationStateData,
+    schemaName: string,
+  ): Promise<void> {
     const patch: Record<string, any> = {
       smState: state.state,
       lastOrderId: state.orderId,
@@ -433,11 +532,15 @@ export class StateMachineOrchestratorService {
     // Also persist customerName if available
     if (state.customerName) patch.customerName = state.customerName;
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".conversations
       SET context = context || $1::jsonb
       WHERE id = $2::uuid
-    `, JSON.stringify(patch), conversationId);
+    `,
+      JSON.stringify(patch),
+      conversationId,
+    );
   }
 
   // ─── Action Executor ────────────────────────────────────────
@@ -455,46 +558,74 @@ export class StateMachineOrchestratorService {
           if (!orderId) return JSON.stringify({ success: false, message: 'No order to add to' });
 
           // Resolve product IDs
-          const newItems: { productId: string; quantity: number; productName: string; unitPrice: number }[] = [];
-          for (const item of (args.items ?? [])) {
+          const newItems: {
+            productId: string;
+            quantity: number;
+            productName: string;
+            unitPrice: number;
+          }[] = [];
+          for (const item of args.items ?? []) {
             const found = await this.productsService.search(item.productName, schemaName);
             if (found.length > 0) {
-              newItems.push({ productId: found[0].id, quantity: item.quantity, productName: found[0].name, unitPrice: parseFloat(found[0].price) });
+              newItems.push({
+                productId: found[0].id,
+                quantity: item.quantity,
+                productName: found[0].name,
+                unitPrice: parseFloat(found[0].price),
+              });
             }
           }
-          if (newItems.length === 0) return JSON.stringify({ success: false, message: 'Products not found' });
+          if (newItems.length === 0)
+            return JSON.stringify({ success: false, message: 'Products not found' });
 
           // Get current order items and update
           const orderRows = await this.prisma.$queryRawUnsafe<any[]>(
-            `SELECT items, subtotal FROM "${schemaName}".orders WHERE id = $1::uuid`, orderId,
+            `SELECT items, subtotal FROM "${schemaName}".orders WHERE id = $1::uuid`,
+            orderId,
           );
           if (!orderRows[0]) return JSON.stringify({ success: false, message: 'Order not found' });
 
-          const currentItems = typeof orderRows[0].items === 'string' ? JSON.parse(orderRows[0].items) : (orderRows[0].items ?? []);
-          const addedSubtotal = newItems.reduce((sum, i) => sum + (i.unitPrice * i.quantity), 0);
+          const currentItems =
+            typeof orderRows[0].items === 'string'
+              ? JSON.parse(orderRows[0].items)
+              : (orderRows[0].items ?? []);
+          const addedSubtotal = newItems.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 
           // Append new items
-          const updatedItems = [...currentItems, ...newItems.map(i => ({
-            productId: i.productId,
-            productName: i.productName,
-            quantity: i.quantity,
-            unitPrice: i.unitPrice,
-            subtotal: i.unitPrice * i.quantity,
-            sku: null,
-          }))];
+          const updatedItems = [
+            ...currentItems,
+            ...newItems.map((i) => ({
+              productId: i.productId,
+              productName: i.productName,
+              quantity: i.quantity,
+              unitPrice: i.unitPrice,
+              subtotal: i.unitPrice * i.quantity,
+              sku: null,
+            })),
+          ];
 
           // Update order
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".orders
             SET items = $1::jsonb, subtotal = subtotal + $2, total = total + $2, updated_at = NOW()
             WHERE id = $3::uuid
-          `, JSON.stringify(updatedItems), addedSubtotal, orderId);
-
-          const updatedOrder = await this.prisma.$queryRawUnsafe<any[]>(
-            `SELECT total FROM "${schemaName}".orders WHERE id = $1::uuid`, orderId,
+          `,
+            JSON.stringify(updatedItems),
+            addedSubtotal,
+            orderId,
           );
 
-          return JSON.stringify({ success: true, addedItems: newItems.length, newTotal: updatedOrder[0]?.total });
+          const updatedOrder = await this.prisma.$queryRawUnsafe<any[]>(
+            `SELECT total FROM "${schemaName}".orders WHERE id = $1::uuid`,
+            orderId,
+          );
+
+          return JSON.stringify({
+            success: true,
+            addedItems: newItems.length,
+            newTotal: updatedOrder[0]?.total,
+          });
         }
 
         case 'create_order': {
@@ -502,33 +633,54 @@ export class StateMachineOrchestratorService {
           if (!customerId) return JSON.stringify({ success: false, message: 'No customer ID' });
 
           const resolvedItems: { productId: string; quantity: number }[] = [];
-          for (const item of (args.items ?? [])) {
+          for (const item of args.items ?? []) {
             const found = await this.productsService.search(item.productName, schemaName);
             if (found.length > 0) {
               resolvedItems.push({ productId: found[0].id, quantity: item.quantity });
             }
           }
-          if (resolvedItems.length === 0) return JSON.stringify({ success: false, message: 'No products found' });
+          if (resolvedItems.length === 0)
+            return JSON.stringify({ success: false, message: 'No products found' });
 
-          const order = await this.ordersService.create({
-            customerId,
-            channelType: 'whatsapp',
-            items: resolvedItems,
-            notes: args.notes,
-          }, schemaName);
+          const order = await this.ordersService.create(
+            {
+              customerId,
+              channelType: 'whatsapp',
+              items: resolvedItems,
+              notes: args.notes,
+            },
+            schemaName,
+          );
 
           // Auto-save to memory
-          this.customerMemory.upsertProfile(customerId, 'purchase_history_summary', {
-            [`order_${order.orderNumber}`]: `${(args.items ?? []).map((i: any) => i.productName).join(', ')} — $${order.total}`,
-          }, schemaName).catch(() => {});
+          this.customerMemory
+            .upsertProfile(
+              customerId,
+              'purchase_history_summary',
+              {
+                [`order_${order.orderNumber}`]: `${(args.items ?? []).map((i: any) => i.productName).join(', ')} — $${order.total}`,
+              },
+              schemaName,
+            )
+            .catch(() => {});
 
           // Auto-save preferences from notes
-          const notes = (args.items ?? []).filter((i: any) => i.notes).map((i: any) => i.notes).join(', ');
+          const notes = (args.items ?? [])
+            .filter((i: any) => i.notes)
+            .map((i: any) => i.notes)
+            .join(', ');
           if (notes) {
-            this.customerMemory.upsertProfile(customerId, 'preferences', { latest_notes: notes }, schemaName).catch(() => {});
+            this.customerMemory
+              .upsertProfile(customerId, 'preferences', { latest_notes: notes }, schemaName)
+              .catch(() => {});
           }
 
-          return JSON.stringify({ success: true, orderId: order.id, orderNumber: order.orderNumber, total: order.total });
+          return JSON.stringify({
+            success: true,
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            total: order.total,
+          });
         }
 
         case 'set_delivery_address': {
@@ -586,23 +738,39 @@ export class StateMachineOrchestratorService {
             if (c && !isNaN(parseFloat(String(c)))) shipCost = parseFloat(String(c));
           } catch {}
 
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".orders
             SET shipping_address = $1::jsonb, delivery_type = 'delivery', shipping_cost = ${shipCost}, total = subtotal + ${shipCost}, updated_at = NOW()
             WHERE id = $2::uuid
-          `, JSON.stringify(address), orderId);
+          `,
+            JSON.stringify(address),
+            orderId,
+          );
 
           // Auto-save address to memory (including GPS if available)
           const custId3 = conversation.context.customerId;
           if (custId3) {
-            const addrText = [args.street, args.colony, args.city, args.reference].filter(Boolean).join(', ');
-            this.customerMemory.upsertProfile(custId3, 'addresses', { last_delivery: addrText || address.street, full: address }, schemaName).catch(() => {});
-            this.customerMemory.upsertProfile(custId3, 'delivery_preference', { type: 'delivery' }, schemaName).catch(() => {});
+            const addrText = [args.street, args.colony, args.city, args.reference]
+              .filter(Boolean)
+              .join(', ');
+            this.customerMemory
+              .upsertProfile(
+                custId3,
+                'addresses',
+                { last_delivery: addrText || address.street, full: address },
+                schemaName,
+              )
+              .catch(() => {});
+            this.customerMemory
+              .upsertProfile(custId3, 'delivery_preference', { type: 'delivery' }, schemaName)
+              .catch(() => {});
           }
 
           // Get updated total from DB
           const updatedOrder = await this.prisma.$queryRawUnsafe<any[]>(
-            `SELECT total FROM "${schemaName}".orders WHERE id = $1::uuid`, orderId,
+            `SELECT total FROM "${schemaName}".orders WHERE id = $1::uuid`,
+            orderId,
           );
           const newTotal = updatedOrder[0]?.total ? parseFloat(updatedOrder[0].total) : null;
 
@@ -616,26 +784,37 @@ export class StateMachineOrchestratorService {
           await this.prisma.$executeRawUnsafe(`
             ALTER TABLE "${schemaName}".orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50)
           `);
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".orders SET payment_method = $1, updated_at = NOW() WHERE id = $2::uuid
-          `, args.method, orderId);
+          `,
+            args.method,
+            orderId,
+          );
 
           // Auto-save payment preference
           const custId2 = conversation.context.customerId;
           if (custId2) {
-            this.customerMemory.upsertProfile(custId2, 'payment_preference', { method: args.method }, schemaName).catch(() => {});
+            this.customerMemory
+              .upsertProfile(custId2, 'payment_preference', { method: args.method }, schemaName)
+              .catch(() => {});
           }
 
           // COD → go to production directly
           if (args.method === 'cod') {
-            try { await this.ordersService.transition(orderId, 'in_production' as any, schemaName); } catch {}
+            try {
+              await this.ordersService.transition(orderId, 'in_production' as any, schemaName);
+            } catch {}
             // Schedule post-delivery follow-up (45 min from now)
             try {
-              await this.prisma.$executeRawUnsafe(`
+              await this.prisma.$executeRawUnsafe(
+                `
                 UPDATE "${schemaName}".conversations
                 SET next_follow_up_at = NOW() + INTERVAL '45 minutes'
                 WHERE id = $1::uuid
-              `, conversation.id);
+              `,
+                conversation.id,
+              );
             } catch {}
           }
 
@@ -645,7 +824,9 @@ export class StateMachineOrchestratorService {
         case 'request_payment': {
           const orderId = args.orderId || conversation.context.lastOrderId;
           if (!orderId) return JSON.stringify({ success: false, message: 'No order ID' });
-          try { await this.ordersService.transition(orderId, 'payment_pending' as any, schemaName); } catch {}
+          try {
+            await this.ordersService.transition(orderId, 'payment_pending' as any, schemaName);
+          } catch {}
           return JSON.stringify({ success: true });
         }
 
@@ -654,14 +835,22 @@ export class StateMachineOrchestratorService {
           if (!orderNumber) return JSON.stringify({ success: false, message: 'No order number' });
           try {
             const order = await this.ordersService.findByOrderNumber(orderNumber, schemaName);
-            return JSON.stringify({ status: order.status, total: order.total, orderNumber: order.orderNumber });
-          } catch { return JSON.stringify({ success: false, message: 'Order not found' }); }
+            return JSON.stringify({
+              status: order.status,
+              total: order.total,
+              orderNumber: order.orderNumber,
+            });
+          } catch {
+            return JSON.stringify({ success: false, message: 'Order not found' });
+          }
         }
 
         case 'cancel_order': {
           const orderId = args.orderId || conversation.context.lastOrderId;
           if (!orderId) return JSON.stringify({ success: false });
-          try { await this.ordersService.transition(orderId, 'cancelled' as any, schemaName); } catch {}
+          try {
+            await this.ordersService.transition(orderId, 'cancelled' as any, schemaName);
+          } catch {}
           return JSON.stringify({ success: true });
         }
 
@@ -672,75 +861,106 @@ export class StateMachineOrchestratorService {
             const orderNum = conversation.context.lastOrderNumber;
             const custName = conversation.context.customerName ?? 'Cliente';
             const custPhone = conversation.context.senderPhone ?? '';
-            
+
             // Get order details (items, total, address)
             let orderDetails = '';
             let driverName = '';
             if (orderId) {
               try {
                 const orderRows = await this.prisma.$queryRawUnsafe<any[]>(
-                  `SELECT items, total, shipping_address, payment_method FROM "${schemaName}".orders WHERE id = $1::uuid`, orderId,
+                  `SELECT items, total, shipping_address, payment_method FROM "${schemaName}".orders WHERE id = $1::uuid`,
+                  orderId,
                 );
                 if (orderRows[0]) {
-                  const items = typeof orderRows[0].items === 'string' ? JSON.parse(orderRows[0].items) : orderRows[0].items;
-                  const itemList = (items || []).map((i: any) => `${i.quantity}x ${i.productName}`).join(', ');
+                  const items =
+                    typeof orderRows[0].items === 'string'
+                      ? JSON.parse(orderRows[0].items)
+                      : orderRows[0].items;
+                  const itemList = (items || [])
+                    .map((i: any) => `${i.quantity}x ${i.productName}`)
+                    .join(', ');
                   const addr = orderRows[0].shipping_address?.street ?? 'Recoger en local';
-                  orderDetails = `\n🛒 Items: ${itemList}\n💰 Total: $${orderRows[0].total}\n📍 Dirección: ${addr}\n💳 Pago: ${orderRows[0].payment_method === 'cod' ? 'Efectivo contra entrega' : orderRows[0].payment_method ?? 'N/A'}`;
+                  orderDetails = `\n🛒 Items: ${itemList}\n💰 Total: $${orderRows[0].total}\n📍 Dirección: ${addr}\n💳 Pago: ${orderRows[0].payment_method === 'cod' ? 'Efectivo contra entrega' : (orderRows[0].payment_method ?? 'N/A')}`;
                 }
                 // Get driver info
                 const driverRows = await this.prisma.$queryRawUnsafe<any[]>(
-                  `SELECT dd.name, dd.phone FROM "${schemaName}".delivery_assignments da JOIN "${schemaName}".delivery_drivers dd ON dd.id = da.driver_id WHERE da.order_id = $1::uuid ORDER BY da.offered_at DESC LIMIT 1`, orderId,
+                  `SELECT dd.name, dd.phone FROM "${schemaName}".delivery_assignments da JOIN "${schemaName}".delivery_drivers dd ON dd.id = da.driver_id WHERE da.order_id = $1::uuid ORDER BY da.offered_at DESC LIMIT 1`,
+                  orderId,
                 );
                 if (driverRows[0]) {
                   driverName = `\n🛵 Repartidor: ${driverRows[0].name} (${driverRows[0].phone})`;
                 }
               } catch {}
             }
-            
+
             // Get ALL admin phones
             const admins = await this.prisma.$queryRawUnsafe<any[]>(
               `SELECT phone FROM "${schemaName}".users WHERE role = 'admin' AND phone IS NOT NULL`,
             );
-            
+
             // Find an admin whose phone is DIFFERENT from the sender
-            const targetAdmin = admins.find(a => {
-              const adminPhone = String(a.phone).replace(/\D/g, '');
-              const senderClean = String(custPhone).replace(/\D/g, '');
-              return adminPhone !== senderClean && !senderClean.endsWith(adminPhone) && !adminPhone.endsWith(senderClean);
-            }) || admins[0];
-            
+            const targetAdmin =
+              admins.find((a) => {
+                const adminPhone = String(a.phone).replace(/\D/g, '');
+                const senderClean = String(custPhone).replace(/\D/g, '');
+                return (
+                  adminPhone !== senderClean &&
+                  !senderClean.endsWith(adminPhone) &&
+                  !adminPhone.endsWith(senderClean)
+                );
+              }) || admins[0];
+
             if (targetAdmin?.phone && targetAdmin.phone !== custPhone) {
               const complaintMsg = `⚠️ *QUEJA DE CLIENTE*\n\n👤 ${custName} (${custPhone})\n📋 Pedido: ${orderNum ?? 'N/A'}${orderDetails}${driverName}\n\n❗ Problema: "${args.reason}"\n\nResponde al cliente desde el dashboard o contacta directamente al ${custPhone}.`;
-              
+
               // Send to owner via WhatsApp
               const channels = await this.prisma.$queryRawUnsafe<any[]>(
                 `SELECT external_id, access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`,
               );
               if (channels[0]) {
                 const axios = (await import('axios')).default;
-                await axios.post(
-                  `https://graph.facebook.com/v18.0/${channels[0].external_id}/messages`,
-                  { messaging_product: 'whatsapp', to: targetAdmin.phone, type: 'text', text: { body: complaintMsg } },
-                  { headers: { Authorization: `Bearer ${channels[0].access_token}` } },
-                ).catch((e) => this.logger.warn(`Failed to send complaint to owner: ${e.message}`));
-                this.logger.log(`[${schemaName}] Complaint escalated to ${targetAdmin.phone} for order ${orderNum}`);
+                await axios
+                  .post(
+                    `https://graph.facebook.com/v18.0/${channels[0].external_id}/messages`,
+                    {
+                      messaging_product: 'whatsapp',
+                      to: targetAdmin.phone,
+                      type: 'text',
+                      text: { body: complaintMsg },
+                    },
+                    { headers: { Authorization: `Bearer ${channels[0].access_token}` } },
+                  )
+                  .catch((e) =>
+                    this.logger.warn(`Failed to send complaint to owner: ${e.message}`),
+                  );
+                this.logger.log(
+                  `[${schemaName}] Complaint escalated to ${targetAdmin.phone} for order ${orderNum}`,
+                );
               }
             } else {
-              this.logger.warn(`[${schemaName}] Cannot escalate complaint: owner phone same as sender or no admin found`);
+              this.logger.warn(
+                `[${schemaName}] Cannot escalate complaint: owner phone same as sender or no admin found`,
+              );
             }
-            
+
             // ALWAYS add note to order regardless of notification success
             if (orderId) {
-              await this.prisma.$executeRawUnsafe(
-                `UPDATE "${schemaName}".orders SET notes = COALESCE(notes, '') || E'\n' || $1, updated_at = NOW() WHERE id = $2::uuid`,
-                `[QUEJA ${new Date().toLocaleDateString()}] ${args.reason}`, orderId,
-              ).catch(() => {});
+              await this.prisma
+                .$executeRawUnsafe(
+                  `UPDATE "${schemaName}".orders SET notes = COALESCE(notes, '') || E'\n' || $1, updated_at = NOW() WHERE id = $2::uuid`,
+                  `[QUEJA ${new Date().toLocaleDateString()}] ${args.reason}`,
+                  orderId,
+                )
+                .catch(() => {});
             }
           } catch (e: any) {
             this.logger.error(`escalate_complaint failed: ${e.message}`);
           }
-          
-          return JSON.stringify({ success: true, message: 'Queja escalada al dueño y registrada en el pedido' });
+
+          return JSON.stringify({
+            success: true,
+            message: 'Queja escalada al dueño y registrada en el pedido',
+          });
         }
 
         case 'send_media_to_customer': {
@@ -762,7 +982,10 @@ export class StateMachineOrchestratorService {
               mediaType,
             );
             if (assets.length === 0) {
-              return JSON.stringify({ success: false, message: `No hay material de tipo "${mediaType}" configurado. El dueño debe subir imágenes en Configuración > Media.` });
+              return JSON.stringify({
+                success: false,
+                message: `No hay material de tipo "${mediaType}" configurado. El dueño debe subir imágenes en Configuración > Media.`,
+              });
             }
             // Send via WhatsApp
             const customerPhone = conversation.context.senderPhone;
@@ -774,19 +997,32 @@ export class StateMachineOrchestratorService {
                 const axios = (await import('axios')).default;
                 for (const asset of assets.slice(0, 2)) {
                   if (asset.url && !asset.url.startsWith('data:')) {
-                    await axios.post(
-                      `https://graph.facebook.com/v18.0/${channels[0].external_id}/messages`,
-                      { messaging_product: 'whatsapp', to: customerPhone, type: 'image', image: { link: asset.url, caption: asset.title ?? '' } },
-                      { headers: { Authorization: `Bearer ${channels[0].access_token}` } },
-                    ).catch(() => {});
+                    await axios
+                      .post(
+                        `https://graph.facebook.com/v18.0/${channels[0].external_id}/messages`,
+                        {
+                          messaging_product: 'whatsapp',
+                          to: customerPhone,
+                          type: 'image',
+                          image: { link: asset.url, caption: asset.title ?? '' },
+                        },
+                        { headers: { Authorization: `Bearer ${channels[0].access_token}` } },
+                      )
+                      .catch(() => {});
                   } else {
                     // base64 image — log warning, cannot send via link
-                    this.logger.warn(`[${schemaName}] Cannot send base64 media asset to WhatsApp. Upload to CDN first.`);
+                    this.logger.warn(
+                      `[${schemaName}] Cannot send base64 media asset to WhatsApp. Upload to CDN first.`,
+                    );
                   }
                 }
               }
             }
-            return JSON.stringify({ success: true, sent: assets.length, message: `Material "${mediaType}" enviado` });
+            return JSON.stringify({
+              success: true,
+              sent: assets.length,
+              message: `Material "${mediaType}" enviado`,
+            });
           } catch (e: any) {
             return JSON.stringify({ success: false, message: e.message });
           }
@@ -800,12 +1036,22 @@ export class StateMachineOrchestratorService {
               `SELECT id, order_number AS "orderNumber", items, total FROM "${schemaName}".orders WHERE customer_id = $1::uuid AND status IN ('delivered','payment_verified','ready','shipped') ORDER BY created_at DESC LIMIT 1`,
               custId4,
             );
-            if (lastOrders.length === 0) return JSON.stringify({ success: false, message: 'No hay pedidos anteriores' });
+            if (lastOrders.length === 0)
+              return JSON.stringify({ success: false, message: 'No hay pedidos anteriores' });
             const lastOrder = lastOrders[0];
-            const items = typeof lastOrder.items === 'string' ? JSON.parse(lastOrder.items) : lastOrder.items;
+            const items =
+              typeof lastOrder.items === 'string' ? JSON.parse(lastOrder.items) : lastOrder.items;
             const summary = items.map((i: any) => `${i.quantity}x ${i.productName}`).join(', ');
-            return JSON.stringify({ success: true, lastOrderNumber: lastOrder.orderNumber, items, total: lastOrder.total, summary });
-          } catch { return JSON.stringify({ success: false, message: 'Error al buscar pedido anterior' }); }
+            return JSON.stringify({
+              success: true,
+              lastOrderNumber: lastOrder.orderNumber,
+              items,
+              total: lastOrder.total,
+              summary,
+            });
+          } catch {
+            return JSON.stringify({ success: false, message: 'Error al buscar pedido anterior' });
+          }
         }
 
         default:

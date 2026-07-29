@@ -33,7 +33,8 @@ export class CatalogVisualTool {
     let products: any[];
 
     if (args.query) {
-      products = await this.prisma.$queryRawUnsafe<any[]>(`
+      products = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT p.id, p.name, p.description, p.price, p.category, p.images,
                i.stock_available
         FROM "${schemaName}".products p
@@ -42,9 +43,13 @@ export class CatalogVisualTool {
           AND (p.name ILIKE $1 OR p.description ILIKE $1 OR p.category ILIKE $1)
         ORDER BY i.stock_available DESC NULLS LAST
         LIMIT $2
-      `, `%${args.query}%`, limit);
+      `,
+        `%${args.query}%`,
+        limit,
+      );
     } else if (args.category) {
-      products = await this.prisma.$queryRawUnsafe<any[]>(`
+      products = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT p.id, p.name, p.description, p.price, p.category, p.images,
                i.stock_available
         FROM "${schemaName}".products p
@@ -52,10 +57,14 @@ export class CatalogVisualTool {
         WHERE p.is_active = true AND p.category ILIKE $1
         ORDER BY p.price ASC
         LIMIT $2
-      `, `%${args.category}%`, limit);
+      `,
+        `%${args.category}%`,
+        limit,
+      );
     } else {
       // Show top/featured products
-      products = await this.prisma.$queryRawUnsafe<any[]>(`
+      products = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT p.id, p.name, p.description, p.price, p.category, p.images,
                i.stock_available
         FROM "${schemaName}".products p
@@ -63,7 +72,9 @@ export class CatalogVisualTool {
         WHERE p.is_active = true AND i.stock_available > 0
         ORDER BY p.created_at DESC
         LIMIT $1
-      `, limit);
+      `,
+        limit,
+      );
     }
 
     const items: CatalogItem[] = products.map((p) => ({
@@ -95,21 +106,27 @@ export class CatalogVisualTool {
     let product: any;
 
     if (args.productId) {
-      const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      const rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT p.*, i.stock_available, i.stock_minimum
         FROM "${schemaName}".products p
         LEFT JOIN "${schemaName}".inventory i ON i.product_id = p.id
         WHERE p.id = $1::uuid
-      `, args.productId);
+      `,
+        args.productId,
+      );
       product = rows[0];
     } else if (args.productName) {
-      const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      const rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT p.*, i.stock_available, i.stock_minimum
         FROM "${schemaName}".products p
         LEFT JOIN "${schemaName}".inventory i ON i.product_id = p.id
         WHERE p.is_active = true AND p.name ILIKE $1
         LIMIT 1
-      `, `%${args.productName}%`);
+      `,
+        `%${args.productName}%`,
+      );
       product = rows[0];
     }
 
@@ -118,12 +135,15 @@ export class CatalogVisualTool {
     }
 
     // Get variants
-    const variants = await this.prisma.$queryRawUnsafe<any[]>(`
+    const variants = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id, name, price, stock_available, attributes
       FROM "${schemaName}".product_variants
       WHERE product_id = $1::uuid AND is_active = true
       ORDER BY name
-    `, product.id);
+    `,
+      product.id,
+    );
 
     const detail: ProductDetail = {
       id: product.id,
@@ -187,7 +207,9 @@ export class CatalogVisualTool {
     if (variants.length > 0) {
       msg += `\n📐 *Opciones disponibles:*\n`;
       for (const v of variants) {
-        const attrs = Object.entries(v.attributes).map(([k, val]) => `${k}: ${val}`).join(', ');
+        const attrs = Object.entries(v.attributes)
+          .map(([k, val]) => `${k}: ${val}`)
+          .join(', ');
         msg += `  • ${v.name}${attrs ? ` (${attrs})` : ''} — ${v.inStock ? '✅' : '❌'}\n`;
       }
     }

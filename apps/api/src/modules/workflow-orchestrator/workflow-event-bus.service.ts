@@ -79,15 +79,19 @@ export class WorkflowEventBus {
     }
 
     // 2. Async workflow queue
-    await this.workflowQueue.add('workflow-event', {
-      type: 'workflow-event',
-      tenantId,
-      schemaName,
-      event,
-    }, {
-      jobId: `wf-${event.id}`,
-      priority: this.getEventPriority(type),
-    });
+    await this.workflowQueue.add(
+      'workflow-event',
+      {
+        type: 'workflow-event',
+        tenantId,
+        schemaName,
+        event,
+      },
+      {
+        jobId: `wf-${event.id}`,
+        priority: this.getEventPriority(type),
+      },
+    );
 
     // 3. Real-time WebSocket notification
     this.eventsGateway.emitToTenant(tenantId, 'workflow:event', {

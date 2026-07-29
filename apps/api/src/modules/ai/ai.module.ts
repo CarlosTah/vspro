@@ -21,7 +21,18 @@ import { TextGeneratorService } from './state-machine/text-generator';
 import { StateMachineOrchestratorService } from './state-machine/state-machine-orchestrator.service';
 
 @Module({
-  imports: [ProductsModule, OrdersModule, CustomersModule, forwardRef(() => ProactivityModule), forwardRef(() => TenantsModule), KnowledgeBaseModule, BillingModule, NotificationsModule, PromotionsModule, LoyaltyModule],
+  imports: [
+    ProductsModule,
+    OrdersModule,
+    CustomersModule,
+    forwardRef(() => ProactivityModule),
+    forwardRef(() => TenantsModule),
+    KnowledgeBaseModule,
+    BillingModule,
+    NotificationsModule,
+    PromotionsModule,
+    LoyaltyModule,
+  ],
   controllers: [AiController, CustomerMemoryController],
   providers: [
     AiEngineService,

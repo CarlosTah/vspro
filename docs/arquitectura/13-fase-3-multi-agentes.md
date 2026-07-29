@@ -47,13 +47,13 @@ flowchart TD
     B -->|intent: finance| E[FinanceAgent]
     B -->|intent: support| F[SupportAgent]
     B -->|intent: unclear| G[GeneralAgent - fallback]
-    
+
     C --> H[Respuesta + tool calls]
     D --> H
     E --> H
     F --> H
     G --> H
-    
+
     H --> I[CustomerMemoryService.update]
     I --> J[Enviar al cliente]
 ```
@@ -64,16 +64,17 @@ flowchart TD
 
 ### 3A. Agente de Ventas & Conversión
 
-| Aspecto | Detalle |
-|---------|---------|
-| **Trigger** | Mensaje con intención de compra, consulta de precio, objeción |
-| **System Prompt** | Optimizado para cierre: urgencia, beneficios, manejo de objeciones |
-| **Tools exclusivos** | `create_order`, `apply_discount`, `check_product_availability`, `suggest_upsell` |
-| **Políticas** | Lee `ai_config.commercial_policies` (JSONB) para descuentos máximos, promociones activas |
-| **Tono** | Persuasivo pero respetuoso, adaptado al tenant |
-| **Proactividad** | Si el cliente duda → `schedule_follow_up(4h, "cliente indeciso")` |
+| Aspecto              | Detalle                                                                                  |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| **Trigger**          | Mensaje con intención de compra, consulta de precio, objeción                            |
+| **System Prompt**    | Optimizado para cierre: urgencia, beneficios, manejo de objeciones                       |
+| **Tools exclusivos** | `create_order`, `apply_discount`, `check_product_availability`, `suggest_upsell`         |
+| **Políticas**        | Lee `ai_config.commercial_policies` (JSONB) para descuentos máximos, promociones activas |
+| **Tono**             | Persuasivo pero respetuoso, adaptado al tenant                                           |
+| **Proactividad**     | Si el cliente duda → `schedule_follow_up(4h, "cliente indeciso")`                        |
 
 **Ejemplo de loop autónomo:**
+
 ```
 Cliente: "Está muy caro el vestido"
 → SalesAgent detecta objeción de precio
@@ -85,16 +86,17 @@ Cliente: "Está muy caro el vestido"
 
 ### 3B. Agente de Inventario y Compras
 
-| Aspecto | Detalle |
-|---------|---------|
-| **Trigger** | Cron autónomo (no requiere mensaje del cliente) |
-| **Frecuencia** | Cada 6 horas escanea `inventory.stock_available < stock_minimum` |
-| **Acción** | Genera borrador de email para proveedor con items a resurtir |
+| Aspecto              | Detalle                                                                   |
+| -------------------- | ------------------------------------------------------------------------- |
+| **Trigger**          | Cron autónomo (no requiere mensaje del cliente)                           |
+| **Frecuencia**       | Cada 6 horas escanea `inventory.stock_available < stock_minimum`          |
+| **Acción**           | Genera borrador de email para proveedor con items a resurtir              |
 | **Tools exclusivos** | `check_all_stock_levels`, `draft_supplier_email`, `create_purchase_order` |
-| **Output** | Email draft en `notifications` queue + alerta en dashboard |
-| **Datos** | Lee `products.supplier_info` (JSONB nuevo) para contacto del proveedor |
+| **Output**           | Email draft en `notifications` queue + alerta en dashboard                |
+| **Datos**            | Lee `products.supplier_info` (JSONB nuevo) para contacto del proveedor    |
 
 **Ejemplo de loop autónomo:**
+
 ```
 Cron 6h → InventoryAgent.scanLowStock(schemaName)
 → Detecta: "Vestido Mariposas" stock=2, minimum=5
@@ -106,16 +108,17 @@ Cron 6h → InventoryAgent.scanLowStock(schemaName)
 
 ### 3C. Agente de Conciliación Financiera
 
-| Aspecto | Detalle |
-|---------|---------|
-| **Trigger** | Webhook de Stripe/banco + Cron diario de reconciliación |
-| **Función** | Cruza `payments` (verificados por OCR/visión) contra movimientos bancarios reales |
-| **Tools exclusivos** | `match_payment_to_transaction`, `flag_discrepancy`, `auto_reconcile_cents` |
-| **Tolerancia** | Auto-resuelve discrepancias ≤ $5 MXN (configurable por tenant) |
-| **Escalación** | Discrepancias > tolerancia → alerta al admin con detalle |
-| **Integraciones** | Stripe webhooks (ya existe), Open Banking APIs (futuro) |
+| Aspecto              | Detalle                                                                           |
+| -------------------- | --------------------------------------------------------------------------------- |
+| **Trigger**          | Webhook de Stripe/banco + Cron diario de reconciliación                           |
+| **Función**          | Cruza `payments` (verificados por OCR/visión) contra movimientos bancarios reales |
+| **Tools exclusivos** | `match_payment_to_transaction`, `flag_discrepancy`, `auto_reconcile_cents`        |
+| **Tolerancia**       | Auto-resuelve discrepancias ≤ $5 MXN (configurable por tenant)                    |
+| **Escalación**       | Discrepancias > tolerancia → alerta al admin con detalle                          |
+| **Integraciones**    | Stripe webhooks (ya existe), Open Banking APIs (futuro)                           |
 
 **Ejemplo de loop autónomo:**
+
 ```
 Stripe webhook: charge.succeeded $299.00 (ref: ORD-2026-00042)
 → FinanceAgent busca payment con order ORD-2026-00042
@@ -138,11 +141,7 @@ export class AgentRouterService {
    * Clasifica la intención del mensaje y enruta al agente apropiado.
    * Usa un LLM ligero (gpt-4o-mini) para clasificación rápida.
    */
-  async route(
-    message: string,
-    conversationContext: any,
-    schemaName: string,
-  ): Promise<AgentType> {
+  async route(message: string, conversationContext: any, schemaName: string): Promise<AgentType> {
     // 1. Heurísticas rápidas (keywords, estado del pedido)
     // 2. Si ambiguo → clasificación LLM (gpt-4o-mini, ~50ms)
     // 3. Retorna: 'sales' | 'inventory' | 'finance' | 'support' | 'general'
@@ -157,7 +156,7 @@ abstract class BaseAgent {
   abstract readonly name: string;
   abstract readonly systemPrompt: string;
   abstract readonly tools: OpenAI.Chat.ChatCompletionTool[];
-  
+
   /** Procesa un mensaje con el contexto del agente especializado */
   abstract process(
     message: string,
@@ -190,12 +189,12 @@ ALTER TABLE "{{schema}}".ai_config
 
 ### 4.4 Migración desde `AiEngineService` actual
 
-| Actual | Futuro |
-|--------|--------|
-| `AiEngineService.processMessage()` | `AgentRouterService.route()` → `agent.process()` |
-| `AiEngineService.getTools()` (monolítico) | Cada agente define sus propios tools |
-| `AiEngineService.buildSystemPrompt()` | Cada agente tiene su propio prompt optimizado |
-| `AiEngineService.executeTool()` (switch gigante) | Cada agente ejecuta solo sus tools |
+| Actual                                           | Futuro                                           |
+| ------------------------------------------------ | ------------------------------------------------ |
+| `AiEngineService.processMessage()`               | `AgentRouterService.route()` → `agent.process()` |
+| `AiEngineService.getTools()` (monolítico)        | Cada agente define sus propios tools             |
+| `AiEngineService.buildSystemPrompt()`            | Cada agente tiene su propio prompt optimizado    |
+| `AiEngineService.executeTool()` (switch gigante) | Cada agente ejecuta solo sus tools               |
 
 **Compatibilidad:** El `AiEngineService` actual se convierte en el `GeneralAgent` (fallback) sin romper nada existente.
 
@@ -203,13 +202,13 @@ ALTER TABLE "{{schema}}".ai_config
 
 ## 5. Modelo de Costos
 
-| Agente | Modelo | Tokens/msg (est.) | Costo/msg |
-|--------|--------|-------------------|-----------|
-| Router | gpt-4o-mini | ~200 | $0.0001 |
-| Sales | gpt-4o | ~1500 | $0.008 |
-| Inventory | gpt-4o-mini | ~800 | $0.0004 |
-| Finance | gpt-4o-mini | ~600 | $0.0003 |
-| Support | gpt-4o | ~1200 | $0.006 |
+| Agente    | Modelo      | Tokens/msg (est.) | Costo/msg |
+| --------- | ----------- | ----------------- | --------- |
+| Router    | gpt-4o-mini | ~200              | $0.0001   |
+| Sales     | gpt-4o      | ~1500             | $0.008    |
+| Inventory | gpt-4o-mini | ~800              | $0.0004   |
+| Finance   | gpt-4o-mini | ~600              | $0.0003   |
+| Support   | gpt-4o      | ~1200             | $0.006    |
 
 **Ahorro vs monolítico:** El router + agente especializado usa ~30% menos tokens que el prompt monolítico actual porque cada agente solo carga sus tools y contexto relevante.
 
@@ -217,38 +216,38 @@ ALTER TABLE "{{schema}}".ai_config
 
 ## 6. Prioridad de Implementación
 
-| Fase | Agente | Complejidad | Valor de negocio |
-|------|--------|-------------|-----------------|
-| 3.1 | AgentRouter + SalesAgent | Media | 🔥🔥🔥 Alto (cierre de ventas) |
-| 3.2 | InventoryAgent (cron autónomo) | Baja | 🔥🔥 Medio (prevención desabasto) |
-| 3.3 | FinanceAgent (reconciliación) | Alta | 🔥🔥🔥 Alto (reduce errores financieros) |
-| 3.4 | SupportAgent (separado) | Baja | 🔥 Medio (mejor tono) |
+| Fase | Agente                         | Complejidad | Valor de negocio                         |
+| ---- | ------------------------------ | ----------- | ---------------------------------------- |
+| 3.1  | AgentRouter + SalesAgent       | Media       | 🔥🔥🔥 Alto (cierre de ventas)           |
+| 3.2  | InventoryAgent (cron autónomo) | Baja        | 🔥🔥 Medio (prevención desabasto)        |
+| 3.3  | FinanceAgent (reconciliación)  | Alta        | 🔥🔥🔥 Alto (reduce errores financieros) |
+| 3.4  | SupportAgent (separado)        | Baja        | 🔥 Medio (mejor tono)                    |
 
 ---
 
 ## 7. Dependencias
 
-| Componente | Estado | Notas |
-|------------|--------|-------|
-| CustomerMemoryService | ✅ Implementado | Todos los agentes lo usan para contexto |
-| ProactivityCronService | ✅ Implementado | InventoryAgent y FinanceAgent lo extienden |
-| BullMQ queues | ✅ Configurado | Nuevas queues: `inventory-alerts`, `finance-reconciliation` |
-| Stripe webhooks | ✅ Existe endpoint | FinanceAgent se suscribe a eventos |
-| Open Banking API | ❌ Futuro | Fase 3.3+ |
-| `supplier_info` en products | ❌ Nuevo campo | Fase 3.2 |
-| `commercial_policies` en ai_config | ❌ Nuevo campo | Fase 3.1 |
+| Componente                         | Estado             | Notas                                                       |
+| ---------------------------------- | ------------------ | ----------------------------------------------------------- |
+| CustomerMemoryService              | ✅ Implementado    | Todos los agentes lo usan para contexto                     |
+| ProactivityCronService             | ✅ Implementado    | InventoryAgent y FinanceAgent lo extienden                  |
+| BullMQ queues                      | ✅ Configurado     | Nuevas queues: `inventory-alerts`, `finance-reconciliation` |
+| Stripe webhooks                    | ✅ Existe endpoint | FinanceAgent se suscribe a eventos                          |
+| Open Banking API                   | ❌ Futuro          | Fase 3.3+                                                   |
+| `supplier_info` en products        | ❌ Nuevo campo     | Fase 3.2                                                    |
+| `commercial_policies` en ai_config | ❌ Nuevo campo     | Fase 3.1                                                    |
 
 ---
 
 ## 8. Riesgos y Mitigaciones
 
-| Riesgo | Impacto | Mitigación |
-|--------|---------|------------|
-| Router clasifica mal → agente incorrecto | Respuesta irrelevante | Fallback a GeneralAgent si confianza < 0.7 |
-| Agente de ventas demasiado agresivo | Mala experiencia | Políticas comerciales como guardrails + tono configurable |
-| InventoryAgent envía emails sin revisión | Pedidos erróneos a proveedores | Draft mode: admin aprueba antes de enviar |
-| FinanceAgent auto-reconcilia incorrectamente | Pérdida financiera | Tolerancia configurable + log auditable + alerta si > umbral |
-| Latencia adicional del router | +100ms por mensaje | Router usa gpt-4o-mini (50ms) + cache de intención por conversación |
+| Riesgo                                       | Impacto                        | Mitigación                                                          |
+| -------------------------------------------- | ------------------------------ | ------------------------------------------------------------------- |
+| Router clasifica mal → agente incorrecto     | Respuesta irrelevante          | Fallback a GeneralAgent si confianza < 0.7                          |
+| Agente de ventas demasiado agresivo          | Mala experiencia               | Políticas comerciales como guardrails + tono configurable           |
+| InventoryAgent envía emails sin revisión     | Pedidos erróneos a proveedores | Draft mode: admin aprueba antes de enviar                           |
+| FinanceAgent auto-reconcilia incorrectamente | Pérdida financiera             | Tolerancia configurable + log auditable + alerta si > umbral        |
+| Latencia adicional del router                | +100ms por mensaje             | Router usa gpt-4o-mini (50ms) + cache de intención por conversación |
 
 ---
 

@@ -28,7 +28,14 @@ export class LogisticsController {
   @Post('orders/:orderId/apply-rate')
   applyRate(
     @Param('orderId', ParseUUIDPipe) orderId: string,
-    @Body() rate: { carrier: string; service: string; price: number; estimatedDays: number; currency: string },
+    @Body()
+    rate: {
+      carrier: string;
+      service: string;
+      price: number;
+      estimatedDays: number;
+      currency: string;
+    },
     @TenantSchema() schema: string,
   ) {
     return this.logisticsService.saveCalculation(orderId, rate, schema);

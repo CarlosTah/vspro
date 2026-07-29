@@ -44,11 +44,16 @@ export class PreferenceVectorsService {
     if (!embedding) return;
 
     // 4. Store as episodic memory with category 'preference_detected'
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${schemaName}".customer_memory_episodes
         (customer_id, content, category, embedding)
       VALUES ($1::uuid, $2, 'preference_detected', $3::vector)
-    `, customerId, `Perfil de preferencias: ${preferenceText}`, `[${embedding.join(',')}]`);
+    `,
+      customerId,
+      `Perfil de preferencias: ${preferenceText}`,
+      `[${embedding.join(',')}]`,
+    );
 
     this.logger.debug(`Preference vector built for customer ${customerId}`);
   }
@@ -63,26 +68,33 @@ export class PreferenceVectorsService {
     limit = 5,
   ): Promise<ProductRecommendation[]> {
     // Get customer's latest preference embedding
-    const prefEmbeddings = await this.prisma.$queryRawUnsafe<any[]>(`
+    const prefEmbeddings = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT embedding FROM "${schemaName}".customer_memory_episodes
       WHERE customer_id = $1::uuid AND category = 'preference_detected'
         AND embedding IS NOT NULL
       ORDER BY created_at DESC LIMIT 1
-    `, customerId);
+    `,
+      customerId,
+    );
 
     if (!prefEmbeddings[0]?.embedding) return [];
 
     // Find similar products
-    const products = await this.prisma.$queryRawUnsafe<any[]>(`
+    const products = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT p.id, p.name, p.price, p.category, p.images,
              1 - (p.embedding <=> $1::vector) AS similarity
       FROM "${schemaName}".products p
       WHERE p.is_active = true AND p.embedding IS NOT NULL
       ORDER BY p.embedding <=> $1::vector
       LIMIT $2
-    `, prefEmbeddings[0].embedding, limit);
+    `,
+      prefEmbeddings[0].embedding,
+      limit,
+    );
 
-    return products.map(p => ({
+    return products.map((p) => ({
       productId: p.id,
       name: p.name,
       price: parseFloat(p.price),
@@ -120,26 +132,32 @@ export class PreferenceVectorsService {
   }
 
   private async getPurchaseCategories(customerId: string, schema: string): Promise<string[]> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT DISTINCT p.category
       FROM "${schema}".orders o,
            jsonb_array_elements(o.items) AS item
       JOIN "${schema}".products p ON p.id = (item->>'productId')::uuid
       WHERE o.customer_id = $1::uuid AND o.status != 'cancelled'
-    `, customerId);
-    return rows.map(r => r.category).filter(Boolean);
+    `,
+      customerId,
+    );
+    return rows.map((r) => r.category).filter(Boolean);
   }
 
   private async getTopPurchasedProducts(customerId: string, schema: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT p.name, SUM((item->>'quantity')::int) AS qty
       FROM "${schema}".orders o,
            jsonb_array_elements(o.items) AS item
       JOIN "${schema}".products p ON p.id = (item->>'productId')::uuid
       WHERE o.customer_id = $1::uuid AND o.status != 'cancelled'
       GROUP BY p.name ORDER BY qty DESC LIMIT 5
-    `, customerId);
-    return rows.map(r => ({ name: r.name, quantity: parseInt(r.qty) }));
+    `,
+      customerId,
+    );
+    return rows.map((r) => ({ name: r.name, quantity: parseInt(r.qty) }));
   }
 
   private async getOrderCount(customerId: string, schema: string): Promise<number> {
@@ -161,9 +179,14 @@ export class PreferenceVectorsService {
   private async generateEmbedding(text: string): Promise<number[] | null> {
     if (!this.openai) return null;
     try {
-      const res = await this.openai.embeddings.create({ model: 'text-embedding-3-small', input: text });
+      const res = await this.openai.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: text,
+      });
       return res.data[0].embedding;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
 }
 

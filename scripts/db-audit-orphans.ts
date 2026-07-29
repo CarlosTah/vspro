@@ -61,7 +61,9 @@ async function audit() {
   }
 
   console.log(`\n═══════════════════════════════════════════════════`);
-  console.log(`  ${healthy.length} healthy | ${incomplete.length} incomplete | ${orphans.length} orphans`);
+  console.log(
+    `  ${healthy.length} healthy | ${incomplete.length} incomplete | ${orphans.length} orphans`,
+  );
   console.log(`═══════════════════════════════════════════════════\n`);
 
   const toFix = [...orphans, ...incomplete];
@@ -83,4 +85,7 @@ async function audit() {
   await prisma.$disconnect();
 }
 
-audit().catch((e) => { console.error(e); process.exit(1); });
+audit().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

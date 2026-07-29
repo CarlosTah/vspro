@@ -102,12 +102,30 @@ export class LoyaltyService {
     const values: any[] = [];
     let idx = 1;
 
-    if (updates.isEnabled !== undefined) { fields.push(`is_enabled = $${idx++}`); values.push(updates.isEnabled); }
-    if (updates.pointsPerCurrency !== undefined) { fields.push(`points_per_currency = $${idx++}`); values.push(updates.pointsPerCurrency); }
-    if (updates.redemptionRate !== undefined) { fields.push(`redemption_rate = $${idx++}`); values.push(updates.redemptionRate); }
-    if (updates.welcomeBonus !== undefined) { fields.push(`welcome_bonus = $${idx++}`); values.push(updates.welcomeBonus); }
-    if (updates.tiers !== undefined) { fields.push(`tiers = $${idx++}::jsonb`); values.push(JSON.stringify(updates.tiers)); }
-    if (updates.rewards !== undefined) { fields.push(`rewards = $${idx++}::jsonb`); values.push(JSON.stringify(updates.rewards)); }
+    if (updates.isEnabled !== undefined) {
+      fields.push(`is_enabled = $${idx++}`);
+      values.push(updates.isEnabled);
+    }
+    if (updates.pointsPerCurrency !== undefined) {
+      fields.push(`points_per_currency = $${idx++}`);
+      values.push(updates.pointsPerCurrency);
+    }
+    if (updates.redemptionRate !== undefined) {
+      fields.push(`redemption_rate = $${idx++}`);
+      values.push(updates.redemptionRate);
+    }
+    if (updates.welcomeBonus !== undefined) {
+      fields.push(`welcome_bonus = $${idx++}`);
+      values.push(updates.welcomeBonus);
+    }
+    if (updates.tiers !== undefined) {
+      fields.push(`tiers = $${idx++}::jsonb`);
+      values.push(JSON.stringify(updates.tiers));
+    }
+    if (updates.rewards !== undefined) {
+      fields.push(`rewards = $${idx++}::jsonb`);
+      values.push(JSON.stringify(updates.rewards));
+    }
 
     if (fields.length === 0) return this.getConfig(schemaName);
 
@@ -143,15 +161,21 @@ export class LoyaltyService {
 
   async getCustomerBalance(customerId: string, schemaName: string): Promise<number> {
     await this.ensureTables(schemaName);
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT COALESCE(SUM(points), 0) AS balance
       FROM "${schemaName}".loyalty_transactions
       WHERE customer_id = $1::uuid
-    `, customerId);
+    `,
+      customerId,
+    );
     return parseInt(rows[0]?.balance ?? '0');
   }
 
-  async getCustomerLoyalty(customerId: string, schemaName: string): Promise<CustomerLoyalty | null> {
+  async getCustomerLoyalty(
+    customerId: string,
+    schemaName: string,
+  ): Promise<CustomerLoyalty | null> {
     await this.ensureTables(schemaName);
     const config = await this.getConfig(schemaName);
     if (!config.isEnabled) return null;
@@ -160,18 +184,22 @@ export class LoyaltyService {
 
     // Get customer name
     const custRows = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT name FROM "${schemaName}".customers WHERE id = $1::uuid`, customerId,
+      `SELECT name FROM "${schemaName}".customers WHERE id = $1::uuid`,
+      customerId,
     );
     const customerName = custRows[0]?.name ?? 'Cliente';
 
     // Totals
-    const totals = await this.prisma.$queryRawUnsafe<any[]>(`
+    const totals = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         COALESCE(SUM(points) FILTER (WHERE points > 0), 0) AS earned,
         COALESCE(ABS(SUM(points) FILTER (WHERE points < 0)), 0) AS redeemed
       FROM "${schemaName}".loyalty_transactions
       WHERE customer_id = $1::uuid
-    `, customerId);
+    `,
+      customerId,
+    );
 
     // Determine tier
     const tiers = config.tiers.sort((a, b) => b.minPoints - a.minPoints);
@@ -216,9 +244,10 @@ export class LoyaltyService {
 
     // Calculate points based on order total and tier multiplier
     const loyalty = await this.getCustomerLoyalty(customerId, schemaName);
-    const tierMultiplier = config.tiers
-      .sort((a, b) => b.minPoints - a.minPoints)
-      .find(t => (loyalty?.totalEarned ?? 0) >= t.minPoints)?.multiplier ?? 1;
+    const tierMultiplier =
+      config.tiers
+        .sort((a, b) => b.minPoints - a.minPoints)
+        .find((t) => (loyalty?.totalEarned ?? 0) >= t.minPoints)?.multiplier ?? 1;
 
     const basePoints = Math.floor(orderTotal * parseFloat(String(config.pointsPerCurrency)));
     const earnedPoints = Math.floor(basePoints * tierMultiplier);
@@ -228,7 +257,8 @@ export class LoyaltyService {
     const currentBalance = await this.getCustomerBalance(customerId, schemaName);
     const newBalance = currentBalance + earnedPoints;
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${schemaName}".loyalty_transactions
         (customer_id, type, points, balance_after, description, order_id)
       VALUES ($1::uuid, 'earn', $2, $3, $4, $5::uuid)
@@ -261,7 +291,8 @@ export class LoyaltyService {
     const newBalance = currentBalance - points;
     const discountValue = points / parseFloat(String(config.redemptionRate));
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${schemaName}".loyalty_transactions
         (customer_id, type, points, balance_after, description, order_id)
       VALUES ($1::uuid, 'redeem', $2, $3, $4, $5)
@@ -281,22 +312,30 @@ export class LoyaltyService {
     if (!config.isEnabled || config.welcomeBonus <= 0) return 0;
 
     // Check if already received welcome bonus
-    const existing = await this.prisma.$queryRawUnsafe<any[]>(`
+    const existing = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id FROM "${schemaName}".loyalty_transactions
       WHERE customer_id = $1::uuid AND type = 'bonus' AND description LIKE '%bienvenida%'
       LIMIT 1
-    `, customerId);
+    `,
+      customerId,
+    );
 
     if (existing.length > 0) return 0;
 
     const currentBalance = await this.getCustomerBalance(customerId, schemaName);
     const newBalance = currentBalance + config.welcomeBonus;
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${schemaName}".loyalty_transactions
         (customer_id, type, points, balance_after, description)
       VALUES ($1::uuid, 'bonus', $2, $3, 'Puntos de bienvenida')
-    `, customerId, config.welcomeBonus, newBalance);
+    `,
+      customerId,
+      config.welcomeBonus,
+      newBalance,
+    );
 
     return config.welcomeBonus;
   }
@@ -305,7 +344,8 @@ export class LoyaltyService {
 
   async getTopCustomers(schemaName: string, limit = 20) {
     await this.ensureTables(schemaName);
-    return this.prisma.$queryRawUnsafe<any[]>(`
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         c.id AS "customerId",
         c.name AS "customerName",
@@ -319,7 +359,9 @@ export class LoyaltyService {
       GROUP BY c.id, c.name, c.phone
       ORDER BY "totalPoints" DESC
       LIMIT $1
-    `, limit);
+    `,
+      limit,
+    );
   }
 
   // ─── AI Context Builder ─────────────────────────────────────────
@@ -334,7 +376,7 @@ export class LoyaltyService {
     ctx += `- ${config.redemptionRate} puntos = $1 de descuento.\n`;
 
     if (config.tiers.length > 0) {
-      ctx += `- Niveles: ${config.tiers.map(t => `${t.name} (${t.minPoints}+ pts, x${t.multiplier})`).join(', ')}\n`;
+      ctx += `- Niveles: ${config.tiers.map((t) => `${t.name} (${t.minPoints}+ pts, x${t.multiplier})`).join(', ')}\n`;
     }
 
     if (config.rewards.length > 0) {
@@ -388,7 +430,7 @@ export class LoyaltyService {
         LIMIT 50
       `);
 
-      return rows.map(r => ({
+      return rows.map((r) => ({
         ...r,
         daysSinceLastOrder: parseInt(r.daysSinceLastOrder ?? '0'),
         orderCount: parseInt(r.orderCount ?? '0'),

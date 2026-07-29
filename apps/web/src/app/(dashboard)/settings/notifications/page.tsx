@@ -5,12 +5,18 @@ import { useApi } from '@/hooks/use-api';
 import { api } from '@/lib/api';
 
 const defaultMessages: Record<string, string> = {
-  in_production: '👨‍🍳 *Pedido en cocina*\n\n{{nombre}}, tu pedido *{{numero}}* fue enviado a cocina.\n\n⏳ Te avisamos cuando esté listo.',
-  ready_pickup: '🎉 *¡Pedido listo!*\n\n{{nombre}}, tu pedido *{{numero}}* está listo para recoger.\n\n📍 Pasa cuando gustes. ¡Te esperamos!',
-  ready_delivery: '🎉 *¡Pedido listo!*\n\n{{nombre}}, tu pedido *{{numero}}* está listo.\n\n🛵 Estamos contactando a un repartidor para enviártelo.',
-  shipped: '🛵 *En camino*\n\n{{nombre}}, tu pedido *{{numero}}* ya va en camino.\n\n⏱ Llegará en aproximadamente 20-30 minutos.',
-  delivered: '✅ *Entregado*\n\n{{nombre}}, tu pedido *{{numero}}* fue entregado.\n\n¡Gracias por tu compra! 🙏',
-  cancelled: '❌ *Pedido cancelado*\n\n{{nombre}}, tu pedido *{{numero}}* fue cancelado.\n\nSi necesitas ayuda, escríbenos.',
+  in_production:
+    '👨‍🍳 *Pedido en cocina*\n\n{{nombre}}, tu pedido *{{numero}}* fue enviado a cocina.\n\n⏳ Te avisamos cuando esté listo.',
+  ready_pickup:
+    '🎉 *¡Pedido listo!*\n\n{{nombre}}, tu pedido *{{numero}}* está listo para recoger.\n\n📍 Pasa cuando gustes. ¡Te esperamos!',
+  ready_delivery:
+    '🎉 *¡Pedido listo!*\n\n{{nombre}}, tu pedido *{{numero}}* está listo.\n\n🛵 Estamos contactando a un repartidor para enviártelo.',
+  shipped:
+    '🛵 *En camino*\n\n{{nombre}}, tu pedido *{{numero}}* ya va en camino.\n\n⏱ Llegará en aproximadamente 20-30 minutos.',
+  delivered:
+    '✅ *Entregado*\n\n{{nombre}}, tu pedido *{{numero}}* fue entregado.\n\n¡Gracias por tu compra! 🙏',
+  cancelled:
+    '❌ *Pedido cancelado*\n\n{{nombre}}, tu pedido *{{numero}}* fue cancelado.\n\nSi necesitas ayuda, escríbenos.',
 };
 
 export default function NotificationSettingsPage() {
@@ -56,15 +62,23 @@ export default function NotificationSettingsPage() {
     <div className="space-y-6 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold text-white">Mensajes de notificación</h1>
-        <p className="text-sm text-gray-400">Personaliza los mensajes que se envían al cliente por WhatsApp</p>
+        <p className="text-sm text-gray-400">
+          Personaliza los mensajes que se envían al cliente por WhatsApp
+        </p>
       </div>
 
       <div className="rounded-xl border border-card-border bg-card p-4">
         <p className="text-xs text-gray-500 mb-2">Variables disponibles:</p>
         <div className="flex flex-wrap gap-2">
-          <span className="text-xs bg-gray-800 text-accent px-2 py-1 rounded">{'{{nombre}}'} = nombre del cliente</span>
-          <span className="text-xs bg-gray-800 text-accent px-2 py-1 rounded">{'{{numero}}'} = número de pedido</span>
-          <span className="text-xs bg-gray-800 text-accent px-2 py-1 rounded">{'{{total}}'} = total del pedido</span>
+          <span className="text-xs bg-gray-800 text-accent px-2 py-1 rounded">
+            {'{{nombre}}'} = nombre del cliente
+          </span>
+          <span className="text-xs bg-gray-800 text-accent px-2 py-1 rounded">
+            {'{{numero}}'} = número de pedido
+          </span>
+          <span className="text-xs bg-gray-800 text-accent px-2 py-1 rounded">
+            {'{{total}}'} = total del pedido
+          </span>
         </div>
       </div>
 

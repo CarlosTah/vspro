@@ -14,15 +14,15 @@
 
 /* ─── CSS VARIABLES (Design Tokens) ────────────────────────────── */
 :root {
-  --background: #0B0A12;
-  --primary: #630BF1;
-  --accent: #8B5CF6;
+  --background: #0b0a12;
+  --primary: #630bf1;
+  --accent: #8b5cf6;
   --card: #161522;
-  --surface: #0F0E1A;
+  --surface: #0f0e1a;
   --border: rgba(139, 92, 246, 0.2);
-  --text-primary: #F8FAFC;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
   --radius-card: 16px;
   --radius-button: 12px;
   --radius-input: 10px;
@@ -35,15 +35,28 @@
     font-family: 'Inter', system-ui, sans-serif;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     @apply text-white;
   }
 
-  h1 { @apply text-h1; }
-  h2 { @apply text-h2; }
-  h3 { @apply text-h3; }
-  h4 { @apply text-h4; }
+  h1 {
+    @apply text-h1;
+  }
+  h2 {
+    @apply text-h2;
+  }
+  h3 {
+    @apply text-h3;
+  }
+  h4 {
+    @apply text-h4;
+  }
 
   /* Scrollbar personalizada */
   ::-webkit-scrollbar {
@@ -180,13 +193,21 @@
 
 /* ─── MOBILE RESPONSIVE ANIMATIONS ────────────────────────────── */
 @keyframes slide-in {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(0); }
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .animate-slide-in {

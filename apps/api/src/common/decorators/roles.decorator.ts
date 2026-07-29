@@ -10,7 +10,14 @@ import { SetMetadata } from '@nestjs/common';
  * - finanzas: pagos, verificación, reportes financieros
  * - operator: legacy, solo producción
  */
-export type UserRole = 'admin' | 'manager' | 'vendedor' | 'produccion' | 'delivery' | 'finanzas' | 'operator';
+export type UserRole =
+  | 'admin'
+  | 'manager'
+  | 'vendedor'
+  | 'produccion'
+  | 'delivery'
+  | 'finanzas'
+  | 'operator';
 
 export const ROLES_KEY = 'roles';
 

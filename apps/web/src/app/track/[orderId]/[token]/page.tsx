@@ -32,7 +32,9 @@ export default function TrackingPage() {
     }
   }, [orderId, token]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleAction = async (action: string) => {
     setActing(true);
@@ -50,11 +52,21 @@ export default function TrackingPage() {
     }
   };
 
-  if (loading) return <Page><p className="text-center text-gray-500 py-10">Cargando...</p></Page>;
-  if (error) return <Page><p className="text-center text-red-500 py-10">{error}</p></Page>;
+  if (loading)
+    return (
+      <Page>
+        <p className="text-center text-gray-500 py-10">Cargando...</p>
+      </Page>
+    );
+  if (error)
+    return (
+      <Page>
+        <p className="text-center text-red-500 py-10">{error}</p>
+      </Page>
+    );
   if (!data) return null;
 
-  const currentStep = statusSteps.findIndex(s => s.key === data.status);
+  const currentStep = statusSteps.findIndex((s) => s.key === data.status);
   const address = data.address
     ? typeof data.address === 'object'
       ? `${data.address.street ?? ''} ${data.address.colony ?? ''} ${data.address.city ?? ''}`.trim()
@@ -80,14 +92,22 @@ export default function TrackingPage() {
           return (
             <div key={step.key} className="flex flex-col items-center relative">
               {i > 0 && (
-                <div className={`absolute top-4 -left-full w-full h-0.5 ${i <= currentStep ? 'bg-green-500' : 'bg-gray-200'}`} />
+                <div
+                  className={`absolute top-4 -left-full w-full h-0.5 ${i <= currentStep ? 'bg-green-500' : 'bg-gray-200'}`}
+                />
               )}
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-base z-10 ${
-                isDone ? 'bg-green-100 border-2 border-green-500' : 'bg-gray-100 border-2 border-gray-300'
-              }`}>
+              <div
+                className={`w-9 h-9 rounded-full flex items-center justify-center text-base z-10 ${
+                  isDone
+                    ? 'bg-green-100 border-2 border-green-500'
+                    : 'bg-gray-100 border-2 border-gray-300'
+                }`}
+              >
                 {step.icon}
               </div>
-              <span className={`mt-1 text-xs ${isCurrent ? 'text-green-700 font-semibold' : 'text-gray-400'}`}>
+              <span
+                className={`mt-1 text-xs ${isCurrent ? 'text-green-700 font-semibold' : 'text-gray-400'}`}
+              >
                 {step.label}
               </span>
             </div>
@@ -103,11 +123,15 @@ export default function TrackingPage() {
         </div>
         <div className="flex justify-between">
           <span className="text-sm text-gray-500">Dirección</span>
-          <span className="text-sm font-medium text-gray-900 text-right max-w-[60%]">{address}</span>
+          <span className="text-sm font-medium text-gray-900 text-right max-w-[60%]">
+            {address}
+          </span>
         </div>
         <div className="flex justify-between">
           <span className="text-sm text-gray-500">Total</span>
-          <span className="text-sm font-bold text-gray-900">${parseFloat(data.total).toLocaleString('es-MX')} MXN</span>
+          <span className="text-sm font-bold text-gray-900">
+            ${parseFloat(data.total).toLocaleString('es-MX')} MXN
+          </span>
         </div>
       </div>
 
@@ -115,20 +139,28 @@ export default function TrackingPage() {
       {data.items && data.items.length > 0 && (
         <div className="bg-gray-50 rounded-xl p-4 mb-6">
           <p className="text-xs text-gray-500 mb-2 font-medium">PRODUCTOS:</p>
-          {(typeof data.items === 'string' ? JSON.parse(data.items) : data.items).map((item: any, i: number) => (
-            <div key={i} className="flex justify-between py-1">
-              <span className="text-sm text-gray-700">{item.productName ?? item.name} × {item.quantity}</span>
-              <span className="text-sm text-gray-900">${((item.price ?? item.unitPrice ?? 0) * item.quantity).toFixed(0)}</span>
-            </div>
-          ))}
+          {(typeof data.items === 'string' ? JSON.parse(data.items) : data.items).map(
+            (item: any, i: number) => (
+              <div key={i} className="flex justify-between py-1">
+                <span className="text-sm text-gray-700">
+                  {item.productName ?? item.name} × {item.quantity}
+                </span>
+                <span className="text-sm text-gray-900">
+                  ${((item.price ?? item.unitPrice ?? 0) * item.quantity).toFixed(0)}
+                </span>
+              </div>
+            ),
+          )}
         </div>
       )}
 
       {/* Action message */}
       {actionMsg && (
-        <div className={`rounded-lg px-4 py-3 mb-4 text-sm text-center ${
-          actionMsg.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
-        }`}>
+        <div
+          className={`rounded-lg px-4 py-3 mb-4 text-sm text-center ${
+            actionMsg.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
+          }`}
+        >
           {actionMsg}
         </div>
       )}

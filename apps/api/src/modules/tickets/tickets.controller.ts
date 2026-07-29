@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Patch, Param, Body, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../../database/prisma.service';
@@ -38,12 +47,15 @@ export class TicketsController {
   @Get(':id')
   @Roles('admin', 'manager')
   async getDetail(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
-    const tickets = await this.prisma.$queryRawUnsafe<any[]>(`
+    const tickets = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT t.*, c.name AS "customerName", c.channel_id AS "customerPhone"
       FROM "${schema}".support_tickets t
       LEFT JOIN "${schema}".customers c ON c.id = t.customer_id
       WHERE t.id = $1::uuid
-    `, id);
+    `,
+      id,
+    );
     return tickets[0] ?? null;
   }
 
@@ -54,11 +66,15 @@ export class TicketsController {
     @TenantSchema() schema: string,
     @Body() dto: { assignedTo: string },
   ) {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schema}".support_tickets
       SET assigned_to = $1, status = 'in_progress', updated_at = NOW()
       WHERE id = $2::uuid
-    `, dto.assignedTo, id);
+    `,
+      dto.assignedTo,
+      id,
+    );
     return { success: true };
   }
 
@@ -69,22 +85,29 @@ export class TicketsController {
     @TenantSchema() schema: string,
     @Body() dto: { resolutionNote?: string },
   ) {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schema}".support_tickets
       SET status = 'resolved', resolved_at = NOW(), resolution_note = $1, updated_at = NOW()
       WHERE id = $2::uuid
-    `, dto.resolutionNote ?? '', id);
+    `,
+      dto.resolutionNote ?? '',
+      id,
+    );
     return { success: true };
   }
 
   @Patch(':id/close')
   @Roles('admin', 'manager')
   async close(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schema}".support_tickets
       SET status = 'closed', updated_at = NOW()
       WHERE id = $2::uuid
-    `, id);
+    `,
+      id,
+    );
     return { success: true };
   }
 
@@ -96,13 +119,17 @@ export class TicketsController {
     @Body() dto: { message: string },
   ) {
     // Add reply as internal note on the ticket
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schema}".support_tickets
       SET resolution_note = COALESCE(resolution_note, '') || E'\n[' || NOW()::text || '] ' || $1,
           status = CASE WHEN status = 'open' THEN 'in_progress' ELSE status END,
           updated_at = NOW()
       WHERE id = $2::uuid
-    `, dto.message, id);
+    `,
+      dto.message,
+      id,
+    );
     return { success: true };
   }
 

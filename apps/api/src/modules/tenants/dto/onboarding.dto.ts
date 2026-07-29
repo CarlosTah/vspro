@@ -1,6 +1,13 @@
 import {
-  IsString, IsEmail, IsNumber, IsOptional,
-  MinLength, MaxLength, Matches, Min, IsArray,
+  IsString,
+  IsEmail,
+  IsNumber,
+  IsOptional,
+  MinLength,
+  MaxLength,
+  Matches,
+  Min,
+  IsArray,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -48,7 +55,7 @@ export class OnboardingProductDto {
   @MinLength(2)
   name!: string;
 
-  @ApiProperty({ example: 25.00 })
+  @ApiProperty({ example: 25.0 })
   @IsNumber()
   @Min(0)
   price!: number;

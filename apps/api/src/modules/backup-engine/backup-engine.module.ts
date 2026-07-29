@@ -7,10 +7,7 @@ import { BackupCronRegistry } from './backup-cron.registry';
 import { BackupEngineController } from './backup-engine.controller';
 
 @Module({
-  imports: [
-    ScheduleModule.forRoot(),
-    BullModule.registerQueue({ name: 'infrastructure-backups' }),
-  ],
+  imports: [ScheduleModule.forRoot(), BullModule.registerQueue({ name: 'infrastructure-backups' })],
   controllers: [BackupEngineController],
   providers: [BackupEngineService, S3StorageGateway, BackupCronRegistry],
   exports: [BackupEngineService, S3StorageGateway],

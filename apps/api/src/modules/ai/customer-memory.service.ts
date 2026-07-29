@@ -28,9 +28,8 @@ export class CustomerMemoryService {
     private readonly config: ConfigService,
   ) {
     const key = this.config.get('OPENAI_API_KEY');
-    this.openai = key && !key.startsWith('sk-test') && key !== 'sk-...'
-      ? new OpenAI({ apiKey: key })
-      : null;
+    this.openai =
+      key && !key.startsWith('sk-test') && key !== 'sk-...' ? new OpenAI({ apiKey: key }) : null;
   }
 
   // ─── Profile Operations ───────────────────────────────────────
@@ -50,7 +49,8 @@ export class CustomerMemoryService {
     await this.ensureCustomerExists(customerId, schemaName);
 
     // Upsert with deep-merge: insert if not exists, merge into existing key
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${schemaName}".customer_memories (customer_id, profile)
       VALUES ($1::uuid, jsonb_build_object($2::text, $3::jsonb))
       ON CONFLICT (customer_id)
@@ -61,14 +61,21 @@ export class CustomerMemoryService {
           COALESCE(customer_memories.profile->$2::text, '{}'::jsonb) || $3::jsonb
         ),
         updated_at = NOW()
-    `, customerId, category, JSON.stringify(data));
+    `,
+      customerId,
+      category,
+      JSON.stringify(data),
+    );
   }
 
   async getProfile(customerId: string, schemaName: string): Promise<CustomerProfile | null> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT profile FROM "${schemaName}".customer_memories
       WHERE customer_id = $1::uuid
-    `, customerId);
+    `,
+      customerId,
+    );
 
     return rows[0]?.profile ?? null;
   }
@@ -93,20 +100,31 @@ export class CustomerMemoryService {
 
     let rows: any[];
     if (embedding) {
-      rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         INSERT INTO "${schemaName}".customer_memory_episodes
           (customer_id, content, category, embedding)
         VALUES ($1::uuid, $2, $3, $4::vector)
         RETURNING id
-      `, customerId, content, category, `[${embedding.join(',')}]`);
+      `,
+        customerId,
+        content,
+        category,
+        `[${embedding.join(',')}]`,
+      );
     } else {
       this.logger.warn(`Embedding unavailable for episode, storing with NULL embedding`);
-      rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         INSERT INTO "${schemaName}".customer_memory_episodes
           (customer_id, content, category)
         VALUES ($1::uuid, $2, $3)
         RETURNING id
-      `, customerId, content, category);
+      `,
+        customerId,
+        content,
+        category,
+      );
     }
 
     return { id: rows[0].id };
@@ -118,7 +136,8 @@ export class CustomerMemoryService {
     schemaName: string,
     limit = 5,
   ): Promise<EpisodeResult[]> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id, content, category,
              1 - (embedding <=> $1::vector) AS similarity,
              created_at AS "createdAt"
@@ -127,7 +146,11 @@ export class CustomerMemoryService {
         AND embedding IS NOT NULL
       ORDER BY embedding <=> $1::vector
       LIMIT $3
-    `, `[${queryEmbedding.join(',')}]`, customerId, limit);
+    `,
+      `[${queryEmbedding.join(',')}]`,
+      customerId,
+      limit,
+    );
 
     return rows.map((r) => ({
       id: r.id,
@@ -143,13 +166,17 @@ export class CustomerMemoryService {
     schemaName: string,
     limit = 20,
   ): Promise<EpisodeResult[]> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id, content, category, created_at AS "createdAt"
       FROM "${schemaName}".customer_memory_episodes
       WHERE customer_id = $1::uuid
       ORDER BY created_at DESC
       LIMIT $2
-    `, customerId, limit);
+    `,
+      customerId,
+      limit,
+    );
 
     return rows.map((r) => ({
       id: r.id,
@@ -160,10 +187,14 @@ export class CustomerMemoryService {
   }
 
   async deleteEpisode(episodeId: string, customerId: string, schemaName: string): Promise<void> {
-    const result = await this.prisma.$executeRawUnsafe(`
+    const result = await this.prisma.$executeRawUnsafe(
+      `
       DELETE FROM "${schemaName}".customer_memory_episodes
       WHERE id = $1::uuid AND customer_id = $2::uuid
-    `, episodeId, customerId);
+    `,
+      episodeId,
+      customerId,
+    );
 
     if (result === 0) {
       throw new NotFoundException('Episode not found or does not belong to this customer');
@@ -171,12 +202,18 @@ export class CustomerMemoryService {
   }
 
   async deleteAllMemory(customerId: string, schemaName: string): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       DELETE FROM "${schemaName}".customer_memory_episodes WHERE customer_id = $1::uuid
-    `, customerId);
-    await this.prisma.$executeRawUnsafe(`
+    `,
+      customerId,
+    );
+    await this.prisma.$executeRawUnsafe(
+      `
       DELETE FROM "${schemaName}".customer_memories WHERE customer_id = $1::uuid
-    `, customerId);
+    `,
+      customerId,
+    );
   }
 
   // ─── Hybrid Retrieval ─────────────────────────────────────────
@@ -300,12 +337,15 @@ export class CustomerMemoryService {
     const result: MigrationResult = { totalMigrated: 0, skipped: 0, perCustomer: {} };
 
     // Check if legacy table exists
-    const tableExists = await this.prisma.$queryRawUnsafe<any[]>(`
+    const tableExists = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT EXISTS (
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = $1 AND table_name = 'ai_memories'
       ) AS exists
-    `, schemaName);
+    `,
+      schemaName,
+    );
 
     if (!tableExists[0]?.exists) {
       this.logger.log(`No ai_memories table in ${schemaName}, skipping migration`);
@@ -332,9 +372,12 @@ export class CustomerMemoryService {
       }
 
       // Verify customer exists
-      const customerExists = await this.prisma.$queryRawUnsafe<any[]>(`
+      const customerExists = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT 1 FROM "${schemaName}".customers WHERE id = $1::uuid
-      `, record.customer_id);
+      `,
+        record.customer_id,
+      );
 
       if (customerExists.length === 0) {
         this.logger.warn(`Skipping record ${record.id}: customer ${record.customer_id} not found`);
@@ -345,22 +388,32 @@ export class CustomerMemoryService {
       const newCategory = categoryMap[record.type] ?? 'general_context';
 
       if (record.embedding) {
-        await this.prisma.$executeRawUnsafe(`
+        await this.prisma.$executeRawUnsafe(
+          `
           INSERT INTO "${schemaName}".customer_memory_episodes
             (customer_id, content, category, embedding)
           VALUES ($1::uuid, $2, $3, $4::vector)
-        `, record.customer_id, record.content, newCategory, record.embedding);
+        `,
+          record.customer_id,
+          record.content,
+          newCategory,
+          record.embedding,
+        );
       } else {
-        await this.prisma.$executeRawUnsafe(`
+        await this.prisma.$executeRawUnsafe(
+          `
           INSERT INTO "${schemaName}".customer_memory_episodes
             (customer_id, content, category)
           VALUES ($1::uuid, $2, $3)
-        `, record.customer_id, record.content, newCategory);
+        `,
+          record.customer_id,
+          record.content,
+          newCategory,
+        );
       }
 
       result.totalMigrated++;
-      result.perCustomer[record.customer_id] =
-        (result.perCustomer[record.customer_id] ?? 0) + 1;
+      result.perCustomer[record.customer_id] = (result.perCustomer[record.customer_id] ?? 0) + 1;
     }
 
     this.logger.log(
@@ -372,9 +425,12 @@ export class CustomerMemoryService {
   // ─── Helpers ──────────────────────────────────────────────────
 
   private async ensureCustomerExists(customerId: string, schemaName: string): Promise<void> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT 1 FROM "${schemaName}".customers WHERE id = $1::uuid
-    `, customerId);
+    `,
+      customerId,
+    );
 
     if (rows.length === 0) {
       throw new NotFoundException(`Customer ${customerId} not found in schema ${schemaName}`);

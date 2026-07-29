@@ -38,11 +38,17 @@ export class TeamService {
     const password = dto.password ?? this.generateTempPassword();
     const passwordHash = await bcrypt.hash(password, 12);
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".users (email, password_hash, name, role)
       VALUES ($1, $2, $3, $4)
       RETURNING id, email, name, role, is_active AS "isActive", created_at AS "createdAt"
-    `, dto.email, passwordHash, dto.name, dto.role);
+    `,
+      dto.email,
+      passwordHash,
+      dto.name,
+      dto.role,
+    );
 
     return {
       user: rows[0],

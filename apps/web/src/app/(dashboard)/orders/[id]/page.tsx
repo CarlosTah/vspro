@@ -18,7 +18,9 @@ const TIMELINE_STEPS = [
 const statusActions: Record<string, { label: string; nextStatus: string; color: string }[]> = {
   new: [{ label: 'Solicitar pago', nextStatus: 'payment_pending', color: 'yellow' }],
   payment_pending: [{ label: 'Verificar pago', nextStatus: 'payment_verified', color: 'green' }],
-  payment_verified: [{ label: 'Enviar a producción', nextStatus: 'in_production', color: 'orange' }],
+  payment_verified: [
+    { label: 'Enviar a producción', nextStatus: 'in_production', color: 'orange' },
+  ],
   in_production: [{ label: 'Marcar listo', nextStatus: 'ready', color: 'teal' }],
   ready: [
     { label: 'Entregar a repartidor', nextStatus: 'shipped', color: 'indigo' },
@@ -49,7 +51,7 @@ export default function OrderDetailPage() {
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
   if (!order) return <div className="p-8 text-center text-gray-400">Pedido no encontrado</div>;
 
-  const currentStepIndex = TIMELINE_STEPS.findIndex(s => s.key === order.status);
+  const currentStepIndex = TIMELINE_STEPS.findIndex((s) => s.key === order.status);
   const actions = statusActions[order.status] ?? [];
 
   return (
@@ -57,16 +59,28 @@ export default function OrderDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <button onClick={() => router.back()} className="text-sm text-accent hover:underline mb-1">
+          <button
+            onClick={() => router.back()}
+            className="text-sm text-accent hover:underline mb-1"
+          >
             ← Volver a pedidos
           </button>
           <h1 className="text-2xl font-bold text-white">{order.orderNumber}</h1>
           <p className="text-sm text-gray-400">
-            {order.customerName} · {new Date(order.createdAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            {order.customerName} ·{' '}
+            {new Date(order.createdAt).toLocaleDateString('es-MX', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
           </p>
         </div>
         <div className="text-right">
-          <p className="text-3xl font-bold text-white">${parseFloat(order.total).toLocaleString('es-MX')}</p>
+          <p className="text-3xl font-bold text-white">
+            ${parseFloat(order.total).toLocaleString('es-MX')}
+          </p>
           <p className="text-sm text-gray-400">MXN</p>
           <button
             onClick={() => router.push(`/orders/${id}/print`)}
@@ -85,7 +99,9 @@ export default function OrderDetailPage() {
           <div className="absolute top-5 left-8 right-8 h-0.5 bg-gray-700" />
           <div
             className="absolute top-5 left-8 h-0.5 bg-accent transition-all duration-500"
-            style={{ width: `${Math.max(0, (currentStepIndex / (TIMELINE_STEPS.length - 1)) * 100 - 5)}%` }}
+            style={{
+              width: `${Math.max(0, (currentStepIndex / (TIMELINE_STEPS.length - 1)) * 100 - 5)}%`,
+            }}
           />
 
           {TIMELINE_STEPS.map((step, i) => {
@@ -100,15 +116,21 @@ export default function OrderDetailPage() {
                     isCancelled
                       ? 'bg-red-900/50 border-2 border-red-500'
                       : isCompleted
-                      ? 'bg-accent/20 border-2 border-accent shadow-glow-sm'
-                      : 'bg-gray-800 border-2 border-gray-600'
+                        ? 'bg-accent/20 border-2 border-accent shadow-glow-sm'
+                        : 'bg-gray-800 border-2 border-gray-600'
                   }`}
                 >
                   {isCancelled && i === 0 ? '❌' : step.icon}
                 </div>
-                <span className={`mt-2 text-xs text-center max-w-[70px] ${
-                  isCurrent ? 'text-accent font-semibold' : isCompleted ? 'text-gray-300' : 'text-gray-500'
-                }`}>
+                <span
+                  className={`mt-2 text-xs text-center max-w-[70px] ${
+                    isCurrent
+                      ? 'text-accent font-semibold'
+                      : isCompleted
+                        ? 'text-gray-300'
+                        : 'text-gray-500'
+                  }`}
+                >
                   {step.label}
                 </span>
               </div>
@@ -120,7 +142,7 @@ export default function OrderDetailPage() {
       {/* Actions */}
       {actions.length > 0 && (
         <div className="flex gap-3">
-          {actions.map(action => (
+          {actions.map((action) => (
             <button
               key={action.nextStatus}
               onClick={() => handleTransition(action.nextStatus)}
@@ -150,9 +172,14 @@ export default function OrderDetailPage() {
           {order.items && order.items.length > 0 ? (
             <div className="space-y-3">
               {order.items.map((item: any, i: number) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0">
+                <div
+                  key={i}
+                  className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0"
+                >
                   <div>
-                    <p className="text-sm text-white font-medium">{item.productName ?? item.name}</p>
+                    <p className="text-sm text-white font-medium">
+                      {item.productName ?? item.name}
+                    </p>
                     <p className="text-xs text-gray-400">x{item.quantity}</p>
                   </div>
                   <p className="text-sm text-white font-medium">
@@ -162,7 +189,9 @@ export default function OrderDetailPage() {
               ))}
               <div className="flex items-center justify-between pt-3 border-t border-gray-600">
                 <span className="text-sm font-semibold text-gray-300">Total</span>
-                <span className="text-lg font-bold text-white">${parseFloat(order.total).toLocaleString('es-MX')}</span>
+                <span className="text-lg font-bold text-white">
+                  ${parseFloat(order.total).toLocaleString('es-MX')}
+                </span>
               </div>
             </div>
           ) : (

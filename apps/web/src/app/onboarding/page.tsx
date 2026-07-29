@@ -68,9 +68,7 @@ export default function OnboardingPage() {
             <div key={label} className="flex items-center gap-2">
               <div
                 className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  i <= step
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-700 text-gray-400'
+                  i <= step ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400'
                 }`}
               >
                 {i < step ? '✓' : i + 1}

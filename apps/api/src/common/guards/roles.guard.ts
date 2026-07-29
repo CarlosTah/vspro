@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY, UserRole } from '../decorators/roles.decorator';
 
@@ -29,10 +24,10 @@ export class RolesGuard implements CanActivate {
   };
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(
-      ROLES_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     // Sin @Roles() → acceso libre (otros guards manejan auth)
     if (!requiredRoles || requiredRoles.length === 0) {
@@ -53,7 +48,7 @@ export class RolesGuard implements CanActivate {
     if (requiredRoles.includes(userRole)) return true;
 
     // Hierarchy match: check if userRole is included via hierarchy expansion
-    const expandedRoles = requiredRoles.flatMap(r => this.roleHierarchy[r] ?? [r]);
+    const expandedRoles = requiredRoles.flatMap((r) => this.roleHierarchy[r] ?? [r]);
     if (expandedRoles.includes(userRole)) return true;
 
     throw new ForbiddenException({

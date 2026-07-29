@@ -1,6 +1,13 @@
 import {
-  Controller, Get, Post, Patch,
-  Body, Param, UseGuards, ParseUUIDPipe, Req,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  UseGuards,
+  ParseUUIDPipe,
+  Req,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -17,10 +24,7 @@ export class PaymentsController {
 
   /** Historial de pagos de un pedido */
   @Get('order/:orderId')
-  findByOrder(
-    @Param('orderId', ParseUUIDPipe) orderId: string,
-    @TenantSchema() schema: string,
-  ) {
+  findByOrder(@Param('orderId', ParseUUIDPipe) orderId: string, @TenantSchema() schema: string) {
     return this.paymentsService.findByOrder(orderId, schema);
   }
 
@@ -53,10 +57,7 @@ export class PaymentsController {
 
   /** Rechazar un pago pendiente de revisión */
   @Patch(':id/reject')
-  reject(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantSchema() schema: string,
-  ) {
+  reject(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
     return this.paymentsService.rejectPayment(id, schema);
   }
 }

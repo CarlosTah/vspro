@@ -29,7 +29,8 @@ export class ProductsService {
   }
 
   async findById(id: string, schemaName: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         p.id, p.sku, p.name, p.description, p.price,
         p.category, p.images, p.is_active AS "isActive",
@@ -40,7 +41,9 @@ export class ProductsService {
       FROM "${schemaName}".products p
       LEFT JOIN "${schemaName}".inventory i ON i.product_id = p.id
       WHERE p.id = $1::uuid
-    `, id);
+    `,
+      id,
+    );
 
     if (!rows[0]) throw new NotFoundException(`Producto ${id} no encontrado`);
     return rows[0];
@@ -58,7 +61,8 @@ export class ProductsService {
       }
     }
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".products
         (sku, name, description, price, category, images, is_active)
       VALUES ($1, $2, $3, $4, $5, $6::text[], $7)
@@ -77,10 +81,13 @@ export class ProductsService {
     const product = rows[0];
 
     // Crear registro de inventario con stock 0
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${schemaName}".inventory (product_id, stock_available, stock_minimum)
       VALUES ($1::uuid, 0, 5)
-    `, product.id);
+    `,
+      product.id,
+    );
 
     return { ...product, stockAvailable: 0, stockReserved: 0, stockMinimum: 5 };
   }
@@ -93,12 +100,30 @@ export class ProductsService {
     const values: any[] = [];
     let idx = 1;
 
-    if (dto.sku !== undefined)         { fields.push(`sku = $${idx++}`);         values.push(dto.sku); }
-    if (dto.name !== undefined)        { fields.push(`name = $${idx++}`);        values.push(dto.name); }
-    if (dto.description !== undefined) { fields.push(`description = $${idx++}`); values.push(dto.description); }
-    if (dto.price !== undefined)       { fields.push(`price = $${idx++}`);       values.push(dto.price); }
-    if (dto.category !== undefined)    { fields.push(`category = $${idx++}`);    values.push(dto.category); }
-    if (dto.isActive !== undefined)    { fields.push(`is_active = $${idx++}`);   values.push(dto.isActive); }
+    if (dto.sku !== undefined) {
+      fields.push(`sku = $${idx++}`);
+      values.push(dto.sku);
+    }
+    if (dto.name !== undefined) {
+      fields.push(`name = $${idx++}`);
+      values.push(dto.name);
+    }
+    if (dto.description !== undefined) {
+      fields.push(`description = $${idx++}`);
+      values.push(dto.description);
+    }
+    if (dto.price !== undefined) {
+      fields.push(`price = $${idx++}`);
+      values.push(dto.price);
+    }
+    if (dto.category !== undefined) {
+      fields.push(`category = $${idx++}`);
+      values.push(dto.category);
+    }
+    if (dto.isActive !== undefined) {
+      fields.push(`is_active = $${idx++}`);
+      values.push(dto.isActive);
+    }
     if (dto.images !== undefined) {
       fields.push(`images = $${idx++}`);
       values.push(`{${dto.images.map((u) => `"${u}"`).join(',')}}`);
@@ -132,13 +157,18 @@ export class ProductsService {
   async setStock(id: string, dto: SetStockDto, schemaName: string) {
     await this.findById(id, schemaName);
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".inventory
       SET stock_available = $1,
           stock_minimum   = COALESCE($2, stock_minimum),
           updated_at      = NOW()
       WHERE product_id = $3::uuid
-    `, dto.stockAvailable, dto.stockMinimum ?? null, id);
+    `,
+      dto.stockAvailable,
+      dto.stockMinimum ?? null,
+      id,
+    );
 
     return this.findById(id, schemaName);
   }
@@ -160,7 +190,8 @@ export class ProductsService {
   // ─── Búsqueda ─────────────────────────────────────────────────
 
   async search(query: string, schemaName: string) {
-    return this.prisma.$queryRawUnsafe<any[]>(`
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         p.id, p.sku, p.name, p.description, p.price, p.category,
         p.images, p.is_active AS "isActive",
@@ -176,6 +207,8 @@ export class ProductsService {
         )
       ORDER BY p.name ASC
       LIMIT 20
-    `, `%${query}%`);
+    `,
+      `%${query}%`,
+    );
   }
 }

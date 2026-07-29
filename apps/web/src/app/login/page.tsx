@@ -61,9 +61,7 @@ function LoginContent() {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Tu negocio
-            </label>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5">Tu negocio</label>
             <div className="flex items-center rounded-lg border border-gray-600 bg-gray-900 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
               <input
                 type="text"
@@ -78,9 +76,7 @@ function LoginContent() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Email
-            </label>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
             <input
               type="email"
               value={email}
@@ -92,9 +88,7 @@ function LoginContent() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
-              Contraseña
-            </label>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5">Contraseña</label>
             <input
               type="password"
               value={password}
@@ -133,7 +127,13 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-900 flex items-center justify-center text-gray-400">Cargando...</div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center text-gray-400">
+          Cargando...
+        </div>
+      }
+    >
       <LoginContent />
     </Suspense>
   );

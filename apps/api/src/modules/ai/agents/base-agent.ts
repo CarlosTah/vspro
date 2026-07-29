@@ -42,7 +42,8 @@ export abstract class BaseAgent {
    * Shared logic: build messages → call OpenAI → handle tool calls → return.
    */
   async process(message: string, context: AgentContext, tenant: any): Promise<AgentResponse> {
-    const settings = context.agentConfig.agents[this.name as keyof typeof context.agentConfig.agents];
+    const settings =
+      context.agentConfig.agents[this.name as keyof typeof context.agentConfig.agents];
     const model = settings?.model ?? 'gpt-4o';
     const temperature = settings?.temperature ?? 0.3;
 

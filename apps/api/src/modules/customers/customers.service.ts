@@ -21,7 +21,8 @@ export class CustomersService {
   }
 
   async findById(id: string, schemaName: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         id, name, phone, email,
         channel_type AS "channelType",
@@ -30,7 +31,9 @@ export class CustomersService {
         created_at   AS "createdAt"
       FROM "${schemaName}".customers
       WHERE id = $1::uuid
-    `, id);
+    `,
+      id,
+    );
 
     if (!rows[0]) throw new NotFoundException(`Cliente ${id} no encontrado`);
     return rows[0];
@@ -47,32 +50,45 @@ export class CustomersService {
     name: string | undefined,
     schemaName: string,
   ) {
-    const existing = await this.prisma.$queryRawUnsafe<any[]>(`
+    const existing = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id, name, phone, email,
              channel_type AS "channelType",
              channel_id   AS "channelId"
       FROM "${schemaName}".customers
       WHERE channel_type = $1 AND channel_id = $2
-    `, channelType, channelId);
+    `,
+      channelType,
+      channelId,
+    );
 
     if (existing[0]) return existing[0];
 
     // Crear cliente nuevo
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".customers (name, channel_type, channel_id)
       VALUES ($1, $2, $3)
       RETURNING id, name, channel_type AS "channelType", channel_id AS "channelId", created_at AS "createdAt"
-    `, name ?? null, channelType, channelId);
+    `,
+      name ?? null,
+      channelType,
+      channelId,
+    );
 
     return rows[0];
   }
 
   async create(dto: CreateCustomerDto, schemaName: string) {
     // Verificar que no exista ya ese canal+id
-    const existing = await this.prisma.$queryRawUnsafe<any[]>(`
+    const existing = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id FROM "${schemaName}".customers
       WHERE channel_type = $1 AND channel_id = $2
-    `, dto.channelType, dto.channelId);
+    `,
+      dto.channelType,
+      dto.channelId,
+    );
 
     if (existing.length > 0) {
       throw new ConflictException(
@@ -80,7 +96,8 @@ export class CustomersService {
       );
     }
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".customers
         (name, phone, email, channel_type, channel_id, address, notes)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -109,11 +126,26 @@ export class CustomersService {
     const values: any[] = [];
     let idx = 1;
 
-    if (dto.name !== undefined)    { fields.push(`name = $${idx++}`);    values.push(dto.name); }
-    if (dto.phone !== undefined)   { fields.push(`phone = $${idx++}`);   values.push(dto.phone); }
-    if (dto.email !== undefined)   { fields.push(`email = $${idx++}`);   values.push(dto.email); }
-    if (dto.address !== undefined) { fields.push(`address = $${idx++}`); values.push(JSON.stringify(dto.address)); }
-    if (dto.notes !== undefined)   { fields.push(`notes = $${idx++}`);   values.push(dto.notes); }
+    if (dto.name !== undefined) {
+      fields.push(`name = $${idx++}`);
+      values.push(dto.name);
+    }
+    if (dto.phone !== undefined) {
+      fields.push(`phone = $${idx++}`);
+      values.push(dto.phone);
+    }
+    if (dto.email !== undefined) {
+      fields.push(`email = $${idx++}`);
+      values.push(dto.email);
+    }
+    if (dto.address !== undefined) {
+      fields.push(`address = $${idx++}`);
+      values.push(JSON.stringify(dto.address));
+    }
+    if (dto.notes !== undefined) {
+      fields.push(`notes = $${idx++}`);
+      values.push(dto.notes);
+    }
 
     if (fields.length === 0) return this.findById(id, schemaName);
 
@@ -127,13 +159,16 @@ export class CustomersService {
   }
 
   async getOrderHistory(customerId: string, schemaName: string) {
-    return this.prisma.$queryRawUnsafe<any[]>(`
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         id, order_number AS "orderNumber", status,
         total, created_at AS "createdAt"
       FROM "${schemaName}".orders
       WHERE customer_id = $1::uuid
       ORDER BY created_at DESC
-    `, customerId);
+    `,
+      customerId,
+    );
   }
 }

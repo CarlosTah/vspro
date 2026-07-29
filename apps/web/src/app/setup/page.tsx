@@ -26,7 +26,10 @@ export default function SetupPage() {
 
   const addProduct = () => {
     if (!pName || !pPrice) return;
-    setProducts([...products, { name: pName, price: parseFloat(pPrice), category: pCategory || 'General' }]);
+    setProducts([
+      ...products,
+      { name: pName, price: parseFloat(pPrice), category: pCategory || 'General' },
+    ]);
     setPName('');
     setPPrice('');
     setPCategory('');
@@ -42,8 +45,9 @@ export default function SetupPage() {
       // Save agent name and custom instructions with business info
       const config: any = {};
       if (agentName) config.assistantName = agentName;
-      if (hours) config.customInstructions = `Horario de atención: ${hours}. Dirección: ${address || 'No especificada'}. Teléfono: ${phone || 'No especificado'}.`;
-      
+      if (hours)
+        config.customInstructions = `Horario de atención: ${hours}. Dirección: ${address || 'No especificada'}. Teléfono: ${phone || 'No especificado'}.`;
+
       await api.patch('/ai/config', config).catch(() => {});
 
       // Save phone to user profile for WhatsApp linking
@@ -63,7 +67,9 @@ export default function SetupPage() {
     setSaving(true);
     try {
       for (const p of products) {
-        await api.post('/products', { name: p.name, price: p.price, category: p.category }).catch(() => {});
+        await api
+          .post('/products', { name: p.name, price: p.price, category: p.category })
+          .catch(() => {});
       }
       setStep(3);
     } catch {
@@ -104,7 +110,8 @@ export default function SetupPage() {
               <div className="text-5xl">🎉</div>
               <h2 className="text-xl font-bold text-white">Tu cuenta está lista</h2>
               <p className="text-sm text-gray-400">
-                Tienes 7 días de prueba gratis. Vamos a configurar tu negocio en menos de 2 minutos para que tu agente IA empiece a atender clientes.
+                Tienes 7 días de prueba gratis. Vamos a configurar tu negocio en menos de 2 minutos
+                para que tu agente IA empiece a atender clientes.
               </p>
               <div className="bg-gray-900 rounded-lg p-4 text-left">
                 <p className="text-xs text-gray-400 mb-2">Tu plan incluye:</p>
@@ -122,10 +129,7 @@ export default function SetupPage() {
               >
                 Configurar mi negocio →
               </button>
-              <button
-                onClick={goToDashboard}
-                className="text-xs text-gray-500 hover:text-gray-300"
-              >
+              <button onClick={goToDashboard} className="text-xs text-gray-500 hover:text-gray-300">
                 Saltar y configurar después
               </button>
             </div>
@@ -136,11 +140,15 @@ export default function SetupPage() {
             <div className="space-y-5">
               <div>
                 <h2 className="text-xl font-semibold text-white">Configura tu negocio</h2>
-                <p className="text-sm text-gray-400 mt-1">Esta información ayuda a tu agente IA a atender mejor.</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Esta información ayuda a tu agente IA a atender mejor.
+                </p>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1">Teléfono del negocio (WhatsApp)</label>
+                <label className="block text-xs font-medium text-gray-400 mb-1">
+                  Teléfono del negocio (WhatsApp)
+                </label>
                 <input
                   type="tel"
                   value={phone}
@@ -152,7 +160,9 @@ export default function SetupPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1">Dirección (opcional)</label>
+                <label className="block text-xs font-medium text-gray-400 mb-1">
+                  Dirección (opcional)
+                </label>
                 <input
                   type="text"
                   value={address}
@@ -163,7 +173,9 @@ export default function SetupPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1">Horario de atención</label>
+                <label className="block text-xs font-medium text-gray-400 mb-1">
+                  Horario de atención
+                </label>
                 <input
                   type="text"
                   value={hours}
@@ -174,7 +186,9 @@ export default function SetupPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1">Nombre de tu agente IA</label>
+                <label className="block text-xs font-medium text-gray-400 mb-1">
+                  Nombre de tu agente IA
+                </label>
                 <input
                   type="text"
                   value={agentName}
@@ -207,7 +221,9 @@ export default function SetupPage() {
             <div className="space-y-5">
               <div>
                 <h2 className="text-xl font-semibold text-white">Agrega tus productos</h2>
-                <p className="text-sm text-gray-400 mt-1">Tu agente IA usará este catálogo para atender pedidos. Puedes agregar más después.</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Tu agente IA usará este catálogo para atender pedidos. Puedes agregar más después.
+                </p>
               </div>
 
               {/* Add product form */}
@@ -251,14 +267,22 @@ export default function SetupPage() {
               {products.length > 0 && (
                 <div className="space-y-1.5">
                   {products.map((p, i) => (
-                    <div key={i} className="flex items-center justify-between bg-gray-900 rounded-lg px-3 py-2">
+                    <div
+                      key={i}
+                      className="flex items-center justify-between bg-gray-900 rounded-lg px-3 py-2"
+                    >
                       <div>
                         <span className="text-sm text-white">{p.name}</span>
                         <span className="text-xs text-gray-400 ml-2">{p.category}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-green-400">${p.price}</span>
-                        <button onClick={() => removeProduct(i)} className="text-xs text-red-400 hover:text-red-300">✕</button>
+                        <button
+                          onClick={() => removeProduct(i)}
+                          className="text-xs text-red-400 hover:text-red-300"
+                        >
+                          ✕
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -268,7 +292,8 @@ export default function SetupPage() {
               {products.length === 0 && (
                 <p className="text-center text-xs text-gray-500 py-4">
                   Agrega al menos 1 producto para que tu agente pueda vender.
-                  <br />También puedes hacerlo después desde el panel.
+                  <br />
+                  También puedes hacerlo después desde el panel.
                 </p>
               )}
 
@@ -284,7 +309,11 @@ export default function SetupPage() {
                   disabled={saving}
                   className="flex-1 rounded-lg bg-blue-600 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
-                  {saving ? 'Guardando...' : products.length > 0 ? 'Guardar y terminar →' : 'Saltar por ahora →'}
+                  {saving
+                    ? 'Guardando...'
+                    : products.length > 0
+                      ? 'Guardar y terminar →'
+                      : 'Saltar por ahora →'}
                 </button>
               </div>
             </div>
@@ -296,7 +325,8 @@ export default function SetupPage() {
               <div className="text-5xl">🚀</div>
               <h2 className="text-xl font-bold text-white">¡Todo listo!</h2>
               <p className="text-sm text-gray-400">
-                Tu negocio está configurado y tu agente IA está listo para atender clientes por WhatsApp.
+                Tu negocio está configurado y tu agente IA está listo para atender clientes por
+                WhatsApp.
               </p>
 
               <div className="bg-gray-900 rounded-lg p-4 text-left space-y-2">

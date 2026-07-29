@@ -34,7 +34,9 @@ export class DeliveryDispatchCronService {
         if (!settings.autoDispatchEnabled) continue;
 
         // Auto-fix: close assignments for orders already delivered/cancelled
-        await this.prisma.$executeRawUnsafe(`
+        await this.prisma
+          .$executeRawUnsafe(
+            `
           UPDATE "${tenant.schemaName}".delivery_assignments
           SET status = 'delivered'
           WHERE status IN ('accepted', 'picked_up')
@@ -50,7 +52,9 @@ export class DeliveryDispatchCronService {
                 status = 'accepted' AND accepted_at < NOW() - INTERVAL '4 hours'
               )
             )
-        `).catch(() => {});
+        `,
+          )
+          .catch(() => {});
 
         // Find ready orders without active assignment AND under max retry limit
         const readyOrders = await this.prisma.$queryRawUnsafe<any[]>(`
@@ -115,25 +119,37 @@ export class DeliveryDispatchCronService {
           const rejectCount = parseInt(assignment.rejectCount) || 0;
 
           // Mark as rejected (timeout)
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${tenant.schemaName}".delivery_assignments
             SET status = 'rejected' WHERE id = $1::uuid
-          `, assignment.id);
+          `,
+            assignment.id,
+          );
 
           // If under max retries, try next driver
           if (rejectCount + 1 < settings.maxRetries) {
-            this.logger.log(`[${tenant.slug}] Timeout on ${assignment.orderNumber}, trying next driver`);
-            await this.dispatchToDriver(tenant.schemaName, {
-              id: assignment.orderId,
-              orderNumber: assignment.orderNumber,
-              total: assignment.total,
-              shippingAddress: assignment.shippingAddress,
-              customerName: assignment.customerName,
-              customerChannelId: assignment.customerChannelId,
-            }, settings, assignment.driverId);
+            this.logger.log(
+              `[${tenant.slug}] Timeout on ${assignment.orderNumber}, trying next driver`,
+            );
+            await this.dispatchToDriver(
+              tenant.schemaName,
+              {
+                id: assignment.orderId,
+                orderNumber: assignment.orderNumber,
+                total: assignment.total,
+                shippingAddress: assignment.shippingAddress,
+                customerName: assignment.customerName,
+                customerChannelId: assignment.customerChannelId,
+              },
+              settings,
+              assignment.driverId,
+            );
           } else {
             // Max retries reached — notify admin
-            this.logger.warn(`[${tenant.slug}] Max retries reached for ${assignment.orderNumber}. No drivers available.`);
+            this.logger.warn(
+              `[${tenant.slug}] Max retries reached for ${assignment.orderNumber}. No drivers available.`,
+            );
           }
         }
       } catch (err: any) {
@@ -173,34 +189,44 @@ export class DeliveryDispatchCronService {
     const driver = drivers[0];
 
     // Create assignment
-    const assignRows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const assignRows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".delivery_assignments (order_id, driver_id, status, offered_at)
       VALUES ($1::uuid, $2::uuid, 'offered', NOW())
       RETURNING id
-    `, order.id, driver.id);
+    `,
+      order.id,
+      driver.id,
+    );
     const assignmentId = assignRows[0]?.id;
 
     // Build message from template
-    const address = typeof order.shippingAddress === 'object'
-      ? `${order.shippingAddress.street ?? ''} ${order.shippingAddress.colony ?? ''} ${order.shippingAddress.city ?? ''}`.trim()
-      : (order.shippingAddress ?? 'No especificada');
+    const address =
+      typeof order.shippingAddress === 'object'
+        ? `${order.shippingAddress.street ?? ''} ${order.shippingAddress.colony ?? ''} ${order.shippingAddress.city ?? ''}`.trim()
+        : (order.shippingAddress ?? 'No especificada');
 
-    const reference = (typeof order.shippingAddress === 'object' && order.shippingAddress?.reference)
-      ? `\n📝 Ref: ${order.shippingAddress.reference}`
-      : '';
+    const reference =
+      typeof order.shippingAddress === 'object' && order.shippingAddress?.reference
+        ? `\n📝 Ref: ${order.shippingAddress.reference}`
+        : '';
 
     // Append Google Maps link if coordinates available
-    const mapsLink = (typeof order.shippingAddress === 'object' && order.shippingAddress?.lat && order.shippingAddress?.lng)
-      ? `\n🗺️ https://maps.google.com/?q=${order.shippingAddress.lat},${order.shippingAddress.lng}`
-      : (typeof order.shippingAddress === 'object' && order.shippingAddress?.mapsUrl)
-        ? `\n🗺️ ${order.shippingAddress.mapsUrl}`
-        : '';
+    const mapsLink =
+      typeof order.shippingAddress === 'object' &&
+      order.shippingAddress?.lat &&
+      order.shippingAddress?.lng
+        ? `\n🗺️ https://maps.google.com/?q=${order.shippingAddress.lat},${order.shippingAddress.lng}`
+        : typeof order.shippingAddress === 'object' && order.shippingAddress?.mapsUrl
+          ? `\n🗺️ ${order.shippingAddress.mapsUrl}`
+          : '';
 
     // Check if order is COD (cash on delivery)
     let paymentMethodInfo = '';
     try {
       const pmRows = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT payment_method FROM "${schemaName}".orders WHERE id = $1::uuid`, order.id,
+        `SELECT payment_method FROM "${schemaName}".orders WHERE id = $1::uuid`,
+        order.id,
       );
       const pm = pmRows[0]?.payment_method;
       if (pm === 'cod') {
@@ -212,15 +238,22 @@ export class DeliveryDispatchCronService {
     let itemsSummary = '';
     try {
       const orderItems = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT items FROM "${schemaName}".orders WHERE id = $1::uuid`, order.id,
+        `SELECT items FROM "${schemaName}".orders WHERE id = $1::uuid`,
+        order.id,
       );
       if (orderItems[0]?.items) {
-        const items = typeof orderItems[0].items === 'string' ? JSON.parse(orderItems[0].items) : orderItems[0].items;
+        const items =
+          typeof orderItems[0].items === 'string'
+            ? JSON.parse(orderItems[0].items)
+            : orderItems[0].items;
         itemsSummary = items.map((i: any) => `${i.quantity}x ${i.productName}`).join(', ');
       }
     } catch {}
 
-    const message = (settings.dispatchMessage || `📦 Pedido #{orderNumber} listo.\n👤 Cliente: {customerName}\n🛒 {items}\n📍 {address}\n💰 Total: \${total}{paymentInfo}\n\n¿Puedes recogerlo? Responde SI o NO`)
+    const message = (
+      settings.dispatchMessage ||
+      `📦 Pedido #{orderNumber} listo.\n👤 Cliente: {customerName}\n🛒 {items}\n📍 {address}\n💰 Total: \${total}{paymentInfo}\n\n¿Puedes recogerlo? Responde SI o NO`
+    )
       .replace('{orderNumber}', order.orderNumber)
       .replace('{address}', address + reference + mapsLink)
       .replace('{total}', parseFloat(order.total).toLocaleString('es-MX'))
@@ -229,7 +262,12 @@ export class DeliveryDispatchCronService {
       .replace('{paymentInfo}', paymentMethodInfo);
 
     // Send WhatsApp to driver
-    const result = await this.messagingFactory.sendText(driver.phone, message, 'whatsapp', schemaName);
+    const result = await this.messagingFactory.sendText(
+      driver.phone,
+      message,
+      'whatsapp',
+      schemaName,
+    );
     if (result.success) {
       this.logger.log(`[${schemaName}] Dispatched ${order.orderNumber} to ${driver.name}`);
       // Save outbound message
@@ -242,10 +280,17 @@ export class DeliveryDispatchCronService {
             content TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           )
         `);
-        await this.prisma.$executeRawUnsafe(`
+        await this.prisma
+          .$executeRawUnsafe(
+            `
           INSERT INTO "${schemaName}".delivery_messages (assignment_id, driver_id, direction, content)
           VALUES ($1::uuid, $2::uuid, 'outbound', $3)
-        `, assignmentId, driver.id, message).catch(() => {});
+        `,
+            assignmentId,
+            driver.id,
+            message,
+          )
+          .catch(() => {});
       }
     } else {
       this.logger.warn(`[${schemaName}] Failed to send to ${driver.name}: ${result.error}`);

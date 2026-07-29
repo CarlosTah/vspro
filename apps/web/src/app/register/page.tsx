@@ -16,9 +16,24 @@ const INDUSTRIES = [
 ];
 
 const PLANS = [
-  { value: 'basic', label: 'Básico', price: '$990', features: ['1 canal WhatsApp', 'Agente IA', 'Hasta 200 pedidos/mes'] },
-  { value: 'pro', label: 'Profesional', price: '$1,490', features: ['3 canales', 'Reportes avanzados', 'Pedidos ilimitados'] },
-  { value: 'enterprise', label: 'Avanzado', price: '$2,499', features: ['Canales ilimitados', 'API completa', 'Soporte prioritario'] },
+  {
+    value: 'basic',
+    label: 'Básico',
+    price: '$990',
+    features: ['1 canal WhatsApp', 'Agente IA', 'Hasta 200 pedidos/mes'],
+  },
+  {
+    value: 'pro',
+    label: 'Profesional',
+    price: '$1,490',
+    features: ['3 canales', 'Reportes avanzados', 'Pedidos ilimitados'],
+  },
+  {
+    value: 'enterprise',
+    label: 'Avanzado',
+    price: '$2,499',
+    features: ['Canales ilimitados', 'API completa', 'Soporte prioritario'],
+  },
 ];
 
 export default function RegisterPage() {
@@ -183,7 +198,9 @@ export default function RegisterPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">Nombre del negocio</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                  Nombre del negocio
+                </label>
                 <input
                   type="text"
                   value={businessName}
@@ -194,12 +211,16 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">URL de tu negocio</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                  URL de tu negocio
+                </label>
                 <div className="flex items-center rounded-lg border border-gray-600 bg-gray-900 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
                   <input
                     type="text"
                     value={slug}
-                    onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                    onChange={(e) =>
+                      setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
+                    }
                     placeholder="mi-negocio"
                     className="flex-1 bg-transparent px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none"
                   />
@@ -208,7 +229,9 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">Giro de tu negocio</label>
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  Giro de tu negocio
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   {INDUSTRIES.map((ind) => (
                     <button
@@ -251,7 +274,9 @@ export default function RegisterPage() {
             <div className="space-y-5">
               <div>
                 <h2 className="text-xl font-semibold text-white mb-1">Elige tu plan</h2>
-                <p className="text-sm text-gray-400">7 días gratis en cualquier plan. Cancela cuando quieras.</p>
+                <p className="text-sm text-gray-400">
+                  7 días gratis en cualquier plan. Cancela cuando quieras.
+                </p>
               </div>
 
               {error && (
@@ -272,15 +297,20 @@ export default function RegisterPage() {
                         : 'border-gray-600 bg-gray-900 hover:border-gray-500'
                     }`}
                   >
-                    <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                      plan === p.value ? 'border-blue-500' : 'border-gray-500'
-                    }`}>
+                    <div
+                      className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        plan === p.value ? 'border-blue-500' : 'border-gray-500'
+                      }`}
+                    >
                       {plan === p.value && <div className="w-2 h-2 rounded-full bg-blue-500" />}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-baseline justify-between">
                         <span className="text-sm font-medium text-white">{p.label}</span>
-                        <span className="text-sm font-semibold text-blue-400">{p.price}<span className="text-xs text-gray-400">/mes</span></span>
+                        <span className="text-sm font-semibold text-blue-400">
+                          {p.price}
+                          <span className="text-xs text-gray-400">/mes</span>
+                        </span>
                       </div>
                       <ul className="mt-1.5 space-y-0.5">
                         {p.features.map((f, i) => (

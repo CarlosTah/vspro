@@ -66,7 +66,13 @@ export interface AgentTask {
   supervisorNotes?: string;
 }
 
-export type AgentTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'escalated' | 'audit_hold';
+export type AgentTaskStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'escalated'
+  | 'audit_hold';
 
 export interface AgentTaskOutput {
   response: string;

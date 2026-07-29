@@ -38,13 +38,17 @@ export class InstagramChannel implements MessagingChannel {
     const url = `${this.baseUrl}/${this.apiVersion}/me/messages`;
 
     try {
-      const response = await axios.post(url, {
-        recipient: { id: recipientId },
-        message: { text },
-      }, {
-        params: { access_token: channelConfig.accessToken },
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const response = await axios.post(
+        url,
+        {
+          recipient: { id: recipientId },
+          message: { text },
+        },
+        {
+          params: { access_token: channelConfig.accessToken },
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
 
       const messageId = response.data?.message_id;
       this.logger.debug(`Instagram DM sent to ${recipientId}: ${messageId}`);
@@ -82,17 +86,21 @@ export class InstagramChannel implements MessagingChannel {
     const url = `${this.baseUrl}/${this.apiVersion}/me/messages`;
 
     try {
-      const response = await axios.post(url, {
-        recipient: { id: recipientId },
-        message: {
-          attachment: {
-            type: mediaType,
-            payload: { url: mediaUrl },
+      const response = await axios.post(
+        url,
+        {
+          recipient: { id: recipientId },
+          message: {
+            attachment: {
+              type: mediaType,
+              payload: { url: mediaUrl },
+            },
           },
         },
-      }, {
-        params: { access_token: channelConfig.accessToken },
-      });
+        {
+          params: { access_token: channelConfig.accessToken },
+        },
+      );
 
       // Send caption as follow-up if provided
       if (caption) {

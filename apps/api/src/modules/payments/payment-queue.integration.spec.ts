@@ -38,15 +38,20 @@ describe('PaymentQueueIntegration', () => {
         ocrData: { amount: 299, confidence: 0.95 },
       });
 
-      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([{
-        id: 'order-1',
-        order_number: 'ORD-2026-00001',
-        items: [{ productId: 'prod-1', productName: 'Vestido', quantity: 2 }],
-        customer_id: 'cust-1',
-      }]);
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([
+        {
+          id: 'order-1',
+          order_number: 'ORD-2026-00001',
+          items: [{ productId: 'prod-1', productName: 'Vestido', quantity: 2 }],
+          customer_id: 'cust-1',
+        },
+      ]);
 
       const result = await service.verifyAndDispatch(
-        'https://img.test/proof.jpg', 'order-1', 'tenant-1', 'tenant_test',
+        'https://img.test/proof.jpg',
+        'order-1',
+        'tenant-1',
+        'tenant_test',
       );
 
       expect(result.verified).toBe(true);
@@ -80,7 +85,10 @@ describe('PaymentQueueIntegration', () => {
       });
 
       const result = await service.verifyAndDispatch(
-        'https://img.test/proof.jpg', 'order-1', 'tenant-1', 'tenant_test',
+        'https://img.test/proof.jpg',
+        'order-1',
+        'tenant-1',
+        'tenant_test',
       );
 
       expect(result.verified).toBe(false);
@@ -91,15 +99,17 @@ describe('PaymentQueueIntegration', () => {
 
   describe('dispatchPaymentVerified', () => {
     it('enqueues production job with correct items', async () => {
-      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([{
-        id: 'order-1',
-        order_number: 'ORD-001',
-        items: [
-          { productId: 'p1', productName: 'Item A', quantity: 1 },
-          { productId: 'p2', productName: 'Item B', quantity: 3 },
-        ],
-        customer_id: 'c1',
-      }]);
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([
+        {
+          id: 'order-1',
+          order_number: 'ORD-001',
+          items: [
+            { productId: 'p1', productName: 'Item A', quantity: 1 },
+            { productId: 'p2', productName: 'Item B', quantity: 3 },
+          ],
+          customer_id: 'c1',
+        },
+      ]);
 
       await service.dispatchPaymentVerified('order-1', 'tenant-1', 'tenant_test');
 
@@ -110,12 +120,14 @@ describe('PaymentQueueIntegration', () => {
     });
 
     it('enqueues inventory event with product quantities', async () => {
-      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([{
-        id: 'order-1',
-        order_number: 'ORD-001',
-        items: [{ productId: 'p1', quantity: 5 }],
-        customer_id: 'c1',
-      }]);
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([
+        {
+          id: 'order-1',
+          order_number: 'ORD-001',
+          items: [{ productId: 'p1', quantity: 5 }],
+          customer_id: 'c1',
+        },
+      ]);
 
       await service.dispatchPaymentVerified('order-1', 'tenant-1', 'tenant_test');
 
@@ -139,12 +151,14 @@ describe('PaymentQueueIntegration', () => {
       // First call: get order_id from payment
       mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([{ order_id: 'order-1' }]);
       // Second call: get order details
-      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([{
-        id: 'order-1',
-        order_number: 'ORD-001',
-        items: [{ productId: 'p1', quantity: 1 }],
-        customer_id: 'c1',
-      }]);
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([
+        {
+          id: 'order-1',
+          order_number: 'ORD-001',
+          items: [{ productId: 'p1', quantity: 1 }],
+          customer_id: 'c1',
+        },
+      ]);
 
       await service.onManualVerification('pay-1', 'tenant-1', 'tenant_test');
 

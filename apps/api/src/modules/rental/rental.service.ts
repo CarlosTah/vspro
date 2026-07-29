@@ -29,14 +29,17 @@ export class RentalService {
     schemaName: string,
   ): Promise<AvailabilityResult> {
     // 1. Obtener producto y su inventario
-    const products = await this.prisma.$queryRawUnsafe<any[]>(`
+    const products = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT p.id, p.name, p.price,
              i.blocking_dates AS "blockingDates",
              i.stock_available AS "stockAvailable"
       FROM "${schemaName}".products p
       JOIN "${schemaName}".inventory i ON i.product_id = p.id
       WHERE p.id = $1::uuid AND p.is_active = true
-    `, dto.productId);
+    `,
+      dto.productId,
+    );
 
     if (!products[0]) throw new BadRequestException('Propiedad no encontrada');
 
@@ -53,13 +56,16 @@ export class RentalService {
     const conflictDates = requestedDates.filter((d) => blockingDates.includes(d));
 
     // 3. Verificar reservaciones existentes (pedidos activos con esas fechas)
-    const existingReservations = await this.prisma.$queryRawUnsafe<any[]>(`
+    const existingReservations = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT o.id, o.notes
       FROM "${schemaName}".orders o
       WHERE o.status NOT IN ('cancelled', 'delivered')
         AND o.items::text LIKE $1
         AND o.notes LIKE '%checkIn%'
-    `, `%${dto.productId}%`);
+    `,
+      `%${dto.productId}%`,
+    );
 
     const available = conflictDates.length === 0 && product.stockAvailable > 0;
     const pricePerNight = parseFloat(product.price);
@@ -83,7 +89,12 @@ export class RentalService {
   async createReservation(dto: CreateReservationDto, schemaName: string) {
     // Verificar disponibilidad primero
     const availability = await this.checkAvailability(
-      { productId: dto.productId, checkIn: dto.checkIn, checkOut: dto.checkOut, guests: dto.guests },
+      {
+        productId: dto.productId,
+        checkIn: dto.checkIn,
+        checkOut: dto.checkOut,
+        guests: dto.guests,
+      },
       schemaName,
     );
 
@@ -95,7 +106,8 @@ export class RentalService {
 
     // Crear pedido como reservación
     const orderNumber = `RES-${Date.now().toString(36).toUpperCase()}`;
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".orders
         (order_number, customer_id, channel_type, status, items, subtotal, total, notes)
       VALUES ($1, $2::uuid, 'whatsapp', 'new', $3::jsonb, $4, $4, $5)
@@ -103,19 +115,26 @@ export class RentalService {
     `,
       orderNumber,
       dto.customerId,
-      JSON.stringify([{
-        productId: dto.productId,
-        productName: availability.productName,
-        quantity: availability.nights,
-        unitPrice: availability.pricePerNight,
-        subtotal: availability.totalPrice,
-        type: 'reservation',
+      JSON.stringify([
+        {
+          productId: dto.productId,
+          productName: availability.productName,
+          quantity: availability.nights,
+          unitPrice: availability.pricePerNight,
+          subtotal: availability.totalPrice,
+          type: 'reservation',
+          checkIn: dto.checkIn,
+          checkOut: dto.checkOut,
+          guests: dto.guests,
+        },
+      ]),
+      availability.totalPrice,
+      JSON.stringify({
         checkIn: dto.checkIn,
         checkOut: dto.checkOut,
         guests: dto.guests,
-      }]),
-      availability.totalPrice,
-      JSON.stringify({ checkIn: dto.checkIn, checkOut: dto.checkOut, guests: dto.guests, notes: dto.notes }),
+        notes: dto.notes,
+      }),
     );
 
     // Bloquear las fechas en el inventario
@@ -138,11 +157,14 @@ export class RentalService {
    * Obtiene el calendario de disponibilidad de una propiedad (próximos 60 días).
    */
   async getCalendar(productId: string, schemaName: string) {
-    const products = await this.prisma.$queryRawUnsafe<any[]>(`
+    const products = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT i.blocking_dates AS "blockingDates"
       FROM "${schemaName}".inventory i
       WHERE i.product_id = $1::uuid
-    `, productId);
+    `,
+      productId,
+    );
 
     const blockingDates: string[] = products[0]?.blockingDates ?? [];
 
@@ -173,7 +195,8 @@ export class RentalService {
     const dates = this.getDateRange(new Date(checkIn), new Date(checkOut));
 
     // Agregar fechas al array de blocking_dates
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".inventory
       SET blocking_dates = (
         SELECT jsonb_agg(DISTINCT d)
@@ -184,7 +207,10 @@ export class RentalService {
         ) sub
       )
       WHERE product_id = $2::uuid
-    `, JSON.stringify(dates), productId);
+    `,
+      JSON.stringify(dates),
+      productId,
+    );
   }
 
   private getDateRange(start: Date, end: Date): string[] {

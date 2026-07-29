@@ -14,7 +14,9 @@ export default function TenantDetailPage() {
   const [payments, setPayments] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'info' | 'usage' | 'payments' | 'products' | 'conversations'>('info');
+  const [tab, setTab] = useState<'info' | 'usage' | 'payments' | 'products' | 'conversations'>(
+    'info',
+  );
 
   // Action states
   const [saving, setSaving] = useState(false);
@@ -31,7 +33,12 @@ export default function TenantDetailPage() {
   const [paymentForm, setPaymentForm] = useState({ amount: 0, reference: '', note: '' });
 
   // Product form
-  const [productForm, setProductForm] = useState({ name: '', price: 0, category: '', description: '' });
+  const [productForm, setProductForm] = useState({
+    name: '',
+    price: 0,
+    category: '',
+    description: '',
+  });
 
   // Conversations
   const [conversations, setConversations] = useState<any[]>([]);
@@ -53,10 +60,17 @@ export default function TenantDetailPage() {
       setUsage(u);
       setPayments(p);
       setPlans(pl);
-      setEditForm({ businessName: t.businessName, ownerEmail: t.ownerEmail, ownerName: t.ownerName ?? '' });
+      setEditForm({
+        businessName: t.businessName,
+        ownerEmail: t.ownerEmail,
+        ownerName: t.ownerName ?? '',
+      });
 
       // Load conversations
-      api.get(`/super-admin/tenants/${tenantId}/conversations`).then((c: any) => setConversations(c.conversations ?? [])).catch(() => {});
+      api
+        .get(`/super-admin/tenants/${tenantId}/conversations`)
+        .then((c: any) => setConversations(c.conversations ?? []))
+        .catch(() => {});
     } catch (err: any) {
       setMsg('Error cargando datos');
     } finally {
@@ -75,28 +89,43 @@ export default function TenantDetailPage() {
       await api.patch(`/super-admin/tenants/${tenantId}`, editForm);
       flash('Datos actualizados');
       loadAll();
-    } catch (err: any) { flash('Error: ' + err.message); }
-    finally { setSaving(false); }
+    } catch (err: any) {
+      flash('Error: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleExtendTrial = async () => {
     setSaving(true);
     try {
-      const res = await api.post(`/super-admin/tenants/${tenantId}/extend-trial`, { days: trialDays });
-      flash(`Trial extendido. Nuevo vencimiento: ${new Date(res.trialEndsAt).toLocaleDateString('es-MX')}`);
+      const res = await api.post(`/super-admin/tenants/${tenantId}/extend-trial`, {
+        days: trialDays,
+      });
+      flash(
+        `Trial extendido. Nuevo vencimiento: ${new Date(res.trialEndsAt).toLocaleDateString('es-MX')}`,
+      );
       loadAll();
-    } catch (err: any) { flash('Error: ' + err.message); }
-    finally { setSaving(false); }
+    } catch (err: any) {
+      flash('Error: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleGraceDays = async () => {
     setSaving(true);
     try {
-      const res = await api.post(`/super-admin/tenants/${tenantId}/add-grace-days`, { days: graceDays });
+      const res = await api.post(`/super-admin/tenants/${tenantId}/add-grace-days`, {
+        days: graceDays,
+      });
       flash(`${graceDays} días de gracia agregados`);
       loadAll();
-    } catch (err: any) { flash('Error: ' + err.message); }
-    finally { setSaving(false); }
+    } catch (err: any) {
+      flash('Error: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleChangePlan = async (planSlug: string) => {
@@ -105,8 +134,11 @@ export default function TenantDetailPage() {
       await api.post(`/super-admin/tenants/${tenantId}/change-plan`, { planSlug });
       flash(`Plan cambiado a ${planSlug}`);
       loadAll();
-    } catch (err: any) { flash('Error: ' + err.message); }
-    finally { setSaving(false); }
+    } catch (err: any) {
+      flash('Error: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleManualPayment = async (e: React.FormEvent) => {
@@ -117,8 +149,11 @@ export default function TenantDetailPage() {
       flash(`Pago de $${paymentForm.amount} registrado`);
       setPaymentForm({ amount: 0, reference: '', note: '' });
       loadAll();
-    } catch (err: any) { flash('Error: ' + err.message); }
-    finally { setSaving(false); }
+    } catch (err: any) {
+      flash('Error: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSuspend = async () => {
@@ -142,12 +177,25 @@ export default function TenantDetailPage() {
       flash(`Producto "${productForm.name}" agregado`);
       setProductForm({ name: '', price: 0, category: '', description: '' });
       loadAll();
-    } catch (err: any) { flash('Error: ' + err.message); }
-    finally { setSaving(false); }
+    } catch (err: any) {
+      flash('Error: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-gray-400">Cargando...</div>;
-  if (!tenant) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-red-400">Tenant no encontrado</div>;
+  if (loading)
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center text-gray-400">
+        Cargando...
+      </div>
+    );
+  if (!tenant)
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center text-red-400">
+        Tenant no encontrado
+      </div>
+    );
 
   const statusColors: Record<string, string> = {
     ACTIVE: 'bg-green-900/40 text-green-300 border-green-700',
@@ -161,22 +209,35 @@ export default function TenantDetailPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <button onClick={() => router.push('/super-admin')} className="text-sm text-blue-400 hover:text-blue-300 mb-2 inline-block">
+            <button
+              onClick={() => router.push('/super-admin')}
+              className="text-sm text-blue-400 hover:text-blue-300 mb-2 inline-block"
+            >
               ← Volver a Super Admin
             </button>
             <h1 className="text-2xl font-bold text-white">{tenant.businessName}</h1>
-            <p className="text-sm text-gray-400">{tenant.ownerEmail} · <span className="font-mono">{tenant.slug}</span></p>
+            <p className="text-sm text-gray-400">
+              {tenant.ownerEmail} · <span className="font-mono">{tenant.slug}</span>
+            </p>
           </div>
           <div className="flex items-center gap-3">
-            <span className={`rounded-full border px-3 py-1 text-xs font-medium ${statusColors[tenant.status] ?? 'bg-gray-700 text-gray-400'}`}>
+            <span
+              className={`rounded-full border px-3 py-1 text-xs font-medium ${statusColors[tenant.status] ?? 'bg-gray-700 text-gray-400'}`}
+            >
               {tenant.status}
             </span>
             {tenant.status === 'ACTIVE' || tenant.status === 'TRIAL' ? (
-              <button onClick={handleSuspend} className="rounded-lg border border-red-700 px-3 py-1.5 text-xs text-red-400 hover:bg-red-900/30">
+              <button
+                onClick={handleSuspend}
+                className="rounded-lg border border-red-700 px-3 py-1.5 text-xs text-red-400 hover:bg-red-900/30"
+              >
                 Suspender
               </button>
             ) : (
-              <button onClick={handleReactivate} className="rounded-lg border border-green-700 px-3 py-1.5 text-xs text-green-400 hover:bg-green-900/30">
+              <button
+                onClick={handleReactivate}
+                className="rounded-lg border border-green-700 px-3 py-1.5 text-xs text-green-400 hover:bg-green-900/30"
+              >
                 Reactivar
               </button>
             )}
@@ -192,13 +253,15 @@ export default function TenantDetailPage() {
 
         {/* Tabs */}
         <div className="flex gap-1 rounded-lg bg-gray-800 p-1 w-fit">
-          {([
-            { key: 'info', label: 'Datos & Plan' },
-            { key: 'usage', label: 'Uso' },
-            { key: 'payments', label: 'Pagos' },
-            { key: 'products', label: 'Productos' },
-            { key: 'conversations', label: 'Conversaciones' },
-          ] as { key: typeof tab; label: string }[]).map(t => (
+          {(
+            [
+              { key: 'info', label: 'Datos & Plan' },
+              { key: 'usage', label: 'Uso' },
+              { key: 'payments', label: 'Pagos' },
+              { key: 'products', label: 'Productos' },
+              { key: 'conversations', label: 'Conversaciones' },
+            ] as { key: typeof tab; label: string }[]
+          ).map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
@@ -244,14 +307,32 @@ export default function TenantDetailPage() {
                   className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              <button onClick={handleUpdateData} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+              <button
+                onClick={handleUpdateData}
+                disabled={saving}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
                 Guardar cambios
               </button>
 
               <div className="pt-3 border-t border-gray-700">
-                <p className="text-xs text-gray-500">Schema: <span className="font-mono">{tenant.schemaName}</span></p>
-                <p className="text-xs text-gray-500">Creado: {new Date(tenant.createdAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                <p className="text-xs text-gray-500">Trial hasta: {tenant.trialEndsAt ? new Date(tenant.trialEndsAt).toLocaleDateString('es-MX') : '—'}</p>
+                <p className="text-xs text-gray-500">
+                  Schema: <span className="font-mono">{tenant.schemaName}</span>
+                </p>
+                <p className="text-xs text-gray-500">
+                  Creado:{' '}
+                  {new Date(tenant.createdAt).toLocaleDateString('es-MX', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Trial hasta:{' '}
+                  {tenant.trialEndsAt
+                    ? new Date(tenant.trialEndsAt).toLocaleDateString('es-MX')
+                    : '—'}
+                </p>
               </div>
             </div>
 
@@ -259,22 +340,26 @@ export default function TenantDetailPage() {
             <div className="space-y-4">
               {/* Change Plan */}
               <div className="rounded-xl border border-gray-700 bg-gray-800 p-5 space-y-3">
-                <h3 className="font-semibold text-white">Plan actual: <span className="text-blue-400">{tenant.plan?.name ?? '—'}</span></h3>
+                <h3 className="font-semibold text-white">
+                  Plan actual: <span className="text-blue-400">{tenant.plan?.name ?? '—'}</span>
+                </h3>
                 <div className="flex flex-wrap gap-2">
-                  {plans.filter(p => p.isActive).map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => handleChangePlan(p.slug)}
-                      disabled={p.id === tenant.planId}
-                      className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                        p.id === tenant.planId
-                          ? 'border-blue-500 bg-blue-900/30 text-blue-300'
-                          : 'border-gray-600 text-gray-300 hover:border-blue-500 hover:text-white'
-                      }`}
-                    >
-                      {p.name} · ${parseFloat(p.priceMonthly).toLocaleString('es-MX')}/mes
-                    </button>
-                  ))}
+                  {plans
+                    .filter((p) => p.isActive)
+                    .map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => handleChangePlan(p.slug)}
+                        disabled={p.id === tenant.planId}
+                        className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                          p.id === tenant.planId
+                            ? 'border-blue-500 bg-blue-900/30 text-blue-300'
+                            : 'border-gray-600 text-gray-300 hover:border-blue-500 hover:text-white'
+                        }`}
+                      >
+                        {p.name} · ${parseFloat(p.priceMonthly).toLocaleString('es-MX')}/mes
+                      </button>
+                    ))}
                 </div>
               </div>
 
@@ -293,7 +378,11 @@ export default function TenantDetailPage() {
                       className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  <button onClick={handleExtendTrial} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+                  <button
+                    onClick={handleExtendTrial}
+                    disabled={saving}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
                     Extender
                   </button>
                 </div>
@@ -314,7 +403,11 @@ export default function TenantDetailPage() {
                       className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  <button onClick={handleGraceDays} disabled={saving} className="rounded-lg bg-amber-600 px-4 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-50">
+                  <button
+                    onClick={handleGraceDays}
+                    disabled={saving}
+                    className="rounded-lg bg-amber-600 px-4 py-2 text-sm text-white hover:bg-amber-700 disabled:opacity-50"
+                  >
                     Agregar
                   </button>
                 </div>
@@ -328,7 +421,10 @@ export default function TenantDetailPage() {
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             <UsageCard label="Pedidos totales" value={usage.totalOrders} />
             <UsageCard label="Pedidos este mes" value={usage.ordersThisMonth} />
-            <UsageCard label="Revenue este mes" value={`$${usage.revenueThisMonth.toLocaleString('es-MX')}`} />
+            <UsageCard
+              label="Revenue este mes"
+              value={`$${usage.revenueThisMonth.toLocaleString('es-MX')}`}
+            />
             <UsageCard label="Productos activos" value={usage.totalProducts} />
             <UsageCard label="Clientes" value={usage.totalCustomers} />
             <UsageCard label="Mensajes totales" value={usage.totalMessages} />
@@ -347,7 +443,9 @@ export default function TenantDetailPage() {
                   <input
                     type="number"
                     value={paymentForm.amount}
-                    onChange={(e) => setPaymentForm({ ...paymentForm, amount: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) =>
+                      setPaymentForm({ ...paymentForm, amount: parseFloat(e.target.value) || 0 })
+                    }
                     required
                     min={1}
                     className="w-32 rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -373,7 +471,11 @@ export default function TenantDetailPage() {
                     className="w-48 rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                <button type="submit" disabled={saving} className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                >
                   Registrar pago
                 </button>
               </form>
@@ -388,19 +490,37 @@ export default function TenantDetailPage() {
                 <table className="w-full text-sm">
                   <thead className="border-b border-gray-700">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Fecha</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Monto</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Tipo</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Referencia</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Nota</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                        Fecha
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                        Monto
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                        Tipo
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                        Referencia
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                        Nota
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700/50">
                     {payments.map((p: any) => (
                       <tr key={p.id}>
-                        <td className="px-6 py-3 text-gray-300 text-xs">{new Date(p.createdAt).toLocaleDateString('es-MX')}</td>
-                        <td className="px-6 py-3 text-white font-medium">${parseFloat(p.amount).toLocaleString('es-MX')}</td>
-                        <td className="px-6 py-3"><span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs text-gray-300">{p.type}</span></td>
+                        <td className="px-6 py-3 text-gray-300 text-xs">
+                          {new Date(p.createdAt).toLocaleDateString('es-MX')}
+                        </td>
+                        <td className="px-6 py-3 text-white font-medium">
+                          ${parseFloat(p.amount).toLocaleString('es-MX')}
+                        </td>
+                        <td className="px-6 py-3">
+                          <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs text-gray-300">
+                            {p.type}
+                          </span>
+                        </td>
                         <td className="px-6 py-3 text-gray-400 text-xs">{p.reference || '—'}</td>
                         <td className="px-6 py-3 text-gray-400 text-xs">{p.note || '—'}</td>
                       </tr>
@@ -435,7 +555,9 @@ export default function TenantDetailPage() {
                   <input
                     type="number"
                     value={productForm.price}
-                    onChange={(e) => setProductForm({ ...productForm, price: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) =>
+                      setProductForm({ ...productForm, price: parseFloat(e.target.value) || 0 })
+                    }
                     required
                     min={0}
                     className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -456,12 +578,18 @@ export default function TenantDetailPage() {
                   <input
                     type="text"
                     value={productForm.description}
-                    onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                    onChange={(e) =>
+                      setProductForm({ ...productForm, description: e.target.value })
+                    }
                     className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <button type="submit" disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
                     Agregar producto
                   </button>
                 </div>
@@ -470,7 +598,8 @@ export default function TenantDetailPage() {
 
             <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
               <p className="text-sm text-gray-400">
-                Productos activos: <span className="text-white font-bold">{usage?.totalProducts ?? 0}</span>
+                Productos activos:{' '}
+                <span className="text-white font-bold">{usage?.totalProducts ?? 0}</span>
               </p>
             </div>
           </div>
@@ -485,18 +614,34 @@ export default function TenantDetailPage() {
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <p className="text-white font-medium">{conv.customerName ?? 'Sin nombre'}</p>
-                      <p className="text-xs text-gray-500">{conv.customerPhone} · {conv.channelType}</p>
+                      <p className="text-xs text-gray-500">
+                        {conv.customerPhone} · {conv.channelType}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${conv.status === 'active' ? 'bg-green-900/40 text-green-300' : 'bg-gray-700 text-gray-400'}`}>{conv.status}</span>
-                      <p className="text-[10px] text-gray-500 mt-1">{conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleString('es-MX') : ''}</p>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs ${conv.status === 'active' ? 'bg-green-900/40 text-green-300' : 'bg-gray-700 text-gray-400'}`}
+                      >
+                        {conv.status}
+                      </span>
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        {conv.lastMessageAt
+                          ? new Date(conv.lastMessageAt).toLocaleString('es-MX')
+                          : ''}
+                      </p>
                     </div>
                   </div>
                   {conv.messages?.length > 0 && (
                     <div className="space-y-1.5 bg-gray-900 rounded-lg p-3 max-h-40 overflow-y-auto">
                       {conv.messages.map((m: any, i: number) => (
-                        <div key={i} className={`text-xs ${m.direction === 'outbound' ? 'text-blue-300' : 'text-gray-300'}`}>
-                          <span className="text-gray-600">{m.direction === 'outbound' ? '🤖' : '👤'}</span> {m.content?.slice(0, 200) ?? '[media]'}
+                        <div
+                          key={i}
+                          className={`text-xs ${m.direction === 'outbound' ? 'text-blue-300' : 'text-gray-300'}`}
+                        >
+                          <span className="text-gray-600">
+                            {m.direction === 'outbound' ? '🤖' : '👤'}
+                          </span>{' '}
+                          {m.content?.slice(0, 200) ?? '[media]'}
                         </div>
                       ))}
                     </div>

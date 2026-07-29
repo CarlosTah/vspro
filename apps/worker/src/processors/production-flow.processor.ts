@@ -29,20 +29,30 @@ export class ProductionFlowProcessor {
     }
 
     const orders = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT status FROM "${schemaName}".orders WHERE id = $1::uuid`, orderId,
+      `SELECT status FROM "${schemaName}".orders WHERE id = $1::uuid`,
+      orderId,
     );
 
-    if (!orders[0] || (orders[0].status !== 'paid' && orders[0].status !== 'ready_for_production')) {
-      this.logger.warn(`Order ${orderNumber} not in valid state for production: ${orders[0]?.status}`);
+    if (
+      !orders[0] ||
+      (orders[0].status !== 'paid' && orders[0].status !== 'ready_for_production')
+    ) {
+      this.logger.warn(
+        `Order ${orderNumber} not in valid state for production: ${orders[0]?.status}`,
+      );
       return;
     }
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".orders
       SET status = 'in_production', updated_at = NOW(),
           notes = COALESCE(notes,'') || $1
       WHERE id = $2::uuid
-    `, `\n[Producción: ${new Date().toISOString()}${priority === 'urgent' ? ' URGENTE' : ''}]`, orderId);
+    `,
+      `\n[Producción: ${new Date().toISOString()}${priority === 'urgent' ? ' URGENTE' : ''}]`,
+      orderId,
+    );
 
     this.logger.log(`[${schemaName}] Order ${orderNumber} → in_production (${items.length} items)`);
   }

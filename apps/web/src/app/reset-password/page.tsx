@@ -57,8 +57,18 @@ function ResetPasswordContent() {
           </div>
           <div className="rounded-2xl bg-gray-800 border border-gray-700 p-8 shadow-xl text-center space-y-4">
             <div className="mx-auto w-12 h-12 rounded-full bg-red-900/50 flex items-center justify-center">
-              <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              <svg
+                className="w-6 h-6 text-red-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                />
               </svg>
             </div>
             <h2 className="text-lg font-semibold text-white">Enlace inválido</h2>
@@ -90,13 +100,24 @@ function ResetPasswordContent() {
           <div className="rounded-2xl bg-gray-800 border border-gray-700 p-8 shadow-xl space-y-4">
             <div className="text-center">
               <div className="mx-auto w-12 h-12 rounded-full bg-green-900/50 flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-green-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="w-6 h-6 text-green-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
               </div>
               <h2 className="text-lg font-semibold text-white mb-2">Contraseña actualizada</h2>
               <p className="text-sm text-gray-400">
-                Tu contraseña ha sido restablecida correctamente. Ya puedes iniciar sesión con tu nueva contraseña.
+                Tu contraseña ha sido restablecida correctamente. Ya puedes iniciar sesión con tu
+                nueva contraseña.
               </p>
             </div>
 
@@ -182,7 +203,13 @@ function ResetPasswordContent() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-900 flex items-center justify-center text-gray-400">Cargando...</div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center text-gray-400">
+          Cargando...
+        </div>
+      }
+    >
       <ResetPasswordContent />
     </Suspense>
   );

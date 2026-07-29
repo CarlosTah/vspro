@@ -27,16 +27,25 @@ export function Header() {
 
   // Fetch logo on mount
   useEffect(() => {
-    api.get('/media-assets?type=logo').then((assets: any[]) => {
-      if (assets?.length > 0 && assets[0].url) setLogoUrl(assets[0].url);
-    }).catch(() => {});
+    api
+      .get('/media-assets?type=logo')
+      .then((assets: any[]) => {
+        if (assets?.length > 0 && assets[0].url) setLogoUrl(assets[0].url);
+      })
+      .catch(() => {});
   }, []);
 
   // Fetch notifications on mount + every 30s
   useEffect(() => {
     const fetchNotifs = () => {
-      api.get('/notifications/badge').then((d: any) => setBadgeCount(d.count ?? 0)).catch(() => {});
-      api.get('/notifications/recent').then((d: any) => setNotifications(d ?? [])).catch(() => {});
+      api
+        .get('/notifications/badge')
+        .then((d: any) => setBadgeCount(d.count ?? 0))
+        .catch(() => {});
+      api
+        .get('/notifications/recent')
+        .then((d: any) => setNotifications(d ?? []))
+        .catch(() => {});
     };
     fetchNotifs();
     const interval = setInterval(fetchNotifs, 30000);
@@ -62,7 +71,17 @@ export function Header() {
           className="lg:hidden rounded-lg p-2 text-muted-foreground hover:bg-card hover:text-white transition-colors"
           aria-label="Abrir menú"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <line x1="3" y1="6" x2="21" y2="6" />
             <line x1="3" y1="12" x2="21" y2="12" />
             <line x1="3" y1="18" x2="21" y2="18" />
@@ -100,28 +119,46 @@ export function Header() {
             <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border border-card-border bg-card shadow-2xl z-50 overflow-hidden">
               <div className="px-4 py-2.5 border-b border-card-border flex justify-between items-center">
                 <span className="text-sm font-semibold text-white">Notificaciones</span>
-                {badgeCount > 0 && <span className="text-xs text-accent">{badgeCount} pendiente(s)</span>}
+                {badgeCount > 0 && (
+                  <span className="text-xs text-accent">{badgeCount} pendiente(s)</span>
+                )}
               </div>
               <div className="max-h-64 overflow-y-auto">
-                {notifications.length > 0 ? notifications.map((n, i) => (
-                  <div key={i} className="px-4 py-2.5 border-b border-card-border/50 hover:bg-surface transition-colors">
-                    <div className="flex items-start gap-2">
-                      <span className="text-lg">{n.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-white truncate">{n.title}</p>
-                        <p className="text-[10px] text-muted">{n.subtitle}{n.total ? ` · $${parseFloat(n.total).toLocaleString()}` : ''}</p>
+                {notifications.length > 0 ? (
+                  notifications.map((n, i) => (
+                    <div
+                      key={i}
+                      className="px-4 py-2.5 border-b border-card-border/50 hover:bg-surface transition-colors"
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className="text-lg">{n.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-white truncate">{n.title}</p>
+                          <p className="text-[10px] text-muted">
+                            {n.subtitle}
+                            {n.total ? ` · $${parseFloat(n.total).toLocaleString()}` : ''}
+                          </p>
+                        </div>
+                        <span className="text-[9px] text-muted whitespace-nowrap">
+                          {new Date(n.createdAt).toLocaleTimeString('es-MX', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
                       </div>
-                      <span className="text-[9px] text-muted whitespace-nowrap">
-                        {new Date(n.createdAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
                     </div>
-                  </div>
-                )) : (
-                  <p className="px-4 py-6 text-center text-xs text-muted">Sin notificaciones recientes</p>
+                  ))
+                ) : (
+                  <p className="px-4 py-6 text-center text-xs text-muted">
+                    Sin notificaciones recientes
+                  </p>
                 )}
               </div>
               <button
-                onClick={() => { setBellOpen(false); router.push('/orders'); }}
+                onClick={() => {
+                  setBellOpen(false);
+                  router.push('/orders');
+                }}
                 className="w-full px-4 py-2.5 text-center text-xs text-accent hover:bg-surface border-t border-card-border transition-colors"
               >
                 Ver todos los pedidos →
@@ -144,7 +181,9 @@ export function Header() {
                 {businessInitials}
               </div>
             )}
-            <span className="text-sm font-medium text-slate-200 hidden sm:inline">{user?.name ?? 'Usuario'}</span>
+            <span className="text-sm font-medium text-slate-200 hidden sm:inline">
+              {user?.name ?? 'Usuario'}
+            </span>
           </button>
 
           {/* Dropdown */}
@@ -155,19 +194,28 @@ export function Header() {
                 <p className="text-xs text-muted truncate">{user?.email ?? ''}</p>
               </div>
               <button
-                onClick={() => { setMenuOpen(false); router.push('/settings'); }}
+                onClick={() => {
+                  setMenuOpen(false);
+                  router.push('/settings');
+                }}
                 className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-surface transition-colors"
               >
                 ⚙️ Configuración
               </button>
               <button
-                onClick={() => { setMenuOpen(false); router.push('/settings/media'); }}
+                onClick={() => {
+                  setMenuOpen(false);
+                  router.push('/settings/media');
+                }}
                 className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-surface transition-colors"
               >
                 🖼️ Material gráfico
               </button>
               <button
-                onClick={() => { setMenuOpen(false); logout(); }}
+                onClick={() => {
+                  setMenuOpen(false);
+                  logout();
+                }}
                 className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-surface transition-colors border-t border-card-border"
               >
                 🚪 Cerrar sesión

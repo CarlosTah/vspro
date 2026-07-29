@@ -1,6 +1,14 @@
 import {
-  Controller, Get, Post, Patch, Delete,
-  Body, Param, UseGuards, Req, ParseUUIDPipe,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  Req,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -47,10 +55,7 @@ export class TeamController {
   }
 
   @Post(':id/reactivate')
-  reactivate(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantSchema() schema: string,
-  ) {
+  reactivate(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
     return this.teamService.reactivateUser(id, schema);
   }
 }

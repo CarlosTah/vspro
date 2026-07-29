@@ -32,7 +32,7 @@ export class HealthMonitorService {
   async runHealthCheck(): Promise<void> {
     const results = await this.checkAll();
 
-    const unhealthy = results.filter(r => r.status !== 'healthy');
+    const unhealthy = results.filter((r) => r.status !== 'healthy');
     if (unhealthy.length > 0) {
       this.logger.warn(`Health check: ${unhealthy.length} issues detected`);
       for (const issue of unhealthy) {
@@ -60,7 +60,7 @@ export class HealthMonitorService {
    */
   async getDetailedHealth(): Promise<DetailedHealth> {
     const checks = await this.checkAll();
-    const allHealthy = checks.every(c => c.status === 'healthy');
+    const allHealthy = checks.every((c) => c.status === 'healthy');
 
     return {
       status: allHealthy ? 'healthy' : 'degraded',
@@ -80,11 +80,26 @@ export class HealthMonitorService {
       const latency = Date.now() - start;
 
       if (latency > 1000) {
-        return { component: 'postgresql', status: 'degraded', message: `High latency: ${latency}ms`, latencyMs: latency };
+        return {
+          component: 'postgresql',
+          status: 'degraded',
+          message: `High latency: ${latency}ms`,
+          latencyMs: latency,
+        };
       }
-      return { component: 'postgresql', status: 'healthy', message: `OK (${latency}ms)`, latencyMs: latency };
+      return {
+        component: 'postgresql',
+        status: 'healthy',
+        message: `OK (${latency}ms)`,
+        latencyMs: latency,
+      };
     } catch (err: any) {
-      return { component: 'postgresql', status: 'unhealthy', message: err.message, latencyMs: Date.now() - start };
+      return {
+        component: 'postgresql',
+        status: 'unhealthy',
+        message: err.message,
+        latencyMs: Date.now() - start,
+      };
     }
   }
 
@@ -105,7 +120,12 @@ export class HealthMonitorService {
       const latency = Date.now() - start;
       await redis.quit();
 
-      return { component: 'redis', status: 'healthy', message: `OK (${latency}ms)`, latencyMs: latency };
+      return {
+        component: 'redis',
+        status: 'healthy',
+        message: `OK (${latency}ms)`,
+        latencyMs: latency,
+      };
     } catch (err: any) {
       return { component: 'redis', status: 'unhealthy', message: err.message, latencyMs: 0 };
     }
@@ -119,19 +139,36 @@ export class HealthMonitorService {
       });
 
       let orphans = 0;
-      for (const t of tenants.slice(0, 5)) { // Check first 5 for speed
+      for (const t of tenants.slice(0, 5)) {
+        // Check first 5 for speed
         const exists = await this.prisma.$queryRawUnsafe<any[]>(
-          `SELECT 1 FROM information_schema.schemata WHERE schema_name = $1`, t.schemaName,
+          `SELECT 1 FROM information_schema.schemata WHERE schema_name = $1`,
+          t.schemaName,
         );
         if (exists.length === 0) orphans++;
       }
 
       if (orphans > 0) {
-        return { component: 'tenant_schemas', status: 'degraded', message: `${orphans} orphan schemas detected`, latencyMs: 0 };
+        return {
+          component: 'tenant_schemas',
+          status: 'degraded',
+          message: `${orphans} orphan schemas detected`,
+          latencyMs: 0,
+        };
       }
-      return { component: 'tenant_schemas', status: 'healthy', message: `${tenants.length} tenants OK`, latencyMs: 0 };
+      return {
+        component: 'tenant_schemas',
+        status: 'healthy',
+        message: `${tenants.length} tenants OK`,
+        latencyMs: 0,
+      };
     } catch (err: any) {
-      return { component: 'tenant_schemas', status: 'unhealthy', message: err.message, latencyMs: 0 };
+      return {
+        component: 'tenant_schemas',
+        status: 'unhealthy',
+        message: err.message,
+        latencyMs: 0,
+      };
     }
   }
 
@@ -142,9 +179,19 @@ export class HealthMonitorService {
     const ratio = usage.heapUsed / usage.heapTotal;
 
     if (ratio > 0.9) {
-      return { component: 'memory', status: 'degraded', message: `High memory: ${heapUsedMB}/${heapTotalMB}MB (${Math.round(ratio * 100)}%)`, latencyMs: 0 };
+      return {
+        component: 'memory',
+        status: 'degraded',
+        message: `High memory: ${heapUsedMB}/${heapTotalMB}MB (${Math.round(ratio * 100)}%)`,
+        latencyMs: 0,
+      };
     }
-    return { component: 'memory', status: 'healthy', message: `${heapUsedMB}/${heapTotalMB}MB`, latencyMs: 0 };
+    return {
+      component: 'memory',
+      status: 'healthy',
+      message: `${heapUsedMB}/${heapTotalMB}MB`,
+      latencyMs: 0,
+    };
   }
 }
 

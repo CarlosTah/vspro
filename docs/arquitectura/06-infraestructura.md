@@ -39,14 +39,14 @@ services:
       POSTGRES_USER: vspro
       POSTGRES_PASSWORD: vspro_dev_pass
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - '6379:6379'
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -64,7 +64,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       AWS_S3_BUCKET: ${AWS_S3_BUCKET}
     ports:
-      - "3001:3001"
+      - '3001:3001'
     depends_on:
       - postgres
       - redis
@@ -79,7 +79,7 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:3001
     ports:
-      - "3000:3000"
+      - '3000:3000'
     depends_on:
       - api
 
@@ -229,8 +229,8 @@ jobs:
 ```typescript
 // Payload del JWT
 interface JwtPayload {
-  sub: string;          // userId
-  tenantId: string;     // tenantId
+  sub: string; // userId
+  tenantId: string; // tenantId
   tenantSchema: string; // schema de PostgreSQL
   role: UserRole;
   iat: number;
@@ -245,15 +245,15 @@ interface JwtPayload {
 ThrottlerModule.forRoot([
   {
     name: 'short',
-    ttl: 1000,    // 1 segundo
-    limit: 10,    // máx 10 requests/segundo por tenant
+    ttl: 1000, // 1 segundo
+    limit: 10, // máx 10 requests/segundo por tenant
   },
   {
     name: 'medium',
-    ttl: 60000,   // 1 minuto
-    limit: 200,   // máx 200 requests/minuto por tenant
-  }
-])
+    ttl: 60000, // 1 minuto
+    limit: 200, // máx 200 requests/minuto por tenant
+  },
+]);
 ```
 
 ### Encriptación de Tokens de Acceso
@@ -300,10 +300,10 @@ function encrypt(text: string): string {
 
 ### Alertas Críticas
 
-| Alerta | Condición | Acción |
-|--------|-----------|--------|
-| API down | uptime < 99% por 2 min | PagerDuty → equipo |
-| Queue acumulada | > 1000 jobs pendientes | Escalar workers |
-| Error rate alto | > 5% requests con error | Slack + Sentry |
-| DB connections | > 80% del pool | Alerta inmediata |
-| Tenant sin pago | 3 intentos fallidos | Email automático |
+| Alerta          | Condición               | Acción             |
+| --------------- | ----------------------- | ------------------ |
+| API down        | uptime < 99% por 2 min  | PagerDuty → equipo |
+| Queue acumulada | > 1000 jobs pendientes  | Escalar workers    |
+| Error rate alto | > 5% requests con error | Slack + Sentry     |
+| DB connections  | > 80% del pool          | Alerta inmediata   |
+| Tenant sin pago | 3 intentos fallidos     | Email automático   |

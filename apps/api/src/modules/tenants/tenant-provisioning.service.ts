@@ -87,9 +87,7 @@ export class TenantProvisioningService {
 
   private async createTenantSchema(schemaName: string): Promise<void> {
     // Crear el schema
-    await this.prisma.$executeRawUnsafe(
-      `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`,
-    );
+    await this.prisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
 
     // Ejecutar el SQL completo del tenant reemplazando el placeholder
     const sql = this.tenantSchemaSql.replaceAll('{{schema}}', schemaName);
@@ -97,7 +95,7 @@ export class TenantProvisioningService {
     // Separar statements: eliminar comentarios de línea y dividir por ;
     const statements = sql
       .split('\n')
-      .filter((line) => !line.trim().startsWith('--'))  // quitar comentarios
+      .filter((line) => !line.trim().startsWith('--')) // quitar comentarios
       .join('\n')
       .split(';')
       .map((s) => s.trim())
@@ -113,7 +111,7 @@ export class TenantProvisioningService {
   private async createOwnerUser(schemaName: string, dto: CreateTenantDto): Promise<void> {
     // Ensure phone column exists
     await this.prisma.$executeRawUnsafe(
-      `ALTER TABLE "${schemaName}".users ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`
+      `ALTER TABLE "${schemaName}".users ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`,
     );
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
@@ -157,9 +155,7 @@ export class TenantProvisioningService {
       data: { status: 'CANCELLED' },
     });
 
-    await this.prisma.$executeRawUnsafe(
-      `DROP SCHEMA IF EXISTS "${tenant.schemaName}" CASCADE`,
-    );
+    await this.prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${tenant.schemaName}" CASCADE`);
 
     this.logger.warn(`Schema eliminado: ${tenant.schemaName}`);
   }

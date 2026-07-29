@@ -23,26 +23,21 @@ const API_CACHE_PATHS = [
 ];
 
 // Install — pre-cache app shell
-const APP_SHELL = [
-  '/',
-  '/orders',
-  '/production',
-  '/manifest.json',
-];
+const APP_SHELL = ['/', '/orders', '/production', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
   self.skipWaiting();
 });
 
 // Activate — clean old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))),
+      ),
   );
   self.clients.claim();
 });
@@ -54,13 +49,19 @@ self.addEventListener('fetch', (event) => {
   // For navigation requests (HTML pages), use network-first with offline fallback
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request).then(r => r || caches.match('/')))
+      fetch(event.request).catch(() =>
+        caches.match(event.request).then((r) => r || caches.match('/')),
+      ),
     );
     return;
   }
 
   // Only handle API requests for caching strategy
-  if (!url.pathname.startsWith('/api') && !url.hostname.includes('api.vspro.app') && !url.hostname.includes('localhost:3001')) {
+  if (
+    !url.pathname.startsWith('/api') &&
+    !url.hostname.includes('api.vspro.app') &&
+    !url.hostname.includes('localhost:3001')
+  ) {
     return;
   }
 
@@ -95,9 +96,9 @@ self.addEventListener('fetch', (event) => {
         // No cache — return offline JSON response
         return new Response(
           JSON.stringify({ offline: true, message: 'Sin conexión. Mostrando datos guardados.' }),
-          { status: 503, headers: { 'Content-Type': 'application/json' } }
+          { status: 503, headers: { 'Content-Type': 'application/json' } },
         );
-      })
+      }),
   );
 });
 
@@ -135,7 +136,7 @@ self.addEventListener('push', (event) => {
       tag: data.tag ?? 'vspro-notification',
       data: { url: data.url ?? '/orders' },
       vibrate: [200, 100, 200],
-    })
+    }),
   );
 });
 
@@ -149,6 +150,6 @@ self.addEventListener('notificationclick', (event) => {
         if (client.url.includes(url) && 'focus' in client) return client.focus();
       }
       return clients.openWindow(url);
-    })
+    }),
   );
 });

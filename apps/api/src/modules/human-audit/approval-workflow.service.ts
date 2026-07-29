@@ -61,9 +61,12 @@ export class ApprovalWorkflowService {
 
       // Check expiration
       if (request.expiresAt && new Date(request.expiresAt) < new Date()) {
-        await this.prisma.$executeRawUnsafe(`
+        await this.prisma.$executeRawUnsafe(
+          `
           UPDATE "${schemaName}".approval_requests SET status = 'expired' WHERE id = $1::uuid
-        `, request.id);
+        `,
+          request.id,
+        );
 
         this.eventsGateway.notifyTenant(tenantId, {
           type: 'approval_expired',
@@ -78,11 +81,15 @@ export class ApprovalWorkflowService {
 
       // Check escalation
       if (request.status === 'pending' && hoursSinceCreated >= rule.escalateAfterHours) {
-        await this.prisma.$executeRawUnsafe(`
+        await this.prisma.$executeRawUnsafe(
+          `
           UPDATE "${schemaName}".approval_requests
           SET status = 'escalated', escalated_to = $1
           WHERE id = $2::uuid
-        `, rule.escalateTo, request.id);
+        `,
+          rule.escalateTo,
+          request.id,
+        );
 
         this.eventsGateway.notifyTenant(tenantId, {
           type: 'approval_escalated',

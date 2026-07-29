@@ -47,7 +47,8 @@ export class PromotionsService {
     const dayMap = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     const today = dayMap[new Date().getDay()];
 
-    return this.prisma.$queryRawUnsafe<any[]>(`
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         id, name, description, type, status, rules,
         starts_at AS "startsAt", ends_at AS "endsAt",
@@ -60,12 +61,16 @@ export class PromotionsService {
         AND (max_uses IS NULL OR current_uses < max_uses)
         AND (days_active IS NULL OR days_active @> $2::jsonb)
       ORDER BY type, name
-    `, now, JSON.stringify(today));
+    `,
+      now,
+      JSON.stringify(today),
+    );
   }
 
   async findById(id: string, schemaName: string) {
     await this.ensureTable(schemaName);
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         id, name, description, type, status, rules,
         starts_at AS "startsAt", ends_at AS "endsAt",
@@ -74,7 +79,9 @@ export class PromotionsService {
         created_at AS "createdAt", updated_at AS "updatedAt"
       FROM "${schemaName}".promotions
       WHERE id = $1::uuid
-    `, id);
+    `,
+      id,
+    );
 
     if (!rows[0]) throw new NotFoundException(`Promoción ${id} no encontrada`);
     return rows[0];
@@ -82,7 +89,8 @@ export class PromotionsService {
 
   async create(dto: CreatePromotionDto, schemaName: string) {
     await this.ensureTable(schemaName);
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".promotions
         (name, description, type, rules, starts_at, ends_at, max_uses, days_active)
       VALUES ($1, $2, $3, $4::jsonb, $5::timestamptz, $6::timestamptz, $7, $8::jsonb)
@@ -112,15 +120,42 @@ export class PromotionsService {
     const values: any[] = [];
     let idx = 1;
 
-    if (dto.name !== undefined) { fields.push(`name = $${idx++}`); values.push(dto.name); }
-    if (dto.description !== undefined) { fields.push(`description = $${idx++}`); values.push(dto.description); }
-    if (dto.type !== undefined) { fields.push(`type = $${idx++}`); values.push(dto.type); }
-    if (dto.status !== undefined) { fields.push(`status = $${idx++}`); values.push(dto.status); }
-    if (dto.rules !== undefined) { fields.push(`rules = $${idx++}::jsonb`); values.push(JSON.stringify(dto.rules)); }
-    if (dto.startsAt !== undefined) { fields.push(`starts_at = $${idx++}::timestamptz`); values.push(dto.startsAt); }
-    if (dto.endsAt !== undefined) { fields.push(`ends_at = $${idx++}::timestamptz`); values.push(dto.endsAt); }
-    if (dto.maxUses !== undefined) { fields.push(`max_uses = $${idx++}`); values.push(dto.maxUses); }
-    if (dto.daysActive !== undefined) { fields.push(`days_active = $${idx++}::jsonb`); values.push(JSON.stringify(dto.daysActive)); }
+    if (dto.name !== undefined) {
+      fields.push(`name = $${idx++}`);
+      values.push(dto.name);
+    }
+    if (dto.description !== undefined) {
+      fields.push(`description = $${idx++}`);
+      values.push(dto.description);
+    }
+    if (dto.type !== undefined) {
+      fields.push(`type = $${idx++}`);
+      values.push(dto.type);
+    }
+    if (dto.status !== undefined) {
+      fields.push(`status = $${idx++}`);
+      values.push(dto.status);
+    }
+    if (dto.rules !== undefined) {
+      fields.push(`rules = $${idx++}::jsonb`);
+      values.push(JSON.stringify(dto.rules));
+    }
+    if (dto.startsAt !== undefined) {
+      fields.push(`starts_at = $${idx++}::timestamptz`);
+      values.push(dto.startsAt);
+    }
+    if (dto.endsAt !== undefined) {
+      fields.push(`ends_at = $${idx++}::timestamptz`);
+      values.push(dto.endsAt);
+    }
+    if (dto.maxUses !== undefined) {
+      fields.push(`max_uses = $${idx++}`);
+      values.push(dto.maxUses);
+    }
+    if (dto.daysActive !== undefined) {
+      fields.push(`days_active = $${idx++}::jsonb`);
+      values.push(JSON.stringify(dto.daysActive));
+    }
 
     if (fields.length === 0) return this.findById(id, schemaName);
 
@@ -138,17 +173,21 @@ export class PromotionsService {
   async remove(id: string, schemaName: string) {
     await this.findById(id, schemaName);
     await this.prisma.$executeRawUnsafe(
-      `DELETE FROM "${schemaName}".promotions WHERE id = $1::uuid`, id,
+      `DELETE FROM "${schemaName}".promotions WHERE id = $1::uuid`,
+      id,
     );
     return { success: true };
   }
 
   async incrementUses(id: string, schemaName: string) {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".promotions
       SET current_uses = current_uses + 1, updated_at = NOW()
       WHERE id = $1::uuid
-    `, id);
+    `,
+      id,
+    );
   }
 
   /**
@@ -170,9 +209,10 @@ export class PromotionsService {
           }
           break;
         case 'discount':
-          const discDesc = rules.discountType === 'percentage'
-            ? `${rules.discountValue}% de descuento`
-            : `$${rules.discountValue} de descuento`;
+          const discDesc =
+            rules.discountType === 'percentage'
+              ? `${rules.discountValue}% de descuento`
+              : `$${rules.discountValue} de descuento`;
           ctx += `- 💸 DESCUENTO "${p.name}": ${discDesc}`;
           if (rules.minOrderTotal) ctx += ` (mínimo $${rules.minOrderTotal})`;
           ctx += '\n';
@@ -189,7 +229,8 @@ export class PromotionsService {
     ctx += '- Si el cliente pregunta por promociones, informa las activas listadas arriba.\n';
     ctx += '- Si el pedido del cliente coincide con un combo/bundle, OFRÉCELO proactivamente.\n';
     ctx += '- Aplica descuentos automáticamente si se cumple el mínimo de compra.\n';
-    ctx += '- Para BOGO, si el cliente pide la cantidad requerida, informa que lleva producto gratis.\n';
+    ctx +=
+      '- Para BOGO, si el cliente pide la cantidad requerida, informa que lleva producto gratis.\n';
     ctx += '- Usa apply_promotion con el promotionId cuando apliques una promo al pedido.\n';
 
     return ctx;

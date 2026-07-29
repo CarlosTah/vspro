@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { PrismaService } from '../../database/prisma.service';
@@ -18,9 +13,7 @@ export class BillingService {
     private readonly config: ConfigService,
   ) {
     const key = this.config.get('STRIPE_SECRET_KEY');
-    this.stripe = key && !key.startsWith('sk_test_not')
-      ? new Stripe(key)
-      : null;
+    this.stripe = key && !key.startsWith('sk_test_not') ? new Stripe(key) : null;
 
     if (!this.stripe) {
       this.logger.warn('STRIPE_SECRET_KEY no configurada — billing en modo simulado');
@@ -42,9 +35,7 @@ export class BillingService {
       where: { slug: planSlug, isActive: true },
     });
 
-    const priceId = interval === 'yearly'
-      ? plan.stripePriceIdYearly
-      : plan.stripePriceIdMonthly;
+    const priceId = interval === 'yearly' ? plan.stripePriceIdYearly : plan.stripePriceIdMonthly;
 
     if (!this.stripe) {
       // Modo simulado — retorna URL fake
@@ -232,8 +223,7 @@ export class BillingService {
   }
 
   private async handlePaymentSucceeded(invoice: Stripe.Invoice) {
-    const tenantId = invoice.subscription_details?.metadata?.tenantId
-      ?? invoice.metadata?.tenantId;
+    const tenantId = invoice.subscription_details?.metadata?.tenantId ?? invoice.metadata?.tenantId;
 
     if (!tenantId) return;
 
@@ -245,9 +235,7 @@ export class BillingService {
         currentPeriodStart: invoice.period_start
           ? new Date(invoice.period_start * 1000)
           : undefined,
-        currentPeriodEnd: invoice.period_end
-          ? new Date(invoice.period_end * 1000)
-          : undefined,
+        currentPeriodEnd: invoice.period_end ? new Date(invoice.period_end * 1000) : undefined,
       },
     });
 
@@ -259,8 +247,7 @@ export class BillingService {
   }
 
   private async handlePaymentFailed(invoice: Stripe.Invoice) {
-    const tenantId = invoice.subscription_details?.metadata?.tenantId
-      ?? invoice.metadata?.tenantId;
+    const tenantId = invoice.subscription_details?.metadata?.tenantId ?? invoice.metadata?.tenantId;
 
     if (!tenantId) return;
 
@@ -276,7 +263,9 @@ export class BillingService {
         where: { tenantId },
         data: { status: 'PAST_DUE' },
       });
-      this.logger.warn(`Tenant ${tenantId} SUSPENDIDO por falta de pago (${attemptCount} intentos)`);
+      this.logger.warn(
+        `Tenant ${tenantId} SUSPENDIDO por falta de pago (${attemptCount} intentos)`,
+      );
     } else {
       await this.prisma.subscription.updateMany({
         where: { tenantId },
@@ -317,7 +306,9 @@ export class BillingService {
     this.logger.log(`Suscripción cancelada para tenant ${tenantId}`);
   }
 
-  private mapStripeStatus(status: Stripe.Subscription.Status): 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'UNPAID' {
+  private mapStripeStatus(
+    status: Stripe.Subscription.Status,
+  ): 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'UNPAID' {
     const map: Record<string, 'TRIALING' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'UNPAID'> = {
       active: 'ACTIVE',
       trialing: 'TRIALING',

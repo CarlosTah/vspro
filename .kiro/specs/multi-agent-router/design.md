@@ -6,15 +6,15 @@ This design refactors the monolithic `AiEngineService` into a multi-agent archit
 
 ### Key Design Decisions
 
-| Decision | Rationale |
-|----------|-----------|
-| Heuristic-first routing | Keywords + order state cover 80% of cases without LLM cost |
-| gpt-4o-mini for classification fallback | Fast (~50ms) and cheap for the 20% ambiguous cases |
-| Redis intent cache per conversation | Avoids re-classification on follow-up messages (TTL 30min) |
-| Agents as classes within AiModule | Simpler DI than separate NestJS modules; shared services |
-| GeneralAgent wraps current behavior | Zero breaking changes; existing tenants work identically |
-| InventoryAgent is cron-only | No message processing; autonomous background scanning |
-| FinanceAgent is event+cron | Stripe webhooks trigger matching; daily cron catches stragglers |
+| Decision                                | Rationale                                                       |
+| --------------------------------------- | --------------------------------------------------------------- |
+| Heuristic-first routing                 | Keywords + order state cover 80% of cases without LLM cost      |
+| gpt-4o-mini for classification fallback | Fast (~50ms) and cheap for the 20% ambiguous cases              |
+| Redis intent cache per conversation     | Avoids re-classification on follow-up messages (TTL 30min)      |
+| Agents as classes within AiModule       | Simpler DI than separate NestJS modules; shared services        |
+| GeneralAgent wraps current behavior     | Zero breaking changes; existing tenants work identically        |
+| InventoryAgent is cron-only             | No message processing; autonomous background scanning           |
+| FinanceAgent is event+cron              | Stripe webhooks trigger matching; daily cron catches stragglers |
 
 ## Architecture
 
@@ -29,12 +29,12 @@ flowchart TD
     F -->|No| H[LLM classification - gpt-4o-mini]
     H -->|confidence ≥ 0.7| G
     H -->|confidence < 0.7| I[Route to GeneralAgent]
-    
+
     G --> J{Which agent?}
     J -->|sales| K[SalesAgent.process]
     J -->|support| L[GeneralAgent.process]
     J -->|finance| M[FinanceAgent.process]
-    
+
     E --> J
     I --> L
 
@@ -84,11 +84,7 @@ export abstract class BaseAgent {
   abstract getTools(): OpenAI.Chat.ChatCompletionTool[];
   abstract executeTool(name: string, args: any, context: AgentContext): Promise<string>;
 
-  async process(
-    message: string,
-    context: AgentContext,
-    tenant: any,
-  ): Promise<AgentResponse> {
+  async process(message: string, context: AgentContext, tenant: any): Promise<AgentResponse> {
     // 1. Build system prompt
     // 2. Assemble messages (system + history + memory + current)
     // 3. Call OpenAI with agent-specific tools
@@ -147,7 +143,10 @@ export class AgentRouterService {
     return { agent: 'general', confidence: llmResult.confidence, source: 'llm' };
   }
 
-  private classifyHeuristic(message: string, context: any): { agent: AgentType; confidence: number } {
+  private classifyHeuristic(
+    message: string,
+    context: any,
+  ): { agent: AgentType; confidence: number } {
     const lower = message.toLowerCase();
     const orderState = context?.orderState;
 
@@ -173,7 +172,10 @@ export class AgentRouterService {
     return { agent: 'general', confidence: 0.4 };
   }
 
-  private async classifyLLM(message: string, context: any): Promise<{ agent: AgentType; confidence: number }> {
+  private async classifyLLM(
+    message: string,
+    context: any,
+  ): Promise<{ agent: AgentType; confidence: number }> {
     const response = await this.openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -202,9 +204,18 @@ Responde SOLO con JSON: {"intent": "categoria", "confidence": 0.0-1.0}`,
   }
 
   // Redis cache methods
-  private async getCachedIntent(conversationId: string): Promise<RouteResult | null> { /* ... */ }
-  private async cacheIntent(conversationId: string, result: { agent: AgentType; confidence: number }): Promise<void> { /* ... */ }
-  async invalidateCache(conversationId: string): Promise<void> { /* ... */ }
+  private async getCachedIntent(conversationId: string): Promise<RouteResult | null> {
+    /* ... */
+  }
+  private async cacheIntent(
+    conversationId: string,
+    result: { agent: AgentType; confidence: number },
+  ): Promise<void> {
+    /* ... */
+  }
+  async invalidateCache(conversationId: string): Promise<void> {
+    /* ... */
+  }
 }
 ```
 
@@ -391,44 +402,51 @@ interface ReconciliationResult {
 ## Correctness Properties
 
 ### Property 1: Router confidence threshold enforcement
-*For any* message and *for any* classification result with confidence < 0.7, the system SHALL route to GeneralAgent regardless of the classified intent.
+
+_For any_ message and _for any_ classification result with confidence < 0.7, the system SHALL route to GeneralAgent regardless of the classified intent.
 **Validates: Requirements 2.4, 8.2**
 
 ### Property 2: Intent cache consistency
-*For any* conversation with a cached intent, if the conversation state changes (new order state or explicit topic change), the cache SHALL be invalidated before the next routing decision.
+
+_For any_ conversation with a cached intent, if the conversation state changes (new order state or explicit topic change), the cache SHALL be invalidated before the next routing decision.
 **Validates: Requirements 2.5, 2.6**
 
 ### Property 3: Discount policy enforcement
-*For any* discount applied by the SalesAgent, the discount percentage SHALL NOT exceed the max_discount_percent defined in the tenant's CommercialPolicies.
+
+_For any_ discount applied by the SalesAgent, the discount percentage SHALL NOT exceed the max_discount_percent defined in the tenant's CommercialPolicies.
 **Validates: Requirements 3.3, 3.4**
 
 ### Property 4: Reconciliation tolerance boundary
-*For any* payment discrepancy, if the absolute value exceeds the configured Reconciliation_Tolerance, the FinanceAgent SHALL escalate (never auto-reconcile).
+
+_For any_ payment discrepancy, if the absolute value exceeds the configured Reconciliation_Tolerance, the FinanceAgent SHALL escalate (never auto-reconcile).
 **Validates: Requirements 5.2, 5.3**
 
 ### Property 5: Backward compatibility invariant
-*For any* tenant without agent_config defined, the system SHALL produce identical responses to the current monolithic AiEngineService for the same input.
+
+_For any_ tenant without agent_config defined, the system SHALL produce identical responses to the current monolithic AiEngineService for the same input.
 **Validates: Requirements 8.1, 8.3, 8.4**
 
 ### Property 6: Agent isolation
-*For any* agent instance, the tools available to that agent SHALL be exclusively those defined in its getTools() method — no agent can invoke another agent's tools.
+
+_For any_ agent instance, the tools available to that agent SHALL be exclusively those defined in its getTools() method — no agent can invoke another agent's tools.
 **Validates: Requirements 1.1, 3.2**
 
 ## Error Handling
 
-| Scenario | Behavior | Recovery |
-|----------|----------|----------|
-| Redis unavailable for cache | Skip cache, classify every message | Graceful degradation, slightly higher latency |
-| LLM classification fails | Default to GeneralAgent | Log error, no user impact |
-| SalesAgent discount exceeds policy | Reject tool call, return error to AI | AI reformulates with valid discount |
-| InventoryAgent scan fails for one tenant | Skip tenant, continue others | Log error, retry next cycle |
-| FinanceAgent Stripe event has no match | Create alert for admin | Manual review queue |
-| Agent process() throws | Catch in router, fallback to GeneralAgent | User gets generic response |
-| Invalid agent_config JSON | Use default config | Log warning on tenant load |
+| Scenario                                 | Behavior                                  | Recovery                                      |
+| ---------------------------------------- | ----------------------------------------- | --------------------------------------------- |
+| Redis unavailable for cache              | Skip cache, classify every message        | Graceful degradation, slightly higher latency |
+| LLM classification fails                 | Default to GeneralAgent                   | Log error, no user impact                     |
+| SalesAgent discount exceeds policy       | Reject tool call, return error to AI      | AI reformulates with valid discount           |
+| InventoryAgent scan fails for one tenant | Skip tenant, continue others              | Log error, retry next cycle                   |
+| FinanceAgent Stripe event has no match   | Create alert for admin                    | Manual review queue                           |
+| Agent process() throws                   | Catch in router, fallback to GeneralAgent | User gets generic response                    |
+| Invalid agent_config JSON                | Use default config                        | Log warning on tenant load                    |
 
 ## Testing Strategy
 
 ### Unit Tests
+
 - Router heuristic classification (keyword matching)
 - Router confidence threshold (< 0.7 → general)
 - SalesAgent discount policy enforcement
@@ -437,6 +455,7 @@ interface ReconciliationResult {
 - Intent cache set/get/invalidate
 
 ### Integration Tests
+
 - Full message flow: message → router → agent → response
 - Multi-turn conversation with cached intent
 - InventoryAgent cron scan with seeded low-stock data
@@ -444,6 +463,7 @@ interface ReconciliationResult {
 - Tenant with disabled agents routes to GeneralAgent
 
 ### Property-Based Tests (fast-check)
+
 - Property 1: Random messages with low confidence → always GeneralAgent
 - Property 3: Random discount values → never exceeds policy max
 - Property 4: Random discrepancy amounts → correct escalation/auto-resolve

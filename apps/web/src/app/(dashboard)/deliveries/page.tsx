@@ -31,13 +31,26 @@ type Tab = 'active' | 'drivers' | 'assignments' | 'history';
 
 export default function DeliveriesPage() {
   const [tab, setTab] = useState<Tab>('active');
-  const { data: drivers, loading: loadingDrivers, refetch: refetchDrivers } = useApi<any[]>('/delivery/drivers');
-  const { data: active, loading: loadingActive, refetch: refetchActive } = useApi<any[]>('/delivery/active');
+  const {
+    data: drivers,
+    loading: loadingDrivers,
+    refetch: refetchDrivers,
+  } = useApi<any[]>('/delivery/drivers');
+  const {
+    data: active,
+    loading: loadingActive,
+    refetch: refetchActive,
+  } = useApi<any[]>('/delivery/active');
   const { data: history, loading: loadingHistory } = useApi<any[]>('/delivery/history');
   const { data: assignments, refetch: refetchAssignments } = useApi<any[]>('/delivery/assignments');
 
   const [showAddDriver, setShowAddDriver] = useState(false);
-  const [driverForm, setDriverForm] = useState({ name: '', phone: '', vehicleType: 'moto', deliveryFee: 0 });
+  const [driverForm, setDriverForm] = useState({
+    name: '',
+    phone: '',
+    vehicleType: 'moto',
+    deliveryFee: 0,
+  });
   const [saving, setSaving] = useState(false);
   const [payingDriver, setPayingDriver] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState(0);
@@ -50,18 +63,32 @@ export default function DeliveriesPage() {
   const [selectedDriverForAssign, setSelectedDriverForAssign] = useState<string>('');
   const [assigning, setAssigning] = useState(false);
   const loadReadyOrders = async () => {
-    try { const orders = await api.get<any[]>('/orders?status=ready'); setReadyOrders(orders ?? []); } catch { setReadyOrders([]); }
+    try {
+      const orders = await api.get<any[]>('/orders?status=ready');
+      setReadyOrders(orders ?? []);
+    } catch {
+      setReadyOrders([]);
+    }
   };
   const handleManualAssign = async () => {
     if (!selectedOrderForAssign || !selectedDriverForAssign) return;
     setAssigning(true);
     try {
-      await api.post('/delivery/request', { orderId: selectedOrderForAssign, driverId: selectedDriverForAssign });
-      setShowManualAssign(false); setSelectedOrderForAssign(''); setSelectedDriverForAssign('');
-      refetchAssignments(); refetchActive();
+      await api.post('/delivery/request', {
+        orderId: selectedOrderForAssign,
+        driverId: selectedDriverForAssign,
+      });
+      setShowManualAssign(false);
+      setSelectedOrderForAssign('');
+      setSelectedDriverForAssign('');
+      refetchAssignments();
+      refetchActive();
       alert('Repartidor asignado. Se envio mensaje por WhatsApp.');
-    } catch (err: any) { alert('Error: ' + err.message); }
-    finally { setAssigning(false); }
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setAssigning(false);
+    }
   };
 
   const loadAssignmentMessages = async (assignment: any) => {
@@ -69,7 +96,9 @@ export default function DeliveriesPage() {
     try {
       const msgs = await api.get(`/delivery/assignments/${assignment.id}/messages`);
       setAssignmentMessages(msgs);
-    } catch { setAssignmentMessages([]); }
+    } catch {
+      setAssignmentMessages([]);
+    }
   };
 
   const sendDriverMsg = async () => {
@@ -160,7 +189,9 @@ export default function DeliveriesPage() {
             <input
               type="number"
               value={driverForm.deliveryFee}
-              onChange={(e) => setDriverForm({ ...driverForm, deliveryFee: parseFloat(e.target.value) || 0 })}
+              onChange={(e) =>
+                setDriverForm({ ...driverForm, deliveryFee: parseFloat(e.target.value) || 0 })
+              }
               placeholder="50"
               min={0}
               className="vspro-input"
@@ -178,12 +209,14 @@ export default function DeliveriesPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg bg-gray-800 p-1">
-        {([
-          { key: 'active', label: '🚀 Entregas activas' },
-          { key: 'drivers', label: '👥 Repartidores' },
-          { key: 'assignments', label: '📨 Asignaciones' },
-          { key: 'history', label: '📋 Historial' },
-        ] as { key: Tab; label: string }[]).map(t => (
+        {(
+          [
+            { key: 'active', label: '🚀 Entregas activas' },
+            { key: 'drivers', label: '👥 Repartidores' },
+            { key: 'assignments', label: '📨 Asignaciones' },
+            { key: 'history', label: '📋 Historial' },
+          ] as { key: Tab; label: string }[]
+        ).map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
@@ -211,11 +244,15 @@ export default function DeliveriesPage() {
                     </div>
                     <div>
                       <p className="text-sm text-white font-medium">{a.orderNumber}</p>
-                      <p className="text-xs text-gray-400">{a.driverName} → {a.customerName}</p>
+                      <p className="text-xs text-gray-400">
+                        {a.driverName} → {a.customerName}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${assignmentColors[a.status] ?? ''}`}>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${assignmentColors[a.status] ?? ''}`}
+                    >
                       {assignmentLabels[a.status] ?? a.status}
                     </span>
                     <span className="text-sm text-gray-400">
@@ -256,7 +293,14 @@ export default function DeliveriesPage() {
                       <p className="text-xs text-gray-500">{d.phone}</p>
                     </td>
                     <td className="px-5 py-3 text-gray-300 capitalize">
-                      {d.vehicleType === 'moto' ? '🏍️' : d.vehicleType === 'bicicleta' ? '🚲' : d.vehicleType === 'auto' ? '🚗' : '🚶'} {d.vehicleType}
+                      {d.vehicleType === 'moto'
+                        ? '🏍️'
+                        : d.vehicleType === 'bicicleta'
+                          ? '🚲'
+                          : d.vehicleType === 'auto'
+                            ? '🚗'
+                            : '🚶'}{' '}
+                      {d.vehicleType}
                     </td>
                     <td className="px-5 py-3">
                       <select
@@ -273,14 +317,21 @@ export default function DeliveriesPage() {
                       ${parseFloat(d.deliveryFee ?? 0).toLocaleString('es-MX')}
                     </td>
                     <td className="px-5 py-3">
-                      <span className={`font-medium ${parseFloat(d.balance ?? 0) > 0 ? 'text-yellow-400' : 'text-gray-400'}`}>
+                      <span
+                        className={`font-medium ${parseFloat(d.balance ?? 0) > 0 ? 'text-yellow-400' : 'text-gray-400'}`}
+                      >
                         ${parseFloat(d.balance ?? 0).toLocaleString('es-MX')}
                       </span>
                       {parseFloat(d.balance ?? 0) > 0 && (
                         <button
-                          onClick={() => { setPayingDriver(d.id); setPayAmount(parseFloat(d.balance ?? 0)); }}
+                          onClick={() => {
+                            setPayingDriver(d.id);
+                            setPayAmount(parseFloat(d.balance ?? 0));
+                          }}
                           className="ml-2 text-[10px] text-green-400 hover:text-green-300 border border-green-600 rounded px-1.5 py-0.5"
-                        >Pagar</button>
+                        >
+                          Pagar
+                        </button>
                       )}
                     </td>
                     <td className="px-5 py-3">
@@ -298,7 +349,10 @@ export default function DeliveriesPage() {
           ) : (
             <div className="p-8 text-center text-gray-500">
               <p>No hay repartidores registrados</p>
-              <button onClick={() => setShowAddDriver(true)} className="mt-2 text-accent text-sm hover:underline">
+              <button
+                onClick={() => setShowAddDriver(true)}
+                className="mt-2 text-accent text-sm hover:underline"
+              >
                 + Registrar primer repartidor
               </button>
             </div>
@@ -314,19 +368,49 @@ export default function DeliveriesPage() {
           <div className="lg:col-span-3 rounded-xl border border-card-border bg-card p-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-300">Asignación manual</h3>
-              <button onClick={() => { setShowManualAssign(!showManualAssign); loadReadyOrders(); }} className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent/90">{showManualAssign ? 'Cerrar' : '+ Asignar repartidor'}</button>
+              <button
+                onClick={() => {
+                  setShowManualAssign(!showManualAssign);
+                  loadReadyOrders();
+                }}
+                className="text-xs bg-accent text-white px-3 py-1.5 rounded-lg hover:bg-accent/90"
+              >
+                {showManualAssign ? 'Cerrar' : '+ Asignar repartidor'}
+              </button>
             </div>
             {showManualAssign && (
               <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <select value={selectedOrderForAssign} onChange={(e) => setSelectedOrderForAssign(e.target.value)} className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white">
+                <select
+                  value={selectedOrderForAssign}
+                  onChange={(e) => setSelectedOrderForAssign(e.target.value)}
+                  className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white"
+                >
                   <option value="">Pedido listo...</option>
-                  {readyOrders.map((o: any) => (<option key={o.id} value={o.id}>{o.orderNumber} - {o.customerName}</option>))}
+                  {readyOrders.map((o: any) => (
+                    <option key={o.id} value={o.id}>
+                      {o.orderNumber} - {o.customerName}
+                    </option>
+                  ))}
                 </select>
-                <select value={selectedDriverForAssign} onChange={(e) => setSelectedDriverForAssign(e.target.value)} className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white">
+                <select
+                  value={selectedDriverForAssign}
+                  onChange={(e) => setSelectedDriverForAssign(e.target.value)}
+                  className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white"
+                >
                   <option value="">Repartidor...</option>
-                  {drivers?.map((d: any) => (<option key={d.id} value={d.id}>{d.name} ({d.status})</option>))}
+                  {drivers?.map((d: any) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} ({d.status})
+                    </option>
+                  ))}
                 </select>
-                <button onClick={handleManualAssign} disabled={assigning || !selectedOrderForAssign || !selectedDriverForAssign} className="bg-accent text-white px-4 py-2 rounded-lg text-sm disabled:opacity-50">{assigning ? 'Asignando...' : '📤 Asignar y enviar WhatsApp'}</button>
+                <button
+                  onClick={handleManualAssign}
+                  disabled={assigning || !selectedOrderForAssign || !selectedDriverForAssign}
+                  className="bg-accent text-white px-4 py-2 rounded-lg text-sm disabled:opacity-50"
+                >
+                  {assigning ? 'Asignando...' : '📤 Asignar y enviar WhatsApp'}
+                </button>
               </div>
             )}
           </div>
@@ -336,16 +420,27 @@ export default function DeliveriesPage() {
               <table className="w-full text-sm">
                 <thead className="border-b border-gray-700">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Pedido</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Repartidor</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Estado</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">Timeline</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">
+                      Pedido
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">
+                      Repartidor
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">
+                      Estado
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-400">
+                      Timeline
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700/50">
                   {assignments.map((a: any) => (
-                    <tr key={a.id} className={`hover:bg-gray-800/30 cursor-pointer ${selectedAssignment?.id === a.id ? 'bg-blue-900/20' : ''}`}
-                        onClick={() => loadAssignmentMessages(a)}>
+                    <tr
+                      key={a.id}
+                      className={`hover:bg-gray-800/30 cursor-pointer ${selectedAssignment?.id === a.id ? 'bg-blue-900/20' : ''}`}
+                      onClick={() => loadAssignmentMessages(a)}
+                    >
                       <td className="px-4 py-3">
                         <p className="text-white font-medium">#{a.orderNumber}</p>
                         <p className="text-xs text-gray-500">{a.customerName}</p>
@@ -354,15 +449,49 @@ export default function DeliveriesPage() {
                         <p className="text-white">{a.driverName ?? 'Sin asignar'}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${assignmentColors[a.status] ?? ''}`}>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${assignmentColors[a.status] ?? ''}`}
+                        >
                           {assignmentLabels[a.status] ?? a.status}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-[10px] text-gray-400">
-                        {a.offeredAt && <span>📨 {new Date(a.offeredAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} </span>}
-                        {a.acceptedAt && <span>✅ {new Date(a.acceptedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} </span>}
-                        {a.pickedUpAt && <span>📦 {new Date(a.pickedUpAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} </span>}
-                        {a.deliveredAt && <span>🏠 {new Date(a.deliveredAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>}
+                        {a.offeredAt && (
+                          <span>
+                            📨{' '}
+                            {new Date(a.offeredAt).toLocaleTimeString('es-MX', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}{' '}
+                          </span>
+                        )}
+                        {a.acceptedAt && (
+                          <span>
+                            ✅{' '}
+                            {new Date(a.acceptedAt).toLocaleTimeString('es-MX', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}{' '}
+                          </span>
+                        )}
+                        {a.pickedUpAt && (
+                          <span>
+                            📦{' '}
+                            {new Date(a.pickedUpAt).toLocaleTimeString('es-MX', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}{' '}
+                          </span>
+                        )}
+                        {a.deliveredAt && (
+                          <span>
+                            🏠{' '}
+                            {new Date(a.deliveredAt).toLocaleTimeString('es-MX', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -378,17 +507,30 @@ export default function DeliveriesPage() {
             {selectedAssignment ? (
               <div className="rounded-xl border border-gray-700 bg-gray-800 p-4 space-y-3 sticky top-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-white">#{selectedAssignment.orderNumber}</h3>
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${assignmentColors[selectedAssignment.status]}`}>
+                  <h3 className="text-sm font-semibold text-white">
+                    #{selectedAssignment.orderNumber}
+                  </h3>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs ${assignmentColors[selectedAssignment.status]}`}
+                  >
                     {assignmentLabels[selectedAssignment.status]}
                   </span>
                 </div>
 
                 <div className="text-xs text-gray-400 space-y-1 border-b border-gray-700 pb-3">
-                  <p>👤 {selectedAssignment.customerName} · {selectedAssignment.customerPhone}</p>
-                  <p>🛵 {selectedAssignment.driverName} · {selectedAssignment.driverPhone}</p>
+                  <p>
+                    👤 {selectedAssignment.customerName} · {selectedAssignment.customerPhone}
+                  </p>
+                  <p>
+                    🛵 {selectedAssignment.driverName} · {selectedAssignment.driverPhone}
+                  </p>
                   {selectedAssignment.shippingAddress && (
-                    <p>📍 {typeof selectedAssignment.shippingAddress === 'object' ? selectedAssignment.shippingAddress.street : selectedAssignment.shippingAddress}</p>
+                    <p>
+                      📍{' '}
+                      {typeof selectedAssignment.shippingAddress === 'object'
+                        ? selectedAssignment.shippingAddress.street
+                        : selectedAssignment.shippingAddress}
+                    </p>
                   )}
                   <p>💰 ${parseFloat(selectedAssignment.orderTotal).toLocaleString('es-MX')}</p>
                 </div>
@@ -396,12 +538,22 @@ export default function DeliveriesPage() {
                 {/* Messages */}
                 <div className="space-y-1.5 max-h-60 overflow-y-auto">
                   {assignmentMessages.map((m: any) => (
-                    <div key={m.id} className={`text-xs rounded-lg px-2 py-1.5 ${m.direction === 'outbound' ? 'bg-blue-900/30 text-blue-200' : 'bg-gray-900 text-gray-200'}`}>
-                      <span className="text-gray-500">{m.direction === 'outbound' ? '📤' : '📥'}</span> {m.content?.slice(0, 150)}
-                      <p className="text-[9px] text-gray-600 mt-0.5">{new Date(m.createdAt).toLocaleTimeString('es-MX')}</p>
+                    <div
+                      key={m.id}
+                      className={`text-xs rounded-lg px-2 py-1.5 ${m.direction === 'outbound' ? 'bg-blue-900/30 text-blue-200' : 'bg-gray-900 text-gray-200'}`}
+                    >
+                      <span className="text-gray-500">
+                        {m.direction === 'outbound' ? '📤' : '📥'}
+                      </span>{' '}
+                      {m.content?.slice(0, 150)}
+                      <p className="text-[9px] text-gray-600 mt-0.5">
+                        {new Date(m.createdAt).toLocaleTimeString('es-MX')}
+                      </p>
                     </div>
                   ))}
-                  {assignmentMessages.length === 0 && <p className="text-xs text-gray-500 text-center">Sin mensajes</p>}
+                  {assignmentMessages.length === 0 && (
+                    <p className="text-xs text-gray-500 text-center">Sin mensajes</p>
+                  )}
                 </div>
 
                 {/* Manual message */}
@@ -413,7 +565,12 @@ export default function DeliveriesPage() {
                     className="flex-1 rounded-lg border border-gray-600 bg-gray-900 px-2 py-1.5 text-xs text-white"
                     onKeyDown={(e) => e.key === 'Enter' && sendDriverMsg()}
                   />
-                  <button onClick={sendDriverMsg} className="rounded-lg bg-blue-600 px-2 py-1.5 text-xs text-white">Enviar</button>
+                  <button
+                    onClick={sendDriverMsg}
+                    className="rounded-lg bg-blue-600 px-2 py-1.5 text-xs text-white"
+                  >
+                    Enviar
+                  </button>
                 </div>
               </div>
             ) : (
@@ -433,10 +590,21 @@ export default function DeliveriesPage() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-gray-400">Monto a pagar ($)</label>
-                <input type="number" value={payAmount} onChange={e => setPayAmount(parseFloat(e.target.value) || 0)} min={0} className="w-full vspro-input" />
+                <input
+                  type="number"
+                  value={payAmount}
+                  onChange={(e) => setPayAmount(parseFloat(e.target.value) || 0)}
+                  min={0}
+                  className="w-full vspro-input"
+                />
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setPayingDriver(null)} className="flex-1 rounded-lg border border-gray-600 py-2 text-sm text-gray-300">Cancelar</button>
+                <button
+                  onClick={() => setPayingDriver(null)}
+                  className="flex-1 rounded-lg border border-gray-600 py-2 text-sm text-gray-300"
+                >
+                  Cancelar
+                </button>
                 <button
                   onClick={async () => {
                     await api.post(`/delivery/drivers/${payingDriver}/pay`, { amount: payAmount });
@@ -444,7 +612,9 @@ export default function DeliveriesPage() {
                     refetchDrivers();
                   }}
                   className="flex-1 rounded-lg bg-green-600 py-2 text-sm text-white hover:bg-green-700"
-                >Confirmar pago</button>
+                >
+                  Confirmar pago
+                </button>
               </div>
             </div>
           </div>
@@ -472,7 +642,9 @@ export default function DeliveriesPage() {
                     <td className="px-5 py-3 text-white font-medium">{h.orderNumber}</td>
                     <td className="px-5 py-3 text-gray-300">{h.driverName}</td>
                     <td className="px-5 py-3">
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${assignmentColors[h.status] ?? ''}`}>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${assignmentColors[h.status] ?? ''}`}
+                      >
                         {assignmentLabels[h.status] ?? h.status}
                       </span>
                     </td>
@@ -482,7 +654,10 @@ export default function DeliveriesPage() {
                         : '—'}
                     </td>
                     <td className="px-5 py-3 text-gray-500">
-                      {new Date(h.offeredAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+                      {new Date(h.offeredAt).toLocaleDateString('es-MX', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}
                     </td>
                   </tr>
                 ))}

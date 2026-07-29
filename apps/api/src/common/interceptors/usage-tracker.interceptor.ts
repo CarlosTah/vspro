@@ -1,10 +1,4 @@
-import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
-  Inject,
-} from '@nestjs/common';
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler, Inject } from '@nestjs/common';
 import { Observable, tap } from 'rxjs';
 import { Reflector } from '@nestjs/core';
 import { TRACK_USAGE_KEY, UsageType } from '../decorators/track-usage.decorator';
@@ -25,10 +19,10 @@ export class UsageTrackerInterceptor implements NestInterceptor {
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const usageType = this.reflector.getAllAndOverride<UsageType>(
-      TRACK_USAGE_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const usageType = this.reflector.getAllAndOverride<UsageType>(TRACK_USAGE_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     if (!usageType) return next.handle();
 

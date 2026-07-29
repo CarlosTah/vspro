@@ -16,9 +16,14 @@ const statusColors: Record<string, string> = {
 };
 
 const statusLabels: Record<string, string> = {
-  new: 'Nuevo', payment_pending: 'Pago pendiente', payment_verified: 'Pagado',
-  in_production: 'En producción', ready: 'Listo', shipped: 'Enviado',
-  delivered: 'Entregado', cancelled: 'Cancelado',
+  new: 'Nuevo',
+  payment_pending: 'Pago pendiente',
+  payment_verified: 'Pagado',
+  in_production: 'En producción',
+  ready: 'Listo',
+  shipped: 'Enviado',
+  delivered: 'Entregado',
+  cancelled: 'Cancelado',
 };
 
 type Period = 'today' | 'week' | 'month';
@@ -33,13 +38,21 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-white">Dashboard</h1>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <CardSkeleton /><CardSkeleton /><CardSkeleton /><CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
         </div>
       </div>
     );
   }
 
-  const stats = data?.stats ?? { ordersToday: 0, inProduction: 0, readyForShipment: 0, salesToday: 0 };
+  const stats = data?.stats ?? {
+    ordersToday: 0,
+    inProduction: 0,
+    readyForShipment: 0,
+    salesToday: 0,
+  };
   const recentOrders = data?.recentOrders ?? [];
   const report = reportData ?? {};
   const revenue = report.revenue?.total ?? report.revenue ?? 0;
@@ -50,7 +63,11 @@ export default function DashboardPage() {
   const newCustomers = report.customers?.newInPeriod ?? report.newCustomers ?? 0;
   const topProducts = report.topProducts ?? [];
 
-  const periodLabels: Record<Period, string> = { today: 'Hoy', week: 'Esta semana', month: 'Este mes' };
+  const periodLabels: Record<Period, string> = {
+    today: 'Hoy',
+    week: 'Esta semana',
+    month: 'Este mes',
+  };
 
   return (
     <div className="space-y-6">
@@ -61,7 +78,7 @@ export default function DashboardPage() {
           <p className="text-sm text-gray-400">Resumen de tu negocio</p>
         </div>
         <div className="flex gap-1 rounded-lg bg-gray-800 p-1">
-          {(['today', 'week', 'month'] as Period[]).map(p => (
+          {(['today', 'week', 'month'] as Period[]).map((p) => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
@@ -109,7 +126,11 @@ export default function DashboardPage() {
         <MiniStat label="En producción" value={stats.inProduction} color="orange" />
         <MiniStat label="Listos para envío" value={stats.readyForShipment} color="teal" />
         <MiniStat label="Pedidos hoy" value={stats.ordersToday} color="blue" />
-        <MiniStat label="Ventas hoy" value={`$${Number(stats.salesToday).toLocaleString()}`} color="green" />
+        <MiniStat
+          label="Ventas hoy"
+          value={`$${Number(stats.salesToday).toLocaleString()}`}
+          color="green"
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -128,7 +149,9 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-right">
                     <span className="text-sm text-accent font-medium">{p.quantity} uds</span>
-                    <p className="text-xs text-gray-500">${Number(p.revenue ?? 0).toLocaleString()}</p>
+                    <p className="text-xs text-gray-500">
+                      ${Number(p.revenue ?? 0).toLocaleString()}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -140,7 +163,9 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 rounded-xl border border-card-border bg-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-gray-300">📋 Pedidos recientes</h3>
-            <a href="/orders" className="text-xs text-accent hover:underline">Ver todos →</a>
+            <a href="/orders" className="text-xs text-accent hover:underline">
+              Ver todos →
+            </a>
           </div>
           {recentOrders.length === 0 ? (
             <p className="text-sm text-gray-500 text-center py-4">No hay pedidos aún</p>
@@ -153,7 +178,9 @@ export default function DashboardPage() {
                   className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-gray-800/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[order.status] ?? ''}`}>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[order.status] ?? ''}`}
+                    >
                       {statusLabels[order.status] ?? order.status}
                     </span>
                     <div>
@@ -162,9 +189,14 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-white font-medium">${Number(order.total).toLocaleString('es-MX')}</p>
+                    <p className="text-sm text-white font-medium">
+                      ${Number(order.total).toLocaleString('es-MX')}
+                    </p>
                     <p className="text-xs text-gray-500">
-                      {new Date(order.createdAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+                      {new Date(order.createdAt).toLocaleDateString('es-MX', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}
                     </p>
                   </div>
                 </a>
@@ -177,8 +209,18 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({ icon, label, value, subtitle, accent }: {
-  icon: string; label: string; value: string | number; subtitle?: string; accent?: boolean;
+function StatCard({
+  icon,
+  label,
+  value,
+  subtitle,
+  accent,
+}: {
+  icon: string;
+  label: string;
+  value: string | number;
+  subtitle?: string;
+  accent?: boolean;
 }) {
   return (
     <div className={`vspro-stat-card ${accent ? 'border-accent/30' : ''}`}>
@@ -193,7 +235,15 @@ function StatCard({ icon, label, value, subtitle, accent }: {
   );
 }
 
-function MiniStat({ label, value, color }: { label: string; value: string | number; color: string }) {
+function MiniStat({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string | number;
+  color: string;
+}) {
   const colorMap: Record<string, string> = {
     orange: 'border-orange-500/30 text-orange-300',
     teal: 'border-teal-500/30 text-teal-300',

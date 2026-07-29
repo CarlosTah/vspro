@@ -46,14 +46,14 @@ export class ProactivityCronService {
         totalEnqueued += enqueued;
       } catch (err: any) {
         // Failure in one tenant does not block others
-        this.logger.error(
-          `Error scanning tenant ${tenant.slug}: ${err.message}`,
-        );
+        this.logger.error(`Error scanning tenant ${tenant.slug}: ${err.message}`);
       }
     }
 
     if (totalEnqueued > 0) {
-      this.logger.log(`Proactive scan: ${totalEnqueued} jobs enqueued across ${tenants.length} tenants`);
+      this.logger.log(
+        `Proactive scan: ${totalEnqueued} jobs enqueued across ${tenants.length} tenants`,
+      );
     }
   }
 

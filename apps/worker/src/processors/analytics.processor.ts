@@ -35,29 +35,43 @@ export class AnalyticsProcessor {
     const nextDate = new Date(new Date(date).getTime() + 86400000).toISOString().split('T')[0];
 
     // Sales aggregation
-    const sales = await this.prisma.$queryRawUnsafe<any[]>(`
+    const sales = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         COUNT(*) AS orders,
         COALESCE(SUM(total) FILTER (WHERE status != 'cancelled'), 0) AS revenue,
         COUNT(DISTINCT customer_id) AS customers
       FROM "${schemaName}".orders
       WHERE created_at >= $1::date AND created_at < $2::date
-    `, date, nextDate);
+    `,
+      date,
+      nextDate,
+    );
 
     // Top products (JSONB items parser)
-    const products = await this.prisma.$queryRawUnsafe<any[]>(`
+    const products = await this.prisma
+      .$queryRawUnsafe<any[]>(
+        `
       SELECT item->>'productName' AS name,
              SUM((item->>'quantity')::int) AS qty,
              SUM((item->>'unitPrice')::numeric * (item->>'quantity')::int) AS rev
       FROM "${schemaName}".orders o, jsonb_array_elements(o.items) AS item
       WHERE o.created_at >= $1::date AND o.created_at < $2::date AND o.status != 'cancelled'
       GROUP BY name ORDER BY rev DESC LIMIT 5
-    `, date, nextDate).catch(() => []);
+    `,
+        date,
+        nextDate,
+      )
+      .catch(() => []);
 
     // Inventory alerts
-    const lowStock = await this.prisma.$queryRawUnsafe<any[]>(`
+    const lowStock = await this.prisma
+      .$queryRawUnsafe<any[]>(
+        `
       SELECT COUNT(*) AS c FROM "${schemaName}".inventory WHERE stock_available < stock_minimum
-    `).catch(() => [{ c: '0' }]);
+    `,
+      )
+      .catch(() => [{ c: '0' }]);
 
     const s = sales[0] ?? {};
     const reportSummary = {
@@ -65,11 +79,13 @@ export class AnalyticsProcessor {
       orders: parseInt(s.orders ?? '0'),
       revenue: parseFloat(s.revenue ?? '0'),
       customers: parseInt(s.customers ?? '0'),
-      topProducts: products.map(p => `${p.name} (${p.qty})`).join(', '),
+      topProducts: products.map((p) => `${p.name} (${p.qty})`).join(', '),
       lowStockCount: parseInt(lowStock[0]?.c ?? '0'),
     };
 
-    this.logger.log(`[${slug}] Report: ${reportSummary.orders} orders, $${reportSummary.revenue.toLocaleString()}, ${reportSummary.customers} customers`);
+    this.logger.log(
+      `[${slug}] Report: ${reportSummary.orders} orders, $${reportSummary.revenue.toLocaleString()}, ${reportSummary.customers} customers`,
+    );
   }
 
   @Process('send-owner-report')

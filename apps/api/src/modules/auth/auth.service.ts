@@ -95,7 +95,7 @@ export class AuthService {
     schemaName: string,
   ) {
     const db = this.tenantPrisma.forSchema(schemaName);
-    
+
     const users = await db.$queryRawUnsafe<any[]>(
       `SELECT id, password_hash as "passwordHash" 
        FROM "${schemaName}".users 
@@ -119,18 +119,28 @@ export class AuthService {
     return { success: true };
   }
 
-  async updateUserProfile(userId: string, dto: { phone?: string; name?: string }, schemaName: string) {
+  async updateUserProfile(
+    userId: string,
+    dto: { phone?: string; name?: string },
+    schemaName: string,
+  ) {
     // Ensure phone column exists
     await this.prisma.$executeRawUnsafe(
-      `ALTER TABLE "${schemaName}".users ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`
+      `ALTER TABLE "${schemaName}".users ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`,
     );
 
     const fields: string[] = [];
     const values: any[] = [];
     let idx = 1;
 
-    if (dto.phone !== undefined) { fields.push(`phone = $${idx++}`); values.push(dto.phone); }
-    if (dto.name !== undefined) { fields.push(`name = $${idx++}`); values.push(dto.name); }
+    if (dto.phone !== undefined) {
+      fields.push(`phone = $${idx++}`);
+      values.push(dto.phone);
+    }
+    if (dto.name !== undefined) {
+      fields.push(`name = $${idx++}`);
+      values.push(dto.name);
+    }
 
     if (fields.length === 0) return;
 

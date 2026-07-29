@@ -61,11 +61,14 @@ export class PaymentQueueIntegration {
     schemaName: string,
   ): Promise<void> {
     // Load order details for downstream processors
-    const orders = await this.prisma.$queryRawUnsafe<any[]>(`
+    const orders = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT o.id, o.order_number, o.items, o.customer_id
       FROM "${schemaName}".orders o
       WHERE o.id = $1::uuid
-    `, orderId);
+    `,
+      orderId,
+    );
 
     if (!orders[0]) {
       this.logger.error(`[${schemaName}] Order ${orderId} not found for dispatch`);
@@ -83,7 +86,7 @@ export class PaymentQueueIntegration {
       orderId: order.id,
       orderNumber: order.order_number,
       priority: 'normal',
-      items: orderItems.map(item => ({
+      items: orderItems.map((item) => ({
         productId: item.productId,
         productName: item.productName ?? item.productId,
         quantity: item.quantity,
@@ -104,7 +107,7 @@ export class PaymentQueueIntegration {
       tenantId,
       schemaName,
       orderId: order.id,
-      items: orderItems.map(item => ({
+      items: orderItems.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
       })),
@@ -118,7 +121,7 @@ export class PaymentQueueIntegration {
 
     this.logger.log(
       `[${schemaName}] payment_verified dispatched for order ${order.order_number}: ` +
-      `production-queue + inventory-events (${orderItems.length} items)`,
+        `production-queue + inventory-events (${orderItems.length} items)`,
     );
   }
 
@@ -132,9 +135,12 @@ export class PaymentQueueIntegration {
     schemaName: string,
   ): Promise<void> {
     // Get orderId from payment
-    const payments = await this.prisma.$queryRawUnsafe<any[]>(`
+    const payments = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT order_id FROM "${schemaName}".payments WHERE id = $1::uuid
-    `, paymentId);
+    `,
+      paymentId,
+    );
 
     if (!payments[0]) {
       this.logger.error(`[${schemaName}] Payment ${paymentId} not found`);
@@ -155,7 +161,11 @@ export class PaymentQueueIntegration {
   }> {
     if (!items) return [];
     if (typeof items === 'string') {
-      try { return JSON.parse(items); } catch { return []; }
+      try {
+        return JSON.parse(items);
+      } catch {
+        return [];
+      }
     }
     if (Array.isArray(items)) return items;
     return [];

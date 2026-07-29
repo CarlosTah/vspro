@@ -36,7 +36,9 @@ export class ProactivityWorker {
     });
 
     if (!tenant || tenant.schemaName !== schemaName) {
-      this.logger.error(`Tenant isolation violation: job schema ${schemaName} != tenant schema ${tenant?.schemaName}`);
+      this.logger.error(
+        `Tenant isolation violation: job schema ${schemaName} != tenant schema ${tenant?.schemaName}`,
+      );
       return; // Reject silently
     }
 
@@ -46,11 +48,14 @@ export class ProactivityWorker {
     }
 
     // 2. Check conversation still active
-    const convRows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const convRows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT status, last_message_at AS "lastMessageAt"
       FROM "${schemaName}".conversations
       WHERE id = $1::uuid
-    `, conversationId);
+    `,
+      conversationId,
+    );
 
     if (!convRows[0] || convRows[0].status !== 'active') {
       this.logger.debug(`Conversation ${conversationId} no longer active, skipping`);
@@ -60,12 +65,17 @@ export class ProactivityWorker {
     // 3. Rate limit: max 1 proactive per 24h
     const canSend = await this.proactivityService.canSendProactive(conversationId, schemaName);
     if (!canSend) {
-      this.logger.debug(`Rate limited: conversation ${conversationId} already received proactive in last 24h`);
+      this.logger.debug(
+        `Rate limited: conversation ${conversationId} already received proactive in last 24h`,
+      );
       return;
     }
 
     // 4. Check 24h messaging window
-    const withinWindow = await this.proactivityService.isWithinMessagingWindow(conversationId, schemaName);
+    const withinWindow = await this.proactivityService.isWithinMessagingWindow(
+      conversationId,
+      schemaName,
+    );
 
     if (!withinWindow) {
       // Check if template is configured
@@ -82,7 +92,9 @@ export class ProactivityWorker {
       }
 
       // TODO: Send template message via Meta API
-      this.logger.log(`Would send template message to conversation ${conversationId} (outside 24h window)`);
+      this.logger.log(
+        `Would send template message to conversation ${conversationId} (outside 24h window)`,
+      );
       await this.proactivityService.recordProactiveSent(conversationId, schemaName);
       return;
     }
@@ -96,13 +108,20 @@ export class ProactivityWorker {
       );
 
       // Get follow-up reason from conversation context
-      const contextRows = await this.prisma.$queryRawUnsafe<any[]>(`
+      const contextRows = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT context FROM "${schemaName}".conversations WHERE id = $1::uuid
-      `, conversationId);
+      `,
+        conversationId,
+      );
       const followUpReason = contextRows[0]?.context?.follow_up_reason ?? 'seguimiento general';
 
       // Generate proactive message via AI
-      const proactivePrompt = this.buildProactivePrompt(tenant.businessName, followUpReason, memoryContext);
+      const proactivePrompt = this.buildProactivePrompt(
+        tenant.businessName,
+        followUpReason,
+        memoryContext,
+      );
 
       // For now, log the intent (full messaging integration requires MessagingService)
       this.logger.log(
@@ -113,19 +132,26 @@ export class ProactivityWorker {
       await this.proactivityService.recordProactiveSent(conversationId, schemaName);
 
       // Store the outbound message
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${schemaName}".messages
           (conversation_id, direction, type, content, ai_processed)
         VALUES ($1::uuid, 'outbound', 'text', $2, true)
-      `, conversationId, `[PROACTIVE] ${proactivePrompt}`);
-
+      `,
+        conversationId,
+        `[PROACTIVE] ${proactivePrompt}`,
+      );
     } catch (err: any) {
       this.logger.error(`Error generating proactive message for ${conversationId}: ${err.message}`);
       throw err; // Let BullMQ retry
     }
   }
 
-  private buildProactivePrompt(businessName: string, reason: string, memoryContext: string): string {
+  private buildProactivePrompt(
+    businessName: string,
+    reason: string,
+    memoryContext: string,
+  ): string {
     return `Genera un mensaje de seguimiento breve y amigable para el cliente.
 Negocio: ${businessName}
 Razón del seguimiento: ${reason}

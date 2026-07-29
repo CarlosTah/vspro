@@ -10,7 +10,12 @@ import { MessagingModule } from '../messaging/messaging.module';
 @Module({
   imports: [MessagingModule],
   controllers: [ReportsController, ReportScheduleController],
-  providers: [ReportsSummaryService, ReportsFinancialService, ReportsPerformanceService, ReportScheduleCronService],
+  providers: [
+    ReportsSummaryService,
+    ReportsFinancialService,
+    ReportsPerformanceService,
+    ReportScheduleCronService,
+  ],
   exports: [ReportsSummaryService, ReportsFinancialService, ReportsPerformanceService],
 })
 export class ReportsModule {}

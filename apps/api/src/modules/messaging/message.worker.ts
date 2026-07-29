@@ -123,11 +123,15 @@ export class MessageWorker {
       });
 
       // 11. Store outbound message
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${schemaName}".messages
           (conversation_id, direction, type, content, ai_processed)
         VALUES ($1::uuid, 'outbound', 'text', $2, true)
-      `, conversationId, response.text);
+      `,
+        conversationId,
+        response.text,
+      );
 
       // 12. Send via messaging channel (WhatsApp/Messenger/Instagram)
       const channelType = job.data.channelType as any;
@@ -145,14 +149,16 @@ export class MessageWorker {
       }
 
       // 13. Update conversation last_message_at
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".conversations
         SET last_message_at = NOW()
         WHERE id = $1::uuid
-      `, conversationId);
+      `,
+        conversationId,
+      );
 
       this.logger.debug(`Response sent via ${routeResult.agent} agent`);
-
     } catch (err: any) {
       this.logger.error(`Error processing message for conv ${conversationId}: ${err.message}`);
       throw err; // Let BullMQ retry
@@ -169,23 +175,29 @@ export class MessageWorker {
   }
 
   private async getConversationHistory(conversationId: string, schemaName: string) {
-    const messages = await this.prisma.$queryRawUnsafe<any[]>(`
+    const messages = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT direction, content FROM "${schemaName}".messages
       WHERE conversation_id = $1::uuid AND type = 'text' AND content IS NOT NULL
       ORDER BY created_at DESC LIMIT 10
-    `, conversationId);
+    `,
+      conversationId,
+    );
 
     return messages.reverse().map((m: any) => ({
-      role: m.direction === 'inbound' ? 'user' as const : 'assistant' as const,
+      role: m.direction === 'inbound' ? ('user' as const) : ('assistant' as const),
       content: m.content,
     }));
   }
 
   private async getConversationContext(conversationId: string, schemaName: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT context, agent_context AS "agentContext"
       FROM "${schemaName}".conversations WHERE id = $1::uuid
-    `, conversationId);
+    `,
+      conversationId,
+    );
 
     return {
       id: conversationId,
@@ -199,14 +211,21 @@ export class MessageWorker {
     schemaName: string,
     agentData: Record<string, any>,
   ): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".conversations
       SET agent_context = $1::jsonb
       WHERE id = $2::uuid
-    `, JSON.stringify(agentData), conversationId);
+    `,
+      JSON.stringify(agentData),
+      conversationId,
+    );
   }
 
-  private async getCustomerChannelId(customerId: string | null, schemaName: string): Promise<string | null> {
+  private async getCustomerChannelId(
+    customerId: string | null,
+    schemaName: string,
+  ): Promise<string | null> {
     if (!customerId) return null;
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT channel_id FROM "${schemaName}".customers WHERE id = $1::uuid`,

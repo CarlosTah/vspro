@@ -34,16 +34,20 @@ export class BackupCronRegistry {
 
     this.logger.log(`💾 Backup cron: scheduling daily backup for ${date}`);
 
-    await this.backupQueue.add('run-full-backup', {
-      date,
-      triggeredBy: 'cron',
-      timestamp: new Date().toISOString(),
-    }, {
-      jobId: `backup-${date}`,
-      attempts: 2,
-      backoff: { type: 'fixed', delay: 300000 }, // 5 min between retries
-      timeout: 600000, // 10 min max
-    });
+    await this.backupQueue.add(
+      'run-full-backup',
+      {
+        date,
+        triggeredBy: 'cron',
+        timestamp: new Date().toISOString(),
+      },
+      {
+        jobId: `backup-${date}`,
+        attempts: 2,
+        backoff: { type: 'fixed', delay: 300000 }, // 5 min between retries
+        timeout: 600000, // 10 min max
+      },
+    );
   }
 
   /**
@@ -53,12 +57,16 @@ export class BackupCronRegistry {
   async scheduleWeeklyCleanup(): Promise<void> {
     this.logger.log('🧹 Backup cleanup scheduled');
 
-    await this.backupQueue.add('cleanup-old-backups', {
-      triggeredBy: 'cron',
-      timestamp: new Date().toISOString(),
-    }, {
-      jobId: `cleanup-${new Date().toISOString().split('T')[0]}`,
-    });
+    await this.backupQueue.add(
+      'cleanup-old-backups',
+      {
+        triggeredBy: 'cron',
+        timestamp: new Date().toISOString(),
+      },
+      {
+        jobId: `cleanup-${new Date().toISOString().split('T')[0]}`,
+      },
+    );
   }
 
   /**
@@ -68,12 +76,16 @@ export class BackupCronRegistry {
     const date = new Date().toISOString().split('T')[0];
     const jobId = `backup-manual-${date}-${Date.now()}`;
 
-    await this.backupQueue.add('run-full-backup', {
-      date,
-      triggeredBy,
-      manual: true,
-      timestamp: new Date().toISOString(),
-    }, { jobId });
+    await this.backupQueue.add(
+      'run-full-backup',
+      {
+        date,
+        triggeredBy,
+        manual: true,
+        timestamp: new Date().toISOString(),
+      },
+      { jobId },
+    );
 
     this.logger.log(`Manual backup triggered by ${triggeredBy}`);
     return { jobId };

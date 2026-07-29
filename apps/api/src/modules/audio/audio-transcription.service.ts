@@ -48,9 +48,10 @@ export class AudioTranscriptionService {
       // 2. Transcribe with Whisper
       const result = await this.transcribeBuffer(audioBuffer);
 
-      this.logger.log(`Transcription complete: "${result.text.substring(0, 60)}..." (${result.duration}s)`);
+      this.logger.log(
+        `Transcription complete: "${result.text.substring(0, 60)}..." (${result.duration}s)`,
+      );
       return result;
-
     } catch (err: any) {
       this.logger.error(`Transcription failed: ${err.message}`);
       return {
@@ -65,7 +66,10 @@ export class AudioTranscriptionService {
   /**
    * Transcribe an audio buffer directly (for testing or pre-downloaded files).
    */
-  async transcribeBuffer(audioBuffer: Buffer, filename = 'audio.ogg'): Promise<TranscriptionResult> {
+  async transcribeBuffer(
+    audioBuffer: Buffer,
+    filename = 'audio.ogg',
+  ): Promise<TranscriptionResult> {
     // Create a File-like object for the OpenAI API
     const file = new File([audioBuffer], filename, { type: 'audio/ogg' });
 
@@ -88,7 +92,10 @@ export class AudioTranscriptionService {
    * Transcribe and extract actionable instruction from audio.
    * Uses GPT-4o to interpret the transcription as a business instruction.
    */
-  async transcribeAndInterpret(audioUrl: string, accessToken?: string): Promise<{
+  async transcribeAndInterpret(
+    audioUrl: string,
+    accessToken?: string,
+  ): Promise<{
     transcription: string;
     instruction: string;
     type: 'order' | 'command' | 'broadcast' | 'question' | 'general';

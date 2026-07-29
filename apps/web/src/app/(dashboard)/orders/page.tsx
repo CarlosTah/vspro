@@ -95,11 +95,17 @@ export default function OrdersPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {orders.map((order: any) => (
-                <tr key={order.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/orders/${order.id}`)}>
+                <tr
+                  key={order.id}
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={() => router.push(`/orders/${order.id}`)}
+                >
                   <td className="px-5 py-3 font-medium text-gray-900">{order.orderNumber}</td>
                   <td className="px-5 py-3 text-gray-600">{order.customerName}</td>
                   <td className="px-5 py-3">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[order.status] ?? ''}`}>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[order.status] ?? ''}`}
+                    >
                       {statusLabels[order.status] ?? order.status}
                     </span>
                   </td>

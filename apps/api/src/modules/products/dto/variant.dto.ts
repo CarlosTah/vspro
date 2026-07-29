@@ -15,7 +15,11 @@ export class CreateVariantDto {
   @IsString()
   name!: string;
 
-  @ApiProperty({ example: 25.00, required: false, description: 'null = usa precio del producto padre' })
+  @ApiProperty({
+    example: 25.0,
+    required: false,
+    description: 'null = usa precio del producto padre',
+  })
   @IsNumber()
   @Min(0)
   @IsOptional()

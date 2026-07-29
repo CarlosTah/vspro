@@ -45,7 +45,11 @@ export class SentryTelemetryService implements OnModuleInit {
       timestamp: new Date().toISOString(),
       service: this.serviceName,
       level: 'error',
-      error: { name: error.name, message: error.message, stack: error.stack?.split('\n').slice(0, 8) },
+      error: {
+        name: error.name,
+        message: error.message,
+        stack: error.stack?.split('\n').slice(0, 8),
+      },
       ...context,
     };
 
@@ -84,7 +88,9 @@ export class SentryTelemetryService implements OnModuleInit {
       end: () => {
         const duration = Date.now() - start;
         if (duration > 3000) {
-          this.logger.warn(`Slow span: ${op}/${name} — ${duration}ms [${context?.tenantSlug ?? 'system'}]`);
+          this.logger.warn(
+            `Slow span: ${op}/${name} — ${duration}ms [${context?.tenantSlug ?? 'system'}]`,
+          );
         }
         return duration;
       },

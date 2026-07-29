@@ -46,6 +46,6 @@ export class KnowledgeBaseController {
   @Post('regenerate-embeddings')
   @Roles('admin')
   regenerateEmbeddings(@TenantSchema() schema: string) {
-    return this.kbService.regenerateEmbeddings(schema).then(count => ({ regenerated: count }));
+    return this.kbService.regenerateEmbeddings(schema).then((count) => ({ regenerated: count }));
   }
 }

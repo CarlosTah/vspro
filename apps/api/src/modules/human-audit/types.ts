@@ -11,9 +11,9 @@ export interface ApprovalRequest {
   type: ApprovalType;
   status: ApprovalStatus;
   payload: Record<string, any>;
-  requestedBy: string | null;    // userId or 'system'
+  requestedBy: string | null; // userId or 'system'
   requestedAt: string;
-  approvedBy: string | null;     // userId of approver
+  approvedBy: string | null; // userId of approver
   decidedAt: string | null;
   decisionMetadata: DecisionMetadata | null;
   expiresAt: string | null;
@@ -49,7 +49,7 @@ export const APPROVAL_TYPE_LABELS: Record<ApprovalType, string> = {
   'schedule.bulk_change': 'Cambio masivo de horarios',
   'order.bulk_cancel': 'Cancelación masiva de pedidos',
   'staff.role_change': 'Cambio de rol de staff',
-  'custom': 'Aprobación personalizada',
+  custom: 'Aprobación personalizada',
 };
 
 // ─── Approval Rules (configurable per tenant) ───────────────────

@@ -15,7 +15,8 @@ export class IndustryTemplatesService {
 
   async getTemplate(slug: string) {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT * FROM public.industry_templates WHERE slug = $1`, slug,
+      `SELECT * FROM public.industry_templates WHERE slug = $1`,
+      slug,
     );
     if (!rows[0]) throw new NotFoundException(`Template '${slug}' not found`);
     return rows[0];
@@ -25,7 +26,10 @@ export class IndustryTemplatesService {
    * Apply an industry template to a tenant schema.
    * Sets: AI config, products, knowledge base, business hours.
    */
-  async applyTemplate(slug: string, schemaName: string): Promise<{ applied: string; products: number; kbEntries: number }> {
+  async applyTemplate(
+    slug: string,
+    schemaName: string,
+  ): Promise<{ applied: string; products: number; kbEntries: number }> {
     const template = await this.getTemplate(slug);
 
     this.logger.log(`Applying template '${slug}' to schema ${schemaName}`);
@@ -72,7 +76,8 @@ CONTEXTO: Manejas pedidos, envíos, devoluciones y consultas de catálogo.`,
     // 1. Update AI config
     const aiConfig = template.ai_config ?? {};
     const aiInstructions = template.ai_instructions ?? industryPersonalities[slug] ?? null;
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".ai_config SET
         assistant_name = COALESCE($1, assistant_name),
         tone = COALESCE($2, tone),
@@ -94,11 +99,17 @@ CONTEXTO: Manejas pedidos, envíos, devoluciones y consultas de catálogo.`,
     let productsCreated = 0;
     for (const p of products) {
       const sku = `TPL-${slug.slice(0, 3).toUpperCase()}-${String(productsCreated + 1).padStart(3, '0')}`;
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${schemaName}".products (name, price, category, sku, is_active)
         VALUES ($1, $2, $3, $4, true)
         ON CONFLICT (sku) DO NOTHING
-      `, p.name, p.price, p.category ?? 'General', sku);
+      `,
+        p.name,
+        p.price,
+        p.category ?? 'General',
+        sku,
+      );
       productsCreated++;
     }
 
@@ -113,14 +124,21 @@ CONTEXTO: Manejas pedidos, envíos, devoluciones y consultas de catálogo.`,
     const kbEntries = template.knowledge_base ?? [];
     let kbCreated = 0;
     for (const kb of kbEntries) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${schemaName}".knowledge_base (title, content, category, sort_order)
         VALUES ($1, $2, 'template', $3)
-      `, kb.title, kb.content, kbCreated);
+      `,
+        kb.title,
+        kb.content,
+        kbCreated,
+      );
       kbCreated++;
     }
 
-    this.logger.log(`Template '${slug}' applied: ${productsCreated} products, ${kbCreated} KB entries`);
+    this.logger.log(
+      `Template '${slug}' applied: ${productsCreated} products, ${kbCreated} KB entries`,
+    );
 
     return { applied: slug, products: productsCreated, kbEntries: kbCreated };
   }

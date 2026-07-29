@@ -1,6 +1,12 @@
 import {
-  IsUUID, IsArray, IsString, IsNumber,
-  IsOptional, IsIn, ValidateNested, Min,
+  IsUUID,
+  IsArray,
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsIn,
+  ValidateNested,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -38,7 +44,11 @@ export class CreateOrderDto {
   @IsOptional()
   notes?: string;
 
-  @ApiProperty({ enum: ['pickup', 'delivery'], required: false, description: 'Tipo de entrega: recoger en local o envío a domicilio' })
+  @ApiProperty({
+    enum: ['pickup', 'delivery'],
+    required: false,
+    description: 'Tipo de entrega: recoger en local o envío a domicilio',
+  })
   @IsIn(['pickup', 'delivery'])
   @IsOptional()
   deliveryType?: string;
@@ -47,7 +57,10 @@ export class CreateOrderDto {
   @IsOptional()
   shippingAddress?: Record<string, any>;
 
-  @ApiProperty({ required: false, description: 'Initial status for manual orders (e.g. payment_verified)' })
+  @ApiProperty({
+    required: false,
+    description: 'Initial status for manual orders (e.g. payment_verified)',
+  })
   @IsString()
   @IsOptional()
   status?: string;

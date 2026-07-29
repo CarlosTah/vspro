@@ -14,11 +14,27 @@ const prisma = new PrismaClient();
 const ROOM359_TOOLS = [
   {
     name: 'check_room_availability',
-    description: 'Verifica disponibilidad de un departamento/propiedad para las fechas indicadas. Retorna precio calculado según duración (noche/semana/mes).',
+    description:
+      'Verifica disponibilidad de un departamento/propiedad para las fechas indicadas. Retorna precio calculado según duración (noche/semana/mes).',
     parameters: [
-      { name: 'productId', type: 'string', description: 'ID de la propiedad (UUID)', required: true },
-      { name: 'checkIn', type: 'string', description: 'Fecha de check-in (YYYY-MM-DD)', required: true },
-      { name: 'checkOut', type: 'string', description: 'Fecha de check-out (YYYY-MM-DD)', required: true },
+      {
+        name: 'productId',
+        type: 'string',
+        description: 'ID de la propiedad (UUID)',
+        required: true,
+      },
+      {
+        name: 'checkIn',
+        type: 'string',
+        description: 'Fecha de check-in (YYYY-MM-DD)',
+        required: true,
+      },
+      {
+        name: 'checkOut',
+        type: 'string',
+        description: 'Fecha de check-out (YYYY-MM-DD)',
+        required: true,
+      },
       { name: 'guests', type: 'number', description: 'Número de huéspedes', required: false },
     ],
     handler: 'rental',
@@ -27,14 +43,40 @@ const ROOM359_TOOLS = [
   },
   {
     name: 'search_properties',
-    description: 'Busca propiedades disponibles por categoría, número de huéspedes, rango de precio o zona. Retorna opciones con tarifas.',
+    description:
+      'Busca propiedades disponibles por categoría, número de huéspedes, rango de precio o zona. Retorna opciones con tarifas.',
     parameters: [
-      { name: 'query', type: 'string', description: 'Texto de búsqueda (zona, tipo, amenidad)', required: false },
+      {
+        name: 'query',
+        type: 'string',
+        description: 'Texto de búsqueda (zona, tipo, amenidad)',
+        required: false,
+      },
       { name: 'guests', type: 'number', description: 'Número de huéspedes', required: false },
-      { name: 'maxPricePerNight', type: 'number', description: 'Precio máximo por noche en MXN', required: false },
-      { name: 'category', type: 'string', description: 'Categoría: Studios, 1 Recámara, 2 Recámaras, Penthouses, Lofts, Casas', required: false },
-      { name: 'checkIn', type: 'string', description: 'Fecha de check-in para filtrar disponibilidad (YYYY-MM-DD)', required: false },
-      { name: 'checkOut', type: 'string', description: 'Fecha de check-out para filtrar disponibilidad (YYYY-MM-DD)', required: false },
+      {
+        name: 'maxPricePerNight',
+        type: 'number',
+        description: 'Precio máximo por noche en MXN',
+        required: false,
+      },
+      {
+        name: 'category',
+        type: 'string',
+        description: 'Categoría: Studios, 1 Recámara, 2 Recámaras, Penthouses, Lofts, Casas',
+        required: false,
+      },
+      {
+        name: 'checkIn',
+        type: 'string',
+        description: 'Fecha de check-in para filtrar disponibilidad (YYYY-MM-DD)',
+        required: false,
+      },
+      {
+        name: 'checkOut',
+        type: 'string',
+        description: 'Fecha de check-out para filtrar disponibilidad (YYYY-MM-DD)',
+        required: false,
+      },
     ],
     handler: 'rental',
     method: 'searchProperties',
@@ -42,9 +84,15 @@ const ROOM359_TOOLS = [
   },
   {
     name: 'get_property_rates',
-    description: 'Obtiene la matriz completa de tarifas de una propiedad: precio por noche, semana, mes, limpieza, huésped extra y amenidades.',
+    description:
+      'Obtiene la matriz completa de tarifas de una propiedad: precio por noche, semana, mes, limpieza, huésped extra y amenidades.',
     parameters: [
-      { name: 'productId', type: 'string', description: 'ID de la propiedad (UUID)', required: true },
+      {
+        name: 'productId',
+        type: 'string',
+        description: 'ID de la propiedad (UUID)',
+        required: true,
+      },
     ],
     handler: 'rental',
     method: 'getPropertyRates',
@@ -52,9 +100,15 @@ const ROOM359_TOOLS = [
   },
   {
     name: 'get_availability_calendar',
-    description: 'Obtiene el calendario de disponibilidad de una propiedad para los próximos 60 días.',
+    description:
+      'Obtiene el calendario de disponibilidad de una propiedad para los próximos 60 días.',
     parameters: [
-      { name: 'productId', type: 'string', description: 'ID de la propiedad (UUID)', required: true },
+      {
+        name: 'productId',
+        type: 'string',
+        description: 'ID de la propiedad (UUID)',
+        required: true,
+      },
     ],
     handler: 'rental',
     method: 'getCalendar',
@@ -62,13 +116,29 @@ const ROOM359_TOOLS = [
   },
   {
     name: 'create_reservation',
-    description: 'Crea una reservación para un departamento. Bloquea las fechas en el calendario y genera el pedido con el monto calculado.',
+    description:
+      'Crea una reservación para un departamento. Bloquea las fechas en el calendario y genera el pedido con el monto calculado.',
     parameters: [
       { name: 'productId', type: 'string', description: 'ID de la propiedad', required: true },
-      { name: 'checkIn', type: 'string', description: 'Fecha de check-in (YYYY-MM-DD)', required: true },
-      { name: 'checkOut', type: 'string', description: 'Fecha de check-out (YYYY-MM-DD)', required: true },
+      {
+        name: 'checkIn',
+        type: 'string',
+        description: 'Fecha de check-in (YYYY-MM-DD)',
+        required: true,
+      },
+      {
+        name: 'checkOut',
+        type: 'string',
+        description: 'Fecha de check-out (YYYY-MM-DD)',
+        required: true,
+      },
       { name: 'guests', type: 'number', description: 'Número de huéspedes', required: true },
-      { name: 'notes', type: 'string', description: 'Notas especiales (hora de llegada, mascotas, etc.)', required: false },
+      {
+        name: 'notes',
+        type: 'string',
+        description: 'Notas especiales (hora de llegada, mascotas, etc.)',
+        required: false,
+      },
     ],
     handler: 'rental',
     method: 'createReservation',
@@ -76,12 +146,28 @@ const ROOM359_TOOLS = [
   },
   {
     name: 'calculate_stay_price',
-    description: 'Calcula el precio total de una estancia según duración. Aplica tarifa por noche, semana o mes automáticamente.',
+    description:
+      'Calcula el precio total de una estancia según duración. Aplica tarifa por noche, semana o mes automáticamente.',
     parameters: [
       { name: 'productId', type: 'string', description: 'ID de la propiedad', required: true },
-      { name: 'checkIn', type: 'string', description: 'Fecha de check-in (YYYY-MM-DD)', required: true },
-      { name: 'checkOut', type: 'string', description: 'Fecha de check-out (YYYY-MM-DD)', required: true },
-      { name: 'guests', type: 'number', description: 'Número de huéspedes (para calcular cargo extra si excede máximo base)', required: false },
+      {
+        name: 'checkIn',
+        type: 'string',
+        description: 'Fecha de check-in (YYYY-MM-DD)',
+        required: true,
+      },
+      {
+        name: 'checkOut',
+        type: 'string',
+        description: 'Fecha de check-out (YYYY-MM-DD)',
+        required: true,
+      },
+      {
+        name: 'guests',
+        type: 'number',
+        description: 'Número de huéspedes (para calcular cargo extra si excede máximo base)',
+        required: false,
+      },
     ],
     handler: 'rental',
     method: 'calculateStayPrice',
@@ -89,9 +175,15 @@ const ROOM359_TOOLS = [
   },
   {
     name: 'get_checkin_instructions',
-    description: 'Proporciona las instrucciones de check-in para una reservación confirmada (dirección, acceso, WiFi, reglas).',
+    description:
+      'Proporciona las instrucciones de check-in para una reservación confirmada (dirección, acceso, WiFi, reglas).',
     parameters: [
-      { name: 'orderNumber', type: 'string', description: 'Número de reservación (ej: RES-359-0001)', required: true },
+      {
+        name: 'orderNumber',
+        type: 'string',
+        description: 'Número de reservación (ej: RES-359-0001)',
+        required: true,
+      },
     ],
     handler: 'rental',
     method: 'getCheckinInstructions',
@@ -99,11 +191,22 @@ const ROOM359_TOOLS = [
   },
   {
     name: 'request_early_checkin',
-    description: 'Solicita un check-in anticipado o check-out tardío para una reservación existente.',
+    description:
+      'Solicita un check-in anticipado o check-out tardío para una reservación existente.',
     parameters: [
       { name: 'orderNumber', type: 'string', description: 'Número de reservación', required: true },
-      { name: 'type', type: 'string', description: 'Tipo: early_checkin o late_checkout', required: true },
-      { name: 'requestedTime', type: 'string', description: 'Hora solicitada (HH:MM)', required: true },
+      {
+        name: 'type',
+        type: 'string',
+        description: 'Tipo: early_checkin o late_checkout',
+        required: true,
+      },
+      {
+        name: 'requestedTime',
+        type: 'string',
+        description: 'Hora solicitada (HH:MM)',
+        required: true,
+      },
     ],
     handler: 'rental',
     method: 'requestScheduleChange',
@@ -117,9 +220,12 @@ async function main() {
   const schemaName = 'tenant_room359';
 
   // Verificar que el schema existe
-  const exists = await prisma.$queryRawUnsafe<any[]>(`
+  const exists = await prisma.$queryRawUnsafe<any[]>(
+    `
     SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1
-  `, schemaName);
+  `,
+    schemaName,
+  );
 
   if (!exists[0]) {
     console.error('❌ Schema tenant_room359 no existe. Ejecuta seed-room359.ts primero.');
@@ -133,11 +239,14 @@ async function main() {
   `);
 
   // Guardar herramientas
-  await prisma.$executeRawUnsafe(`
+  await prisma.$executeRawUnsafe(
+    `
     UPDATE "${schemaName}".ai_config
     SET custom_tools = $1::jsonb
     WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
-  `, JSON.stringify(ROOM359_TOOLS));
+  `,
+    JSON.stringify(ROOM359_TOOLS),
+  );
 
   console.log(`✅ ${ROOM359_TOOLS.length} herramientas registradas para room359:`);
   for (const tool of ROOM359_TOOLS) {
@@ -147,5 +256,8 @@ async function main() {
 }
 
 main()
-  .catch((e) => { console.error('❌ Error:', e); process.exit(1); })
+  .catch((e) => {
+    console.error('❌ Error:', e);
+    process.exit(1);
+  })
   .finally(() => prisma.$disconnect());

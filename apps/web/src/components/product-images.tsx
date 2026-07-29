@@ -30,7 +30,7 @@ export function ProductImages({ productId, images, onImagesChange }: ProductImag
         const res = await fetch(`${API_URL}/products/${productId}/upload-image`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
             'x-tenant-slug': tenantSlug ?? '',
           },
           body: formData,
@@ -59,13 +59,13 @@ export function ProductImages({ productId, images, onImagesChange }: ProductImag
       await fetch(`${API_URL}/products/${productId}/images`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'x-tenant-slug': tenantSlug ?? '',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ url }),
       });
-      onImagesChange(images.filter(i => i !== url));
+      onImagesChange(images.filter((i) => i !== url));
     } catch (err: any) {
       alert(`Error: ${err.message}`);
     }
@@ -73,13 +73,20 @@ export function ProductImages({ productId, images, onImagesChange }: ProductImag
 
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-300 mb-1.5">Imágenes del producto</label>
-      <p className="text-xs text-gray-500 mb-3">Sube hasta 5 fotos. La primera será la imagen principal.</p>
+      <label className="block text-sm font-medium text-gray-300 mb-1.5">
+        Imágenes del producto
+      </label>
+      <p className="text-xs text-gray-500 mb-3">
+        Sube hasta 5 fotos. La primera será la imagen principal.
+      </p>
 
       {/* Image grid */}
       <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-3">
         {images.map((url, i) => (
-          <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-gray-700 group">
+          <div
+            key={i}
+            className="relative aspect-square rounded-lg overflow-hidden border border-gray-700 group"
+          >
             <img src={url} alt={`Producto ${i + 1}`} className="w-full h-full object-cover" />
             {i === 0 && (
               <span className="absolute top-1 left-1 bg-accent text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium">

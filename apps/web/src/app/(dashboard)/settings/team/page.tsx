@@ -28,7 +28,12 @@ const roleBadges: Record<string, string> = {
 export default function TeamPage() {
   const { data: users, loading, error, refetch } = useApi<any[]>('/team');
   const [showInvite, setShowInvite] = useState(false);
-  const [inviteData, setInviteData] = useState({ name: '', email: '', role: 'operator', password: '' });
+  const [inviteData, setInviteData] = useState({
+    name: '',
+    email: '',
+    role: 'operator',
+    password: '',
+  });
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
@@ -96,9 +101,11 @@ export default function TeamPage() {
 
       {/* Resultado de invitación */}
       {result && (
-        <div className={`rounded-lg px-4 py-3 text-sm ${
-          result.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
-        }`}>
+        <div
+          className={`rounded-lg px-4 py-3 text-sm ${
+            result.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
+          }`}
+        >
           {result}
         </div>
       )}
@@ -190,9 +197,13 @@ export default function TeamPage() {
                   </td>
                   <td className="px-5 py-3">
                     {u.isActive ? (
-                      <span className="rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700">Activo</span>
+                      <span className="rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700">
+                        Activo
+                      </span>
                     ) : (
-                      <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700">Inactivo</span>
+                      <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700">
+                        Inactivo
+                      </span>
                     )}
                   </td>
                   <td className="px-5 py-3">

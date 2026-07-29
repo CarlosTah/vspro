@@ -38,12 +38,16 @@ export class WorkflowOrchestratorService {
     type: string,
     context: Record<string, any>,
   ): Promise<string> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".workflow_instances
         (type, status, current_step, context, events, started_at)
       VALUES ($1, 'pending', 'init', $2::jsonb, '[]'::jsonb, NOW())
       RETURNING id
-    `, type, JSON.stringify(context));
+    `,
+      type,
+      JSON.stringify(context),
+    );
 
     return rows[0].id;
   }
@@ -58,18 +62,19 @@ export class WorkflowOrchestratorService {
     currentStep: string,
     context?: Record<string, any>,
   ): Promise<void> {
-    const contextUpdate = context
-      ? `, context = context || $4::jsonb`
-      : '';
+    const contextUpdate = context ? `, context = context || $4::jsonb` : '';
 
     const params: any[] = [status, currentStep, instanceId];
     if (context) params.push(JSON.stringify(context));
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".workflow_instances
       SET status = $1, current_step = $2, updated_at = NOW()${contextUpdate}
       WHERE id = $3::uuid
-    `, ...params);
+    `,
+      ...params,
+    );
   }
 
   /**
@@ -81,16 +86,22 @@ export class WorkflowOrchestratorService {
     event: WorkflowEvent,
     result: 'success' | 'skipped' | 'failed',
   ): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".workflow_instances
       SET events = events || $1::jsonb, updated_at = NOW()
       WHERE id = $2::uuid
-    `, JSON.stringify([{
-      eventId: event.id,
-      type: event.type,
-      processedAt: new Date().toISOString(),
-      result,
-    }]), instanceId);
+    `,
+      JSON.stringify([
+        {
+          eventId: event.id,
+          type: event.type,
+          processedAt: new Date().toISOString(),
+          result,
+        },
+      ]),
+      instanceId,
+    );
   }
 
   // ─── Event Processing ─────────────────────────────────────────
@@ -143,7 +154,10 @@ export class WorkflowOrchestratorService {
 
   // ─── Scheduling Event Handlers ────────────────────────────────
 
-  private async handleAppointmentCreated(schemaName: string, payload: Record<string, any>): Promise<void> {
+  private async handleAppointmentCreated(
+    schemaName: string,
+    payload: Record<string, any>,
+  ): Promise<void> {
     const { appointmentId, customerId, staffId, startTime, serviceName } = payload;
 
     // Enqueue reminders (24h + 1h before)
@@ -156,18 +170,22 @@ export class WorkflowOrchestratorService {
       const reminderTime = new Date(startDate.getTime() - hours * 3600000);
       if (reminderTime.getTime() > now) {
         const delay = reminderTime.getTime() - now;
-        await this.reminderQueue.add('send-reminder', {
-          schemaName,
-          appointmentId,
-          customerId,
-          staffId,
-          startTime,
-          serviceName,
-          reminderType: `${hours}h_before`,
-        }, {
-          delay,
-          jobId: `reminder-${appointmentId}-${hours}h`,
-        });
+        await this.reminderQueue.add(
+          'send-reminder',
+          {
+            schemaName,
+            appointmentId,
+            customerId,
+            staffId,
+            startTime,
+            serviceName,
+            reminderType: `${hours}h_before`,
+          },
+          {
+            delay,
+            jobId: `reminder-${appointmentId}-${hours}h`,
+          },
+        );
       }
     }
 
@@ -182,7 +200,10 @@ export class WorkflowOrchestratorService {
     this.logger.debug(`[${schemaName}] Appointment workflows triggered: ${appointmentId}`);
   }
 
-  private async handleAppointmentCancelled(schemaName: string, payload: Record<string, any>): Promise<void> {
+  private async handleAppointmentCancelled(
+    schemaName: string,
+    payload: Record<string, any>,
+  ): Promise<void> {
     const { appointmentId, staffId } = payload;
 
     // Cancel pending reminders
@@ -204,7 +225,10 @@ export class WorkflowOrchestratorService {
     this.logger.debug(`[${schemaName}] Appointment cancelled workflows: ${appointmentId}`);
   }
 
-  private async handleAppointmentRescheduled(schemaName: string, payload: Record<string, any>): Promise<void> {
+  private async handleAppointmentRescheduled(
+    schemaName: string,
+    payload: Record<string, any>,
+  ): Promise<void> {
     const { appointmentId, staffId, newStartTime, customerId, serviceName } = payload;
 
     // Cancel old reminders
@@ -233,14 +257,21 @@ export class WorkflowOrchestratorService {
     });
   }
 
-  private async handleAppointmentNoShow(schemaName: string, payload: Record<string, any>, tenantId: string): Promise<void> {
+  private async handleAppointmentNoShow(
+    schemaName: string,
+    payload: Record<string, any>,
+    tenantId: string,
+  ): Promise<void> {
     const { appointmentId, customerId } = payload;
 
     // Check if customer has multiple no-shows → trigger retention campaign
-    const noShows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const noShows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT COUNT(*) AS count FROM "${schemaName}".appointments
       WHERE customer_id = $1::uuid AND status = 'no_show'
-    `, customerId);
+    `,
+      customerId,
+    );
 
     const count = parseInt(noShows[0]?.count ?? '0');
     if (count >= 2) {
@@ -264,26 +295,40 @@ export class WorkflowOrchestratorService {
 
   // ─── Retention Event Handlers ─────────────────────────────────
 
-  private async handleCampaignExecuted(schemaName: string, payload: Record<string, any>): Promise<void> {
+  private async handleCampaignExecuted(
+    schemaName: string,
+    payload: Record<string, any>,
+  ): Promise<void> {
     const { campaignId, targetCount, executionId } = payload;
 
     // Update campaign metrics
-    this.logger.log(`[${schemaName}] Campaign ${campaignId} executed: ${targetCount} targets, execution ${executionId}`);
+    this.logger.log(
+      `[${schemaName}] Campaign ${campaignId} executed: ${targetCount} targets, execution ${executionId}`,
+    );
   }
 
-  private async handleCustomerConverted(schemaName: string, payload: Record<string, any>): Promise<void> {
+  private async handleCustomerConverted(
+    schemaName: string,
+    payload: Record<string, any>,
+  ): Promise<void> {
     const { campaignId, customerId, orderId, revenue } = payload;
 
     // Update campaign contact log with conversion
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".campaign_contact_logs
       SET status = 'converted', converted_at = NOW(), revenue_amount = $1
       WHERE campaign_id = $2::uuid AND customer_id = $3::uuid AND status = 'sent'
       ORDER BY sent_at DESC LIMIT 1
-    `, revenue, campaignId, customerId);
+    `,
+      revenue,
+      campaignId,
+      customerId,
+    );
 
     // Update campaign aggregate metrics
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".retention_campaigns
       SET metrics = jsonb_set(
         jsonb_set(
@@ -295,12 +340,21 @@ export class WorkflowOrchestratorService {
         to_jsonb(COALESCE((metrics->>'revenue_recovered')::decimal, 0) + $1)
       ), updated_at = NOW()
       WHERE id = $2::uuid
-    `, revenue, campaignId);
+    `,
+      revenue,
+      campaignId,
+    );
 
-    this.logger.log(`[${schemaName}] Conversion tracked: campaign ${campaignId}, customer ${customerId}, revenue $${revenue}`);
+    this.logger.log(
+      `[${schemaName}] Conversion tracked: campaign ${campaignId}, customer ${customerId}, revenue $${revenue}`,
+    );
   }
 
-  private async handleCustomerBecameInactive(schemaName: string, payload: Record<string, any>, tenantId: string): Promise<void> {
+  private async handleCustomerBecameInactive(
+    schemaName: string,
+    payload: Record<string, any>,
+    tenantId: string,
+  ): Promise<void> {
     const { customerId, reason } = payload;
 
     // Check if there's an active win-back campaign targeting this customer's segment
@@ -340,7 +394,9 @@ export class WorkflowOrchestratorService {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT * FROM "${schemaName}".workflow_instances ${whereClause}
        ORDER BY started_at DESC LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
-      ...params, limit, offset,
+      ...params,
+      limit,
+      offset,
     );
 
     return {
@@ -353,9 +409,12 @@ export class WorkflowOrchestratorService {
    * Get recent workflow events for a tenant (last 50).
    */
   async getRecentEvents(schemaName: string, limit = 50): Promise<any[]> {
-    return this.prisma.$queryRawUnsafe<any[]>(`
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT * FROM "${schemaName}".workflow_events
       ORDER BY created_at DESC LIMIT $1
-    `, limit);
+    `,
+      limit,
+    );
   }
 }

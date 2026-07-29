@@ -6,6 +6,7 @@ El "Staging Tenant" es un tenant permanente en el entorno de staging que replica
 exactamente el estado de un cliente real en producción.
 
 No es un tenant vacío. Tiene:
+
 - Productos con precios reales
 - Clientes con historial de conversaciones
 - Pedidos en todos los estados posibles
@@ -101,11 +102,11 @@ async function seedStagingTenant() {
 
 async function seedProducts(schema: string) {
   const products = [
-    { sku: 'PROD-001', name: 'Producto A', price: 150.00, stock: 100 },
-    { sku: 'PROD-002', name: 'Producto B', price: 250.00, stock: 50 },
-    { sku: 'PROD-003', name: 'Producto C', price: 75.00, stock: 3 },   // stock bajo
-    { sku: 'PROD-004', name: 'Producto D', price: 500.00, stock: 0 },  // sin stock
-    { sku: 'PROD-005', name: 'Producto E', price: 99.00, stock: 200, isActive: false }, // inactivo
+    { sku: 'PROD-001', name: 'Producto A', price: 150.0, stock: 100 },
+    { sku: 'PROD-002', name: 'Producto B', price: 250.0, stock: 50 },
+    { sku: 'PROD-003', name: 'Producto C', price: 75.0, stock: 3 }, // stock bajo
+    { sku: 'PROD-004', name: 'Producto D', price: 500.0, stock: 0 }, // sin stock
+    { sku: 'PROD-005', name: 'Producto E', price: 99.0, stock: 200, isActive: false }, // inactivo
   ];
 
   // INSERT en el schema del tenant...
@@ -114,9 +115,15 @@ async function seedProducts(schema: string) {
 
 async function seedOrdersAllStates(schema, customers, products) {
   const states = [
-    'new', 'quoted', 'payment_pending',
-    'payment_verified', 'in_production',
-    'ready', 'shipped', 'delivered', 'cancelled'
+    'new',
+    'quoted',
+    'payment_pending',
+    'payment_verified',
+    'in_production',
+    'ready',
+    'shipped',
+    'delivered',
+    'cancelled',
   ];
 
   for (const status of states) {
@@ -141,15 +148,12 @@ export async function resetStagingTenant(): Promise<void> {
     throw new Error('NUNCA resetear en producción');
   }
 
-  const response = await fetch(
-    `${process.env.STAGING_URL}/internal/reset-demo-tenant`,
-    {
-      method: 'POST',
-      headers: {
-        'x-internal-key': process.env.INTERNAL_RESET_KEY,
-      }
-    }
-  );
+  const response = await fetch(`${process.env.STAGING_URL}/internal/reset-demo-tenant`, {
+    method: 'POST',
+    headers: {
+      'x-internal-key': process.env.INTERNAL_RESET_KEY,
+    },
+  });
 
   if (!response.ok) {
     throw new Error('No se pudo resetear el staging tenant');
@@ -164,7 +168,6 @@ export async function resetStagingTenant(): Promise<void> {
 @Controller('internal')
 @UseGuards(InternalKeyGuard)
 export class InternalController {
-
   @Post('reset-demo-tenant')
   async resetDemoTenant() {
     if (process.env.NODE_ENV === 'production') {
@@ -181,24 +184,25 @@ export class InternalController {
 
 ## Diferencias entre Staging y Producción
 
-| Aspecto | Staging | Producción |
-|---------|---------|------------|
-| Infraestructura | Idéntica (misma config ECS/RDS) | — |
-| Versión PostgreSQL | Idéntica | — |
-| Variables de entorno | Mismas claves, valores de prueba | Valores reales |
-| WhatsApp | Meta Sandbox (números de prueba) | Números reales aprobados |
-| OpenAI | Misma API, cuota separada | — |
-| Stripe | Modo test (tarjetas de prueba) | Modo live |
-| Emails | Interceptados (no llegan a usuarios reales) | Envío real |
-| Datos | Seed controlado + datos de prueba | Datos reales de clientes |
-| Backups | Diarios (retención 7 días) | Diarios (retención 30 días) |
-| Monitoreo | Grafana staging | Grafana producción + alertas PagerDuty |
+| Aspecto              | Staging                                     | Producción                             |
+| -------------------- | ------------------------------------------- | -------------------------------------- |
+| Infraestructura      | Idéntica (misma config ECS/RDS)             | —                                      |
+| Versión PostgreSQL   | Idéntica                                    | —                                      |
+| Variables de entorno | Mismas claves, valores de prueba            | Valores reales                         |
+| WhatsApp             | Meta Sandbox (números de prueba)            | Números reales aprobados               |
+| OpenAI               | Misma API, cuota separada                   | —                                      |
+| Stripe               | Modo test (tarjetas de prueba)              | Modo live                              |
+| Emails               | Interceptados (no llegan a usuarios reales) | Envío real                             |
+| Datos                | Seed controlado + datos de prueba           | Datos reales de clientes               |
+| Backups              | Diarios (retención 7 días)                  | Diarios (retención 30 días)            |
+| Monitoreo            | Grafana staging                             | Grafana producción + alertas PagerDuty |
 
 ---
 
 ## Checklist de la Fase 0
 
 ### Infraestructura
+
 - [ ] Entorno de staging en AWS (ECS + RDS + ElastiCache) idéntico a producción
 - [ ] Variables de entorno de staging configuradas en GitHub Secrets
 - [ ] Docker images construyéndose correctamente
@@ -207,6 +211,7 @@ export class InternalController {
 - [ ] SSL válido para staging
 
 ### CI/CD
+
 - [ ] GitHub Actions pipeline completo (lint → unit → integration → isolation → staging → prod)
 - [ ] Branch protection rules en `main` configuradas
 - [ ] Aprobación manual requerida para deploy a producción
@@ -214,6 +219,7 @@ export class InternalController {
 - [ ] Notificaciones a Slack configuradas
 
 ### Testing
+
 - [ ] Suite de unit tests con > 80% de cobertura en módulos críticos
 - [ ] Suite de integration tests cubriendo flujos principales
 - [ ] Suite de tenant isolation tests cubriendo todos los recursos
@@ -221,12 +227,14 @@ export class InternalController {
 - [ ] Health check endpoint respondiendo correctamente
 
 ### Staging Tenant
+
 - [ ] Tenant "vspro-demo" provisionado con datos representativos
 - [ ] Canales de Meta conectados con números/páginas de prueba
 - [ ] Endpoint de reset funcionando
 - [ ] Panel admin accesible en `vspro-demo.staging.vspro.app`
 
 ### Observabilidad
+
 - [ ] Logs centralizados (Loki o CloudWatch)
 - [ ] Métricas básicas en Grafana (latencia, errores, uso de BD)
 - [ ] Sentry configurado para captura de errores

@@ -84,9 +84,15 @@ export class DeliveryService {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
-    await this.prisma.$executeRawUnsafe(`ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0`);
-    await this.prisma.$executeRawUnsafe(`ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS total_earned DECIMAL(10,2) NOT NULL DEFAULT 0`);
-    await this.prisma.$executeRawUnsafe(`ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS total_paid DECIMAL(10,2) NOT NULL DEFAULT 0`);
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0`,
+    );
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS total_earned DECIMAL(10,2) NOT NULL DEFAULT 0`,
+    );
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS total_paid DECIMAL(10,2) NOT NULL DEFAULT 0`,
+    );
 
     await this.prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "${schemaName}".delivery_assignments (
@@ -149,30 +155,54 @@ export class DeliveryService {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
-    await this.prisma.$executeRawUnsafe(`ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0`);
-    await this.prisma.$executeRawUnsafe(`ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS total_earned DECIMAL(10,2) NOT NULL DEFAULT 0`);
-    await this.prisma.$executeRawUnsafe(`ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS total_paid DECIMAL(10,2) NOT NULL DEFAULT 0`);
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0`,
+    );
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS total_earned DECIMAL(10,2) NOT NULL DEFAULT 0`,
+    );
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schemaName}".delivery_drivers ADD COLUMN IF NOT EXISTS total_paid DECIMAL(10,2) NOT NULL DEFAULT 0`,
+    );
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".delivery_drivers (name, phone, vehicle_type, max_deliveries, delivery_fee, status)
       VALUES ($1, $2, $3, $4, $5, 'available')
       RETURNING id, name, phone, vehicle_type AS "vehicleType", status,
                 max_deliveries AS "maxDeliveries", delivery_fee AS "deliveryFee", created_at AS "createdAt"
-    `, dto.name, dto.phone, dto.vehicleType ?? 'moto', dto.maxDeliveries ?? 3, (dto as any).deliveryFee ?? 0);
+    `,
+      dto.name,
+      dto.phone,
+      dto.vehicleType ?? 'moto',
+      dto.maxDeliveries ?? 3,
+      (dto as any).deliveryFee ?? 0,
+    );
 
     return { ...rows[0], activeDeliveries: 0 };
   }
 
-  async updateDriverStatus(driverId: string, status: 'available' | 'busy' | 'offline', schemaName: string): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+  async updateDriverStatus(
+    driverId: string,
+    status: 'available' | 'busy' | 'offline',
+    schemaName: string,
+  ): Promise<void> {
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".delivery_drivers SET status = $1 WHERE id = $2::uuid
-    `, status, driverId);
+    `,
+      status,
+      driverId,
+    );
   }
 
   async deleteDriver(driverId: string, schemaName: string): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       DELETE FROM "${schemaName}".delivery_drivers WHERE id = $1::uuid
-    `, driverId);
+    `,
+      driverId,
+    );
   }
 
   // ─── Delivery Request & Assignment ────────────────────────────
@@ -195,15 +225,20 @@ export class DeliveryService {
     }
 
     if (order.status !== 'ready') {
-      throw new BadRequestException(`El pedido debe estar "listo" para envío. Status actual: ${order.status}`);
+      throw new BadRequestException(
+        `El pedido debe estar "listo" para envío. Status actual: ${order.status}`,
+      );
     }
 
     // 2. Find driver
     let driver: any;
     if (dto.driverId) {
-      const drivers = await this.prisma.$queryRawUnsafe<any[]>(`
+      const drivers = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT id, name, phone, status FROM "${schemaName}".delivery_drivers WHERE id = $1::uuid
-      `, dto.driverId);
+      `,
+        dto.driverId,
+      );
       if (!drivers[0]) throw new NotFoundException('Repartidor no encontrado');
       driver = drivers[0];
     } else {
@@ -215,12 +250,16 @@ export class DeliveryService {
     }
 
     // 3. Create assignment
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".delivery_assignments
         (order_id, driver_id, status, offered_at)
       VALUES ($1::uuid, $2::uuid, 'offered', NOW())
       RETURNING id, offered_at AS "offeredAt"
-    `, dto.orderId, driver.id);
+    `,
+      dto.orderId,
+      driver.id,
+    );
 
     const assignment = rows[0];
 
@@ -229,12 +268,7 @@ export class DeliveryService {
     const items = this.formatItems(order.items);
     const message = this.buildDriverMessage(order, driver.name, address, items);
 
-    await this.messagingFactory.sendText(
-      driver.phone,
-      message,
-      'whatsapp',
-      schemaName,
-    );
+    await this.messagingFactory.sendText(driver.phone, message, 'whatsapp', schemaName);
 
     // 5. Emit event
     this.eventsGateway.emitToTenant(tenantId, 'delivery:offered', {
@@ -277,11 +311,14 @@ export class DeliveryService {
       throw new BadRequestException(`No se puede aceptar: status actual es "${assignment.status}"`);
     }
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".delivery_assignments
       SET status = 'accepted', accepted_at = NOW()
       WHERE id = $1::uuid
-    `, assignmentId);
+    `,
+      assignmentId,
+    );
 
     // Transition order to shipped
     await this.ordersService.transition(assignment.orderId, 'shipped', schemaName);
@@ -292,7 +329,9 @@ export class DeliveryService {
       driverName: assignment.driverName,
     });
 
-    this.logger.log(`[${schemaName}] Delivery accepted: ${assignment.orderNumber} by ${assignment.driverName}`);
+    this.logger.log(
+      `[${schemaName}] Delivery accepted: ${assignment.orderNumber} by ${assignment.driverName}`,
+    );
     return { ...assignment, status: 'accepted', acceptedAt: new Date().toISOString() };
   }
 
@@ -309,11 +348,14 @@ export class DeliveryService {
       throw new BadRequestException('El pedido no ha sido aceptado aún');
     }
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".delivery_assignments
       SET status = 'picked_up', picked_up_at = NOW()
       WHERE id = $1::uuid
-    `, assignmentId);
+    `,
+      assignmentId,
+    );
 
     this.eventsGateway.emitToTenant(tenantId, 'delivery:picked_up', {
       assignmentId,
@@ -338,11 +380,14 @@ export class DeliveryService {
       throw new BadRequestException('El pedido no ha sido recogido aún');
     }
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".delivery_assignments
       SET status = 'delivered', delivered_at = NOW()
       WHERE id = $1::uuid
-    `, assignmentId);
+    `,
+      assignmentId,
+    );
 
     // Transition order to delivered
     await this.ordersService.transition(assignment.orderId, 'delivered', schemaName);
@@ -367,16 +412,22 @@ export class DeliveryService {
   ): Promise<{ rejected: true; reassigned: boolean; newDriverName?: string }> {
     const assignment = await this.getAssignment(assignmentId, schemaName);
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".delivery_assignments SET status = 'rejected' WHERE id = $1::uuid
-    `, assignmentId);
+    `,
+      assignmentId,
+    );
 
     // Try to assign to next available driver (excluding the one who rejected)
-    const available = await this.prisma.$queryRawUnsafe<any[]>(`
+    const available = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT d.id, d.name, d.phone FROM "${schemaName}".delivery_drivers d
       WHERE d.status = 'available' AND d.id != $1::uuid
       ORDER BY RANDOM() LIMIT 1
-    `, assignment.driverId);
+    `,
+      assignment.driverId,
+    );
 
     if (available[0]) {
       await this.requestDelivery(
@@ -418,7 +469,8 @@ export class DeliveryService {
   }
 
   async getDeliveryHistory(schemaName: string, limit = 20): Promise<DeliveryAssignment[]> {
-    return this.prisma.$queryRawUnsafe<DeliveryAssignment[]>(`
+    return this.prisma.$queryRawUnsafe<DeliveryAssignment[]>(
+      `
       SELECT a.id, a.order_id AS "orderId", a.status,
              a.offered_at AS "offeredAt", a.accepted_at AS "acceptedAt",
              a.picked_up_at AS "pickedUpAt", a.delivered_at AS "deliveredAt",
@@ -429,13 +481,16 @@ export class DeliveryService {
       JOIN "${schemaName}".delivery_drivers d ON d.id = a.driver_id
       JOIN "${schemaName}".customers c ON c.id = o.customer_id
       ORDER BY a.offered_at DESC LIMIT $1
-    `, limit);
+    `,
+      limit,
+    );
   }
 
   // ─── Helpers ──────────────────────────────────────────────────
 
   private async getAssignment(id: string, schemaName: string): Promise<DeliveryAssignment> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT a.id, a.order_id AS "orderId", a.driver_id AS "driverId", a.status,
              a.offered_at AS "offeredAt", a.accepted_at AS "acceptedAt",
              a.picked_up_at AS "pickedUpAt", a.delivered_at AS "deliveredAt",
@@ -446,7 +501,9 @@ export class DeliveryService {
       JOIN "${schemaName}".delivery_drivers d ON d.id = a.driver_id
       JOIN "${schemaName}".customers c ON c.id = o.customer_id
       WHERE a.id = $1::uuid
-    `, id);
+    `,
+      id,
+    );
 
     if (!rows[0]) throw new NotFoundException('Asignación de delivery no encontrada');
     return {
@@ -456,7 +513,12 @@ export class DeliveryService {
     };
   }
 
-  private buildDriverMessage(order: any, driverName: string, address: string, items: string): string {
+  private buildDriverMessage(
+    order: any,
+    driverName: string,
+    address: string,
+    items: string,
+  ): string {
     return `🛵 *Nuevo pedido para entrega*
 
 Hola ${driverName}, hay un pedido listo:
@@ -503,11 +565,16 @@ Responde *SÍ* o *NO*`;
     const trackingToken = this.generateToken();
 
     // Create assignment
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${schemaName}".delivery_assignments
         (order_id, driver_id, status, offered_at, tracking_token, is_external, external_phone)
       VALUES ($1::uuid, NULL, 'offered', NOW(), $2, true, $3)
-    `, orderId, trackingToken, phone);
+    `,
+      orderId,
+      trackingToken,
+      phone,
+    );
 
     // Build tracking URL
     const appUrl = 'https://app.vspro.app';
@@ -518,7 +585,8 @@ Responde *SÍ* o *NO*`;
     const items = this.formatItems(order.items);
     const name = driverName ?? 'Repartidor';
 
-    const message = `🛵 *Pedido para entrega*\n\n` +
+    const message =
+      `🛵 *Pedido para entrega*\n\n` +
       `📋 Pedido: ${order.orderNumber}\n` +
       `📍 Dirección: ${address}\n` +
       `💰 Total: $${parseFloat(order.total).toLocaleString('es-MX')}\n` +
@@ -528,7 +596,9 @@ Responde *SÍ* o *NO*`;
     // Send WhatsApp
     const result = await this.messagingFactory.sendText(phone, message, 'whatsapp', schemaName);
 
-    this.logger.log(`[${schemaName}] External dispatch: ${order.orderNumber} → ${phone} (token: ${trackingToken})`);
+    this.logger.log(
+      `[${schemaName}] External dispatch: ${order.orderNumber} → ${phone} (token: ${trackingToken})`,
+    );
 
     return {
       success: result.success,

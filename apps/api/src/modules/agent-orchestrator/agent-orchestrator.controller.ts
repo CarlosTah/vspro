@@ -1,4 +1,16 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, Req, ParseUUIDPipe, DefaultValuePipe, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Req,
+  ParseUUIDPipe,
+  DefaultValuePipe,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AgentSupervisorService } from './agent-supervisor.service';
@@ -27,13 +39,10 @@ export class AgentOrchestratorController {
   ) {
     const userId = req.user?.id ?? req.user?.sub;
     const tenantId = req.user?.tenantId ?? req.tenantId;
-    return this.supervisor.executeObjective(
-      body.objective,
-      tenantId,
-      schema,
-      userId,
-      { schemaName: schema, ...body.context },
-    );
+    return this.supervisor.executeObjective(body.objective, tenantId, schema, userId, {
+      schemaName: schema,
+      ...body.context,
+    });
   }
 
   /** Get a specific session by ID */
@@ -57,7 +66,7 @@ export class AgentOrchestratorController {
   @Get('agents')
   @Roles('admin', 'manager')
   getAgents() {
-    return this.registry.getAllAgents().map(a => ({
+    return this.registry.getAllAgents().map((a) => ({
       name: a.name,
       description: a.description,
       domains: a.domains,

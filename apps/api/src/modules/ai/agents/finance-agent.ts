@@ -49,13 +49,16 @@ Responde en español, conciso. Si el cliente envía un comprobante, confirma que
 
   async executeTool(name: string, args: any, context: AgentContext): Promise<string> {
     if (name === 'check_payment_status') {
-      const payments = await this.prisma.$queryRawUnsafe<any[]>(`
+      const payments = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT p.amount, p.status, p.method, p.created_at
         FROM "${context.schemaName}".payments p
         JOIN "${context.schemaName}".orders o ON o.id = p.order_id
         WHERE o.order_number = $1
         ORDER BY p.created_at DESC LIMIT 1
-      `, args.orderNumber);
+      `,
+        args.orderNumber,
+      );
 
       if (!payments[0]) return JSON.stringify({ found: false });
       return JSON.stringify({ found: true, ...payments[0] });
@@ -77,17 +80,22 @@ Responde en español, conciso. Si el cliente envía un comprobante, confirma que
     const tol = tolerance ?? this.DEFAULT_TOLERANCE;
 
     // Find payment by order reference
-    const payments = await this.prisma.$queryRawUnsafe<any[]>(`
+    const payments = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT p.id, p.amount, p.status, o.order_number
       FROM "${schemaName}".payments p
       JOIN "${schemaName}".orders o ON o.id = p.order_id
       WHERE o.order_number = $1
         AND p.status IN ('pending', 'verified')
       ORDER BY p.created_at DESC LIMIT 1
-    `, event.reference);
+    `,
+      event.reference,
+    );
 
     if (!payments[0]) {
-      this.logger.warn(`No matching payment for Stripe event ${event.stripeId} (ref: ${event.reference})`);
+      this.logger.warn(
+        `No matching payment for Stripe event ${event.stripeId} (ref: ${event.reference})`,
+      );
       return { status: 'no_match', stripeEventId: event.stripeId };
     }
 
@@ -98,17 +106,24 @@ Responde en español, conciso. Si el cliente envía un comprobante, confirma que
 
     if (discrepancy <= tol) {
       // Auto-reconcile
-      const note = discrepancy > 0
-        ? `Auto-reconciliado: discrepancia $${discrepancy.toFixed(2)} dentro de tolerancia`
-        : 'Reconciliado: montos coinciden exactamente';
+      const note =
+        discrepancy > 0
+          ? `Auto-reconciliado: discrepancia $${discrepancy.toFixed(2)} dentro de tolerancia`
+          : 'Reconciliado: montos coinciden exactamente';
 
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".payments
         SET status = 'reconciled', reference = COALESCE(reference,'') || $1
         WHERE id = $2::uuid
-      `, `\n[${note}] Stripe: ${event.stripeId}`, payment.id);
+      `,
+        `\n[${note}] Stripe: ${event.stripeId}`,
+        payment.id,
+      );
 
-      this.logger.log(`Auto-reconciled payment ${payment.id}: discrepancy $${discrepancy.toFixed(2)}`);
+      this.logger.log(
+        `Auto-reconciled payment ${payment.id}: discrepancy $${discrepancy.toFixed(2)}`,
+      );
 
       return {
         status: 'auto_reconciled',

@@ -53,12 +53,14 @@ export class ReportsController {
 
     const now = new Date();
     const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
-      .toISOString().split('T')[0];
+      .toISOString()
+      .split('T')[0];
 
     switch (query.period) {
       case 'today': {
         const from = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-          .toISOString().split('T')[0];
+          .toISOString()
+          .split('T')[0];
         return { from, to };
       }
       case 'week': {

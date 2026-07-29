@@ -31,12 +31,15 @@ export class AiToolsExtenderService {
 
     // Las custom tools se guardan como JSON en un campo dedicado
     // Por ahora usamos una tabla separada o el campo custom_instructions
-    const toolsRows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const toolsRows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = $1 AND table_name = 'ai_config' AND column_name = 'custom_tools'
       ) AS exists
-    `, schemaName);
+    `,
+      schemaName,
+    );
 
     if (!toolsRows[0]?.exists) {
       // Crear columna si no existe
@@ -63,11 +66,14 @@ export class AiToolsExtenderService {
       ADD COLUMN IF NOT EXISTS custom_tools JSONB DEFAULT '[]'
     `);
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".ai_config
       SET custom_tools = $1::jsonb
       WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
-    `, JSON.stringify(tools));
+    `,
+      JSON.stringify(tools),
+    );
 
     return { success: true, toolCount: tools.length };
   }
@@ -86,14 +92,9 @@ export class AiToolsExtenderService {
           parameters: {
             type: 'object',
             properties: Object.fromEntries(
-              tool.parameters.map((p) => [
-                p.name,
-                { type: p.type, description: p.description },
-              ]),
+              tool.parameters.map((p) => [p.name, { type: p.type, description: p.description }]),
             ),
-            required: tool.parameters
-              .filter((p) => p.required)
-              .map((p) => p.name),
+            required: tool.parameters.filter((p) => p.required).map((p) => p.name),
           },
         },
       }));

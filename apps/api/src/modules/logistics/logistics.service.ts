@@ -54,16 +54,16 @@ export class LogisticsService {
   /**
    * Guarda un cálculo de envío asociado a un pedido.
    */
-  async saveCalculation(
-    orderId: string,
-    selectedRate: ShippingRate,
-    schemaName: string,
-  ) {
-    await this.prisma.$executeRawUnsafe(`
+  async saveCalculation(orderId: string, selectedRate: ShippingRate, schemaName: string) {
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".orders
       SET shipping_cost = $1, updated_at = NOW()
       WHERE id = $2::uuid
-    `, selectedRate.price, orderId);
+    `,
+      selectedRate.price,
+      orderId,
+    );
 
     return { success: true, shippingCost: selectedRate.price };
   }
@@ -79,10 +79,7 @@ export class LogisticsService {
     return rows[0]?.external_rates ?? {};
   }
 
-  private computeRates(
-    dto: CreateShippingCalculationDto,
-    tenantRates: any,
-  ): ShippingRate[] {
+  private computeRates(dto: CreateShippingCalculationDto, tenantRates: any): ShippingRate[] {
     const weight = dto.weightKg;
     const basePrice = weight * 25; // $25 por kg base
 

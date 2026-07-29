@@ -24,7 +24,8 @@ export class ShipmentsService {
   ) {}
 
   async findByOrder(orderId: string, schemaName: string) {
-    return this.prisma.$queryRawUnsafe<any[]>(`
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         id, order_id AS "orderId", carrier,
         tracking_number AS "trackingNumber",
@@ -34,7 +35,9 @@ export class ShipmentsService {
       FROM "${schemaName}".shipments
       WHERE order_id = $1::uuid
       ORDER BY created_at DESC
-    `, orderId);
+    `,
+      orderId,
+    );
   }
 
   async create(dto: CreateShipmentDto, schemaName: string) {
@@ -42,7 +45,8 @@ export class ShipmentsService {
     const order = await this.ordersService.findById(dto.orderId, schemaName);
 
     // 2. Crear registro de envío
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".shipments
         (order_id, carrier, tracking_number, tracking_url, status, estimated_delivery)
       VALUES ($1::uuid, $2, $3, $4, 'picked_up', $5)
@@ -62,20 +66,25 @@ export class ShipmentsService {
 
     // 3. Actualizar costo de envío en el pedido
     if (dto.cost) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".orders
         SET shipping_cost = $1,
             total = subtotal + $1,
             updated_at = NOW()
         WHERE id = $2::uuid
-      `, dto.cost, dto.orderId);
+      `,
+        dto.cost,
+        dto.orderId,
+      );
     }
 
     // 4. Transicionar pedido a 'shipped'
     await this.ordersService.transition(dto.orderId, 'shipped', schemaName);
 
     // 5. Notificar al cliente por su canal
-    const trackingUrl = shipment.trackingUrl ?? this.buildTrackingUrl(dto.carrier, dto.trackingNumber);
+    const trackingUrl =
+      shipment.trackingUrl ?? this.buildTrackingUrl(dto.carrier, dto.trackingNumber);
     const carrierName = CARRIER_NAMES[dto.carrier] ?? dto.carrier;
 
     const message =
@@ -104,16 +113,16 @@ export class ShipmentsService {
     };
   }
 
-  async updateStatus(
-    shipmentId: string,
-    status: string,
-    schemaName: string,
-  ) {
-    await this.prisma.$executeRawUnsafe(`
+  async updateStatus(shipmentId: string, status: string, schemaName: string) {
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".shipments
       SET status = $1
       WHERE id = $2::uuid
-    `, status, shipmentId);
+    `,
+      status,
+      shipmentId,
+    );
 
     return { success: true };
   }

@@ -23,7 +23,9 @@ export class AnalyticsReportsService {
    */
   async generateDailyReport(schemaName: string, date?: string): Promise<DailyReport> {
     const targetDate = date ?? new Date().toISOString().split('T')[0];
-    const nextDate = new Date(new Date(targetDate).getTime() + 86400000).toISOString().split('T')[0];
+    const nextDate = new Date(new Date(targetDate).getTime() + 86400000)
+      .toISOString()
+      .split('T')[0];
 
     const [sales, products, inventory, funnel] = await Promise.all([
       this.getDailySales(schemaName, targetDate, nextDate),
@@ -46,7 +48,8 @@ export class AnalyticsReportsService {
   // ─── Daily Sales Aggregation ──────────────────────────────────
 
   private async getDailySales(schema: string, from: string, to: string): Promise<SalesMetrics> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         COUNT(*) AS total_orders,
         COUNT(*) FILTER (WHERE status NOT IN ('cancelled')) AS valid_orders,
@@ -58,7 +61,10 @@ export class AnalyticsReportsService {
         COUNT(DISTINCT customer_id) AS unique_customers
       FROM "${schema}".orders
       WHERE created_at >= $1::date AND created_at < $2::date
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     const r = rows[0] ?? {};
     return {
@@ -75,8 +81,13 @@ export class AnalyticsReportsService {
 
   // ─── JSONB Items Parser — Product-level breakdown ─────────────
 
-  private async getProductBreakdown(schema: string, from: string, to: string): Promise<ProductMetric[]> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+  private async getProductBreakdown(
+    schema: string,
+    from: string,
+    to: string,
+  ): Promise<ProductMetric[]> {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         item->>'productName' AS product_name,
         item->>'productId' AS product_id,
@@ -90,9 +101,12 @@ export class AnalyticsReportsService {
       GROUP BY item->>'productName', item->>'productId'
       ORDER BY total_revenue DESC
       LIMIT 20
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
-    return rows.map(r => ({
+    return rows.map((r) => ({
       productId: r.product_id,
       productName: r.product_name ?? 'Unknown',
       totalQuantity: parseInt(r.total_quantity ?? '0'),
@@ -128,22 +142,38 @@ export class AnalyticsReportsService {
 
   // ─── Conversion Funnel ────────────────────────────────────────
 
-  private async getConversionFunnel(schema: string, from: string, to: string): Promise<FunnelMetrics> {
-    const conversations = await this.prisma.$queryRawUnsafe<any[]>(`
+  private async getConversionFunnel(
+    schema: string,
+    from: string,
+    to: string,
+  ): Promise<FunnelMetrics> {
+    const conversations = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT COUNT(*) AS c FROM "${schema}".conversations
       WHERE created_at >= $1::date AND created_at < $2::date
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
-    const orders = await this.prisma.$queryRawUnsafe<any[]>(`
+    const orders = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT COUNT(*) AS c FROM "${schema}".orders
       WHERE created_at >= $1::date AND created_at < $2::date
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
-    const paid = await this.prisma.$queryRawUnsafe<any[]>(`
+    const paid = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT COUNT(*) AS c FROM "${schema}".orders
       WHERE created_at >= $1::date AND created_at < $2::date
         AND status IN ('paid','in_production','ready','shipped','delivered')
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     const totalConvs = parseInt(conversations[0]?.c ?? '0');
     const totalOrders = parseInt(orders[0]?.c ?? '0');
@@ -209,8 +239,11 @@ export class AnalyticsReportsService {
     schema: string,
     from: string,
     to: string,
-  ): Promise<Array<{ date: string; conversations: number; orders: number; paid: number; convRate: number }>> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+  ): Promise<
+    Array<{ date: string; conversations: number; orders: number; paid: number; convRate: number }>
+  > {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       WITH daily_convs AS (
         SELECT DATE(created_at) AS d, COUNT(*) AS c
         FROM "${schema}".conversations
@@ -239,9 +272,12 @@ export class AnalyticsReportsService {
       FULL OUTER JOIN daily_orders do2 ON dc.d = do2.d
       FULL OUTER JOIN daily_paid dp ON COALESCE(dc.d, do2.d) = dp.d
       ORDER BY date
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
-    return rows.map(r => {
+    return rows.map((r) => {
       const convs = parseInt(r.conversations ?? '0');
       const orders = parseInt(r.orders ?? '0');
       return {
@@ -259,7 +295,8 @@ export class AnalyticsReportsService {
     from: string,
     to: string,
   ): Promise<Array<{ channel: string; conversations: number; orders: number; convRate: number }>> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         c.channel_type AS channel,
         COUNT(DISTINCT c.id) AS conversations,
@@ -271,9 +308,12 @@ export class AnalyticsReportsService {
       WHERE c.created_at >= $1::date AND c.created_at < $2::date
       GROUP BY c.channel_type
       ORDER BY conversations DESC
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
-    return rows.map(r => {
+    return rows.map((r) => {
       const convs = parseInt(r.conversations ?? '0');
       const orders = parseInt(r.orders ?? '0');
       return {
@@ -291,7 +331,8 @@ export class AnalyticsReportsService {
     to: string,
   ): Promise<{ avgResponseTime: number; avgOrderCompletionTime: number }> {
     // Avg time between first inbound message and first outbound (response time)
-    const responseRows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const responseRows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT AVG(EXTRACT(EPOCH FROM (first_out.t - first_in.t))) AS avg_sec
       FROM (
         SELECT conversation_id, MIN(created_at) AS t
@@ -306,10 +347,14 @@ export class AnalyticsReportsService {
         GROUP BY conversation_id
       ) first_out ON first_in.conversation_id = first_out.conversation_id
       WHERE first_out.t > first_in.t
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     // Avg time from conversation start to order creation (minutes)
-    const completionRows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const completionRows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT AVG(EXTRACT(EPOCH FROM (o.created_at - c.created_at)) / 60) AS avg_min
       FROM "${schema}".orders o
       JOIN "${schema}".conversations c ON c.customer_id = o.customer_id
@@ -317,7 +362,10 @@ export class AnalyticsReportsService {
         AND o.created_at >= c.created_at
         AND o.created_at < c.created_at + INTERVAL '24 hours'
       WHERE o.created_at >= $1::date AND o.created_at < $2::date
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     return {
       avgResponseTime: Math.round(parseFloat(responseRows[0]?.avg_sec ?? '0')),
@@ -348,7 +396,8 @@ export class AnalyticsReportsService {
     msg += `📦 *Inventario*\n`;
     msg += `  En stock: ${report.inventory.totalUnits} unidades\n`;
     if (report.inventory.outOfStock > 0) msg += `  ⚠️ Agotados: ${report.inventory.outOfStock}\n`;
-    if (report.inventory.belowMinimum > 0) msg += `  ⚠️ Bajo mínimo: ${report.inventory.belowMinimum}\n`;
+    if (report.inventory.belowMinimum > 0)
+      msg += `  ⚠️ Bajo mínimo: ${report.inventory.belowMinimum}\n`;
     msg += '\n';
 
     msg += `📈 *Embudo*\n`;

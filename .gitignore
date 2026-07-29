@@ -49,3 +49,4 @@ docker-compose.override.yml
 
 # Prisma
 prisma/migrations/*/migration_lock.toml
+env-local-backup.txt

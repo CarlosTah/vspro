@@ -84,7 +84,13 @@ export class AgentSupervisorService {
       updatedAt: new Date().toISOString(),
     };
 
-    this.log(session, 'session_started', undefined, undefined, `Objective received: "${objective}"`);
+    this.log(
+      session,
+      'session_started',
+      undefined,
+      undefined,
+      `Objective received: "${objective}"`,
+    );
 
     try {
       // 1. Plan: determine which agents need to be involved
@@ -96,18 +102,32 @@ export class AgentSupervisorService {
         session.tasks.push(task);
 
         // Check if audit is required
-        if (task.delegatedTo && await this.requiresAudit(task, schemaName)) {
+        if (task.delegatedTo && (await this.requiresAudit(task, schemaName))) {
           task.status = 'audit_hold';
-          this.log(session, 'audit_required', task.delegatedTo, undefined,
-            `Task "${task.description}" requires human approval (risk: high)`);
+          this.log(
+            session,
+            'audit_required',
+            task.delegatedTo,
+            undefined,
+            `Task "${task.description}" requires human approval (risk: high)`,
+          );
 
-          await this.humanAudit.createApprovalRequest({
-            type: 'custom',
-            payload: { taskId: task.id, description: task.description, agent: task.delegatedTo, input: task.input },
-            relatedEntityId: sessionId,
-            relatedEntityType: 'orchestrator_session',
-            requestedBy: userId,
-          }, schemaName, tenantId);
+          await this.humanAudit.createApprovalRequest(
+            {
+              type: 'custom',
+              payload: {
+                taskId: task.id,
+                description: task.description,
+                agent: task.delegatedTo,
+                input: task.input,
+              },
+              relatedEntityId: sessionId,
+              relatedEntityType: 'orchestrator_session',
+              requestedBy: userId,
+            },
+            schemaName,
+            tenantId,
+          );
 
           continue; // Skip execution until approved
         }
@@ -126,13 +146,28 @@ export class AgentSupervisorService {
           if (decision.action === 'retry' && task.attempts < task.maxAttempts) {
             task.status = 'pending';
             task.attempts++;
-            this.log(session, 'retry', task.delegatedTo, decision, `Retrying: ${decision.reasoning}`);
+            this.log(
+              session,
+              'retry',
+              task.delegatedTo,
+              decision,
+              `Retrying: ${decision.reasoning}`,
+            );
             // Re-execute
             const retryOutput = await this.executeTask(task, session);
-            if (retryOutput) { task.output = retryOutput; task.status = 'completed'; }
+            if (retryOutput) {
+              task.output = retryOutput;
+              task.status = 'completed';
+            }
           } else if (decision.action === 'escalate') {
             task.status = 'escalated';
-            this.log(session, 'escalated', task.delegatedTo, decision, `Escalated: ${decision.reasoning}`);
+            this.log(
+              session,
+              'escalated',
+              task.delegatedTo,
+              decision,
+              `Escalated: ${decision.reasoning}`,
+            );
           }
 
           // Store shared context for other agents
@@ -149,8 +184,9 @@ export class AgentSupervisorService {
 
       // 3. Assemble final response
       session.context.currentPhase = 'completed';
-      session.status = session.tasks.every(t => t.status === 'completed') ? 'completed' : 'failed';
-
+      session.status = session.tasks.every((t) => t.status === 'completed')
+        ? 'completed'
+        : 'failed';
     } catch (err: any) {
       session.status = 'failed';
       this.log(session, 'error', undefined, undefined, `Session failed: ${err.message}`);
@@ -162,8 +198,13 @@ export class AgentSupervisorService {
     // Emit completion event
     await this.eventBus.emit(
       'order.completed', // Using a generic event type
-      tenantId, schemaName,
-      { sessionId, status: session.status, tasksCompleted: session.tasks.filter(t => t.status === 'completed').length },
+      tenantId,
+      schemaName,
+      {
+        sessionId,
+        status: session.status,
+        tasksCompleted: session.tasks.filter((t) => t.status === 'completed').length,
+      },
       { source: 'system', userId },
     );
 
@@ -182,7 +223,10 @@ export class AgentSupervisorService {
 
   // ─── Planning (LLM-powered task decomposition) ────────────────
 
-  private async planExecution(objective: string, session: OrchestratorSession): Promise<AgentTask[]> {
+  private async planExecution(
+    objective: string,
+    session: OrchestratorSession,
+  ): Promise<AgentTask[]> {
     const capabilities = this.registry.getCapabilitySummary();
 
     const response = await this.openai.chat.completions.create({
@@ -212,7 +256,7 @@ Máximo 5 tareas. Asigna el agente más apropiado según su dominio.`,
         id: randomUUID(),
         type: t.type ?? 'query',
         description: t.description ?? objective,
-        delegatedTo: t.agent as OrchestratorAgentType ?? 'general',
+        delegatedTo: (t.agent as OrchestratorAgentType) ?? 'general',
         status: 'pending' as const,
         input: t.input ?? {},
         attempts: 0,
@@ -221,33 +265,49 @@ Máximo 5 tareas. Asigna el agente más apropiado según su dominio.`,
       }));
     } catch {
       // Fallback: single task to general agent
-      return [{
-        id: randomUUID(),
-        type: 'query',
-        description: objective,
-        delegatedTo: 'general',
-        status: 'pending',
-        input: {},
-        attempts: 0,
-        maxAttempts: 2,
-        createdAt: new Date().toISOString(),
-      }];
+      return [
+        {
+          id: randomUUID(),
+          type: 'query',
+          description: objective,
+          delegatedTo: 'general',
+          status: 'pending',
+          input: {},
+          attempts: 0,
+          maxAttempts: 2,
+          createdAt: new Date().toISOString(),
+        },
+      ];
     }
   }
 
   // ─── Task Execution ───────────────────────────────────────────
 
-  private async executeTask(task: AgentTask, session: OrchestratorSession): Promise<AgentTaskOutput | null> {
+  private async executeTask(
+    task: AgentTask,
+    session: OrchestratorSession,
+  ): Promise<AgentTaskOutput | null> {
     task.status = 'running';
     task.attempts++;
 
-    this.log(session, 'task_delegated', task.delegatedTo, undefined,
-      `Delegating: "${task.description}" (attempt ${task.attempts})`);
+    this.log(
+      session,
+      'task_delegated',
+      task.delegatedTo,
+      undefined,
+      `Delegating: "${task.description}" (attempt ${task.attempts})`,
+    );
 
     try {
       const agent = this.registry.getAgent(task.delegatedTo);
       if (!agent) {
-        this.log(session, 'agent_not_found', task.delegatedTo, undefined, `Agent ${task.delegatedTo} not registered`);
+        this.log(
+          session,
+          'agent_not_found',
+          task.delegatedTo,
+          undefined,
+          `Agent ${task.delegatedTo} not registered`,
+        );
         return null;
       }
 
@@ -261,21 +321,49 @@ Máximo 5 tareas. Asigna el agente más apropiado según su dominio.`,
 
   // ─── Output Validation ────────────────────────────────────────
 
-  private async validateOutput(task: AgentTask, output: AgentTaskOutput, session: OrchestratorSession): Promise<SupervisorDecision> {
+  private async validateOutput(
+    task: AgentTask,
+    output: AgentTaskOutput,
+    session: OrchestratorSession,
+  ): Promise<SupervisorDecision> {
     // Simple confidence-based validation
     if (output.confidence >= 0.8) {
-      return { action: 'accept', delegatedTo: task.delegatedTo, confidence: output.confidence, reasoning: 'High confidence', requiresApproval: false };
+      return {
+        action: 'accept',
+        delegatedTo: task.delegatedTo,
+        confidence: output.confidence,
+        reasoning: 'High confidence',
+        requiresApproval: false,
+      };
     }
 
     if (output.confidence < this.config_.escalationThreshold) {
-      return { action: 'escalate', delegatedTo: task.delegatedTo, confidence: output.confidence, reasoning: 'Below escalation threshold', requiresApproval: true };
+      return {
+        action: 'escalate',
+        delegatedTo: task.delegatedTo,
+        confidence: output.confidence,
+        reasoning: 'Below escalation threshold',
+        requiresApproval: true,
+      };
     }
 
     if (output.confidence < 0.7 && task.attempts < task.maxAttempts) {
-      return { action: 'retry', delegatedTo: task.delegatedTo, confidence: output.confidence, reasoning: 'Medium confidence, retrying', requiresApproval: false };
+      return {
+        action: 'retry',
+        delegatedTo: task.delegatedTo,
+        confidence: output.confidence,
+        reasoning: 'Medium confidence, retrying',
+        requiresApproval: false,
+      };
     }
 
-    return { action: 'accept', delegatedTo: task.delegatedTo, confidence: output.confidence, reasoning: 'Accepted with caution', requiresApproval: false };
+    return {
+      action: 'accept',
+      delegatedTo: task.delegatedTo,
+      confidence: output.confidence,
+      reasoning: 'Accepted with caution',
+      requiresApproval: false,
+    };
   }
 
   // ─── Audit Check ──────────────────────────────────────────────
@@ -296,11 +384,18 @@ Máximo 5 tareas. Asigna el agente más apropiado según su dominio.`,
 
   private async persistSession(session: OrchestratorSession): Promise<void> {
     try {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${session.schemaName}".orchestrator_sessions (id, user_id, status, session_data, created_at, updated_at)
         VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, $5::timestamptz, NOW())
         ON CONFLICT (id) DO UPDATE SET status = $3, session_data = $4::jsonb, updated_at = NOW()
-      `, session.id, session.userId, session.status, JSON.stringify(session), session.createdAt);
+      `,
+        session.id,
+        session.userId,
+        session.status,
+        JSON.stringify(session),
+        session.createdAt,
+      );
     } catch {
       // Table might not exist yet — log but don't fail
       this.logger.debug(`Could not persist session ${session.id} (table may not exist)`);
@@ -310,24 +405,42 @@ Máximo 5 tareas. Asigna el agente más apropiado según su dominio.`,
   // ─── Query Methods ────────────────────────────────────────────
 
   async getSession(sessionId: string, schemaName: string): Promise<OrchestratorSession | null> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT session_data AS "sessionData" FROM "${schemaName}".orchestrator_sessions WHERE id = $1::uuid
-    `, sessionId);
+    `,
+      sessionId,
+    );
     return rows[0]?.sessionData ?? null;
   }
 
   async getRecentSessions(schemaName: string, limit = 10): Promise<OrchestratorSession[]> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT session_data AS "sessionData" FROM "${schemaName}".orchestrator_sessions
       ORDER BY updated_at DESC LIMIT $1
-    `, limit);
-    return rows.map(r => r.sessionData);
+    `,
+      limit,
+    );
+    return rows.map((r) => r.sessionData);
   }
 
   // ─── Helpers ──────────────────────────────────────────────────
 
-  private log(session: OrchestratorSession, action: string, agent?: OrchestratorAgentType, decision?: SupervisorDecision, message?: string): void {
-    const entry: SupervisorLogEntry = { timestamp: new Date().toISOString(), action, agent, decision, message: message ?? '' };
+  private log(
+    session: OrchestratorSession,
+    action: string,
+    agent?: OrchestratorAgentType,
+    decision?: SupervisorDecision,
+    message?: string,
+  ): void {
+    const entry: SupervisorLogEntry = {
+      timestamp: new Date().toISOString(),
+      action,
+      agent,
+      decision,
+      message: message ?? '',
+    };
     session.supervisorLog.push(entry);
     this.logger.debug(`[Supervisor] ${action} ${agent ? `→ ${agent}` : ''}: ${message}`);
   }

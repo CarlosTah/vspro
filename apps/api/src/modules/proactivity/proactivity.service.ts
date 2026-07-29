@@ -26,7 +26,8 @@ export class ProactivityService {
 
     const scheduledAt = new Date(Date.now() + delayHours * 60 * 60 * 1000);
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".conversations
       SET next_follow_up_at = $1,
           context = jsonb_set(
@@ -35,7 +36,11 @@ export class ProactivityService {
             $2::jsonb
           )
       WHERE id = $3::uuid
-    `, scheduledAt.toISOString(), JSON.stringify(reason), conversationId);
+    `,
+      scheduledAt.toISOString(),
+      JSON.stringify(reason),
+      conversationId,
+    );
 
     this.logger.debug(
       `Follow-up scheduled for conversation ${conversationId} at ${scheduledAt.toISOString()} (${reason})`,
@@ -48,11 +53,14 @@ export class ProactivityService {
    * Clear a pending follow-up (e.g., when customer sends a new message).
    */
   async clearFollowUp(conversationId: string, schemaName: string): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".conversations
       SET next_follow_up_at = NULL
       WHERE id = $1::uuid AND next_follow_up_at IS NOT NULL
-    `, conversationId);
+    `,
+      conversationId,
+    );
   }
 
   /**
@@ -83,10 +91,13 @@ export class ProactivityService {
    * Check if a proactive message was already sent within the last 24h.
    */
   async canSendProactive(conversationId: string, schemaName: string): Promise<boolean> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT last_proactive_at FROM "${schemaName}".conversations
       WHERE id = $1::uuid
-    `, conversationId);
+    `,
+      conversationId,
+    );
 
     if (!rows[0]?.last_proactive_at) return true;
 
@@ -99,21 +110,27 @@ export class ProactivityService {
    * Record that a proactive message was sent.
    */
   async recordProactiveSent(conversationId: string, schemaName: string): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".conversations
       SET last_proactive_at = NOW()
       WHERE id = $1::uuid
-    `, conversationId);
+    `,
+      conversationId,
+    );
   }
 
   /**
    * Check if the 24h messaging window is still open.
    */
   async isWithinMessagingWindow(conversationId: string, schemaName: string): Promise<boolean> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT last_message_at FROM "${schemaName}".conversations
       WHERE id = $1::uuid
-    `, conversationId);
+    `,
+      conversationId,
+    );
 
     if (!rows[0]?.last_message_at) return false;
 

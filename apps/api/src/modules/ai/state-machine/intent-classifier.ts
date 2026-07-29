@@ -7,7 +7,7 @@ import { ParsedIntent, IntentType } from './order-state-machine';
  * Intent Classifier — Uses GPT-4o-mini to classify customer messages.
  * ONLY classifies intent. Does NOT generate responses.
  * Fast, cheap, and focused.
- * 
+ *
  * Includes confidence threshold: if the model is unsure (<0.6),
  * returns 'other' to trigger a clarification instead of guessing.
  */
@@ -21,7 +21,11 @@ export class IntentClassifierService {
     this.openai = new OpenAI({ apiKey: this.config.get('OPENAI_API_KEY') });
   }
 
-  async classify(message: string, currentState: string, hasImage: boolean = false): Promise<ParsedIntent> {
+  async classify(
+    message: string,
+    currentState: string,
+    hasImage: boolean = false,
+  ): Promise<ParsedIntent> {
     const apiKey = this.config.get('OPENAI_API_KEY');
     if (!apiKey || apiKey === 'sk-...') {
       return { type: 'other', text: message };
@@ -84,10 +88,25 @@ Formato de respuesta JSON (SIEMPRE incluye "confidence"):
 
       // Validate the type is a known intent
       const validTypes: IntentType[] = [
-        'greeting', 'want_to_order', 'add_items', 'confirm_yes', 'confirm_no',
-        'modify_order', 'want_delivery', 'want_pickup', 'give_address', 'give_location',
-        'want_cod', 'want_transfer', 'payment_proof', 'check_status', 'check_menu',
-        'cancel', 'complaint', 'repeat_order', 'other',
+        'greeting',
+        'want_to_order',
+        'add_items',
+        'confirm_yes',
+        'confirm_no',
+        'modify_order',
+        'want_delivery',
+        'want_pickup',
+        'give_address',
+        'give_location',
+        'want_cod',
+        'want_transfer',
+        'payment_proof',
+        'check_status',
+        'check_menu',
+        'cancel',
+        'complaint',
+        'repeat_order',
+        'other',
       ];
 
       let intentType = validTypes.includes(parsed.type) ? parsed.type : 'other';
@@ -95,8 +114,14 @@ Formato de respuesta JSON (SIEMPRE incluye "confidence"):
 
       // CONFIDENCE THRESHOLD: If the model is unsure, fall back to 'other'
       // This prevents misclassification on ambiguous messages
-      if (confidence < this.CONFIDENCE_THRESHOLD && intentType !== 'other' && intentType !== 'greeting') {
-        this.logger.warn(`Low confidence (${confidence}) for "${message.substring(0, 40)}" → classified as ${intentType}, falling back to 'other'`);
+      if (
+        confidence < this.CONFIDENCE_THRESHOLD &&
+        intentType !== 'other' &&
+        intentType !== 'greeting'
+      ) {
+        this.logger.warn(
+          `Low confidence (${confidence}) for "${message.substring(0, 40)}" → classified as ${intentType}, falling back to 'other'`,
+        );
         intentType = 'other';
       }
 

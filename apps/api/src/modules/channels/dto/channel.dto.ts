@@ -6,7 +6,10 @@ export class CreateChannelDto {
   @IsIn(['whatsapp', 'messenger', 'instagram'])
   type!: string;
 
-  @ApiProperty({ example: '123456789012345', description: 'Phone Number ID (WhatsApp) o Page ID (Messenger/Instagram)' })
+  @ApiProperty({
+    example: '123456789012345',
+    description: 'Phone Number ID (WhatsApp) o Page ID (Messenger/Instagram)',
+  })
   @IsString()
   externalId!: string;
 

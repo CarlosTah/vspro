@@ -56,21 +56,25 @@ export class OnboardingService {
 
     // 3. Configure payment info
     if (data.paymentInfo) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".ai_config
         SET agent_config = jsonb_set(
           COALESCE(agent_config, '{}'::jsonb),
           '{payment_info}',
           $1::jsonb
         )
-      `, JSON.stringify(data.paymentInfo));
+      `,
+        JSON.stringify(data.paymentInfo),
+      );
     }
 
     // 4. Add initial products
     let productsCreated = 0;
     if (data.products && data.products.length > 0) {
       for (const product of data.products) {
-        await this.prisma.$executeRawUnsafe(`
+        await this.prisma.$executeRawUnsafe(
+          `
           INSERT INTO "${schemaName}".products (name, price, category, images, sku, is_active)
           VALUES ($1, $2, $3, $4::text[], $5, true)
         `,
@@ -88,17 +92,22 @@ export class OnboardingService {
         `SELECT id FROM "${schemaName}".products`,
       );
       for (const p of products) {
-        await this.prisma.$executeRawUnsafe(`
+        await this.prisma.$executeRawUnsafe(
+          `
           INSERT INTO "${schemaName}".inventory (product_id, stock_available, stock_minimum)
           VALUES ($1::uuid, $2, 5)
           ON CONFLICT (product_id) DO NOTHING
-        `, p.id, 50); // Default 50 units stock
+        `,
+          p.id,
+          50,
+        ); // Default 50 units stock
       }
     }
 
     // 5. Configure AI assistant
     if (data.aiConfig) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".ai_config
         SET assistant_name = $1,
             tone = $2,
@@ -107,7 +116,8 @@ export class OnboardingService {
       `,
         data.aiConfig.assistantName ?? 'Asistente',
         data.aiConfig.tone ?? 'friendly',
-        data.aiConfig.welcomeMessage ?? `¡Hola! Soy el asistente de ${data.business.businessName}. ¿En qué te puedo ayudar?`,
+        data.aiConfig.welcomeMessage ??
+          `¡Hola! Soy el asistente de ${data.business.businessName}. ¿En qué te puedo ayudar?`,
         data.aiConfig.language ?? 'es',
       );
     }
@@ -115,7 +125,8 @@ export class OnboardingService {
     // 6. Configure WhatsApp channel (if provided)
     let channelConnected = false;
     if (data.whatsappConfig) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${schemaName}".channels (type, external_id, access_token, webhook_verify_token, is_active)
         VALUES ('whatsapp', $1, $2, $3, true)
       `,
@@ -136,7 +147,9 @@ export class OnboardingService {
       )
     `);
 
-    this.logger.log(`Onboarding complete: ${data.business.slug} (${productsCreated} products, channel: ${channelConnected})`);
+    this.logger.log(
+      `Onboarding complete: ${data.business.slug} (${productsCreated} products, channel: ${channelConnected})`,
+    );
 
     return {
       success: true,
@@ -158,10 +171,18 @@ export class OnboardingService {
    */
   async getOnboardingStatus(schemaName: string): Promise<OnboardingStatus> {
     const [products, channels, aiConfig, payments] = await Promise.all([
-      this.prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*) as c FROM "${schemaName}".products WHERE is_active = true`),
-      this.prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*) as c FROM "${schemaName}".channels WHERE is_active = true`),
-      this.prisma.$queryRawUnsafe<any[]>(`SELECT assistant_name, agent_config FROM "${schemaName}".ai_config LIMIT 1`),
-      this.prisma.$queryRawUnsafe<any[]>(`SELECT agent_config->'payment_info' as info FROM "${schemaName}".ai_config LIMIT 1`),
+      this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT COUNT(*) as c FROM "${schemaName}".products WHERE is_active = true`,
+      ),
+      this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT COUNT(*) as c FROM "${schemaName}".channels WHERE is_active = true`,
+      ),
+      this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT assistant_name, agent_config FROM "${schemaName}".ai_config LIMIT 1`,
+      ),
+      this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT agent_config->'payment_info' as info FROM "${schemaName}".ai_config LIMIT 1`,
+      ),
     ]);
 
     const hasProducts = parseInt(products[0]?.c ?? '0') > 0;
@@ -177,7 +198,7 @@ export class OnboardingService {
       { id: 'ai', label: 'Configurar asistente', completed: hasAiConfig },
     ];
 
-    const completedCount = steps.filter(s => s.completed).length;
+    const completedCount = steps.filter((s) => s.completed).length;
 
     return {
       steps,
@@ -185,7 +206,7 @@ export class OnboardingService {
       totalSteps: steps.length,
       percentComplete: Math.round((completedCount / steps.length) * 100),
       isReady: completedCount === steps.length,
-      missingSteps: steps.filter(s => !s.completed).map(s => s.label),
+      missingSteps: steps.filter((s) => !s.completed).map((s) => s.label),
     };
   }
 

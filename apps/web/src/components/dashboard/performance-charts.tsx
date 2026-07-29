@@ -18,10 +18,22 @@ export function PerformanceCharts({ period }: Props) {
     <div className="space-y-6">
       {/* Fulfillment Metrics */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <MetricCard icon="⏱️" label="Tiempo promedio a envío" value={`${fulfillment.averageTimeToShip.toFixed(1)}h`} />
+        <MetricCard
+          icon="⏱️"
+          label="Tiempo promedio a envío"
+          value={`${fulfillment.averageTimeToShip.toFixed(1)}h`}
+        />
         <MetricCard icon="📦" label="Backlog producción" value={fulfillment.productionBacklog} />
-        <MetricCard icon="✅" label="Entrega a tiempo" value={`${fulfillment.onTimeDeliveryRate}%`} />
-        <MetricCard icon="🚚" label="Tiempo a entrega" value={`${fulfillment.averageTimeToDeliver.toFixed(1)}h`} />
+        <MetricCard
+          icon="✅"
+          label="Entrega a tiempo"
+          value={`${fulfillment.onTimeDeliveryRate}%`}
+        />
+        <MetricCard
+          icon="🚚"
+          label="Tiempo a entrega"
+          value={`${fulfillment.averageTimeToDeliver.toFixed(1)}h`}
+        />
       </div>
 
       {/* AI Automation */}
@@ -74,7 +86,9 @@ export function PerformanceCharts({ period }: Props) {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-gray-400">{p.quantity} uds</span>
-                    <span className="text-sm font-medium text-green-400">${p.revenue.toLocaleString()}</span>
+                    <span className="text-sm font-medium text-green-400">
+                      ${p.revenue.toLocaleString()}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -102,7 +116,9 @@ export function PerformanceCharts({ period }: Props) {
                     <span className="text-sm text-white">{p.name}</span>
                     <span className="text-xs text-gray-500 ml-2">{p.sku}</span>
                   </div>
-                  <span className={`text-sm font-medium ${p.stock === 0 ? 'text-red-400' : 'text-yellow-400'}`}>
+                  <span
+                    className={`text-sm font-medium ${p.stock === 0 ? 'text-red-400' : 'text-yellow-400'}`}
+                  >
                     {p.stock}/{p.minimum}
                   </span>
                 </div>
@@ -143,7 +159,15 @@ export function PerformanceCharts({ period }: Props) {
   );
 }
 
-function MetricCard({ icon, label, value }: { icon: string; label: string; value: string | number }) {
+function MetricCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: string;
+  label: string;
+  value: string | number;
+}) {
   return (
     <div className="rounded-xl border border-gray-700 bg-gray-800 p-4">
       <span className="text-lg">{icon}</span>
@@ -157,7 +181,9 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-4 animate-pulse">
       <div className="grid grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => <div key={i} className="h-24 rounded-xl bg-gray-800" />)}
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="h-24 rounded-xl bg-gray-800" />
+        ))}
       </div>
       <div className="h-40 rounded-xl bg-gray-800" />
       <div className="grid grid-cols-2 gap-4">

@@ -32,14 +32,35 @@ export class UrgencyDetectionService {
 
   // Keywords for fast heuristic detection (before LLM call)
   private readonly CRITICAL_KEYWORDS = [
-    'sangre', 'sangrando', 'no respira', 'inconsciente', 'convulsión', 'convulsiones',
-    'desmayó', 'atropellado', 'envenenó', 'veneno', 'infarto', 'ahogando',
-    'emergencia', 'urgente', 'muy grave', 'no reacciona',
+    'sangre',
+    'sangrando',
+    'no respira',
+    'inconsciente',
+    'convulsión',
+    'convulsiones',
+    'desmayó',
+    'atropellado',
+    'envenenó',
+    'veneno',
+    'infarto',
+    'ahogando',
+    'emergencia',
+    'urgente',
+    'muy grave',
+    'no reacciona',
   ];
 
   private readonly HIGH_KEYWORDS = [
-    'mucho dolor', 'no puede caminar', 'hinchado', 'infección', 'fiebre alta',
-    'vomitando', 'diarrea', 'no come', 'herida abierta', 'fractura',
+    'mucho dolor',
+    'no puede caminar',
+    'hinchado',
+    'infección',
+    'fiebre alta',
+    'vomitando',
+    'diarrea',
+    'no come',
+    'herida abierta',
+    'fractura',
   ];
 
   constructor(
@@ -56,7 +77,7 @@ export class UrgencyDetectionService {
     const lower = message.toLowerCase();
 
     // Fast heuristic check
-    const criticalMatch = this.CRITICAL_KEYWORDS.filter(kw => lower.includes(kw));
+    const criticalMatch = this.CRITICAL_KEYWORDS.filter((kw) => lower.includes(kw));
     if (criticalMatch.length > 0) {
       return {
         level: 'critical',
@@ -67,13 +88,14 @@ export class UrgencyDetectionService {
       };
     }
 
-    const highMatch = this.HIGH_KEYWORDS.filter(kw => lower.includes(kw));
+    const highMatch = this.HIGH_KEYWORDS.filter((kw) => lower.includes(kw));
     if (highMatch.length > 0) {
       return {
         level: 'high',
         keywords: highMatch,
         requiresImmediate: false,
-        suggestedResponse: 'Entiendo tu preocupación. Voy a solicitar una cita urgente para revisarte.',
+        suggestedResponse:
+          'Entiendo tu preocupación. Voy a solicitar una cita urgente para revisarte.',
         alertStaff: true,
       };
     }
@@ -83,13 +105,23 @@ export class UrgencyDetectionService {
       return this.analyzeWithLLM(message, context?.businessType ?? 'health');
     }
 
-    return { level: 'none', keywords: [], requiresImmediate: false, suggestedResponse: '', alertStaff: false };
+    return {
+      level: 'none',
+      keywords: [],
+      requiresImmediate: false,
+      suggestedResponse: '',
+      alertStaff: false,
+    };
   }
 
   /**
    * Alert the appropriate staff member when urgency is detected.
    */
-  async alertIfNeeded(result: UrgencyResult, customerName: string, schemaName: string): Promise<void> {
+  async alertIfNeeded(
+    result: UrgencyResult,
+    customerName: string,
+    schemaName: string,
+  ): Promise<void> {
     if (!result.alertStaff) return;
 
     const emoji = result.level === 'critical' ? '🚨' : '⚠️';
@@ -102,17 +134,28 @@ export class UrgencyDetectionService {
     try {
       const response = await this.openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        messages: [{
-          role: 'system',
-          content: `Evalúa la urgencia médica/veterinaria de este mensaje. Contexto: ${businessType}.
+        messages: [
+          {
+            role: 'system',
+            content: `Evalúa la urgencia médica/veterinaria de este mensaje. Contexto: ${businessType}.
 Responde JSON: {"level":"none|low|medium|high|critical","keywords":[],"requiresImmediate":bool,"suggestedResponse":"...","alertStaff":bool}`,
-        }, { role: 'user', content: message }],
+          },
+          { role: 'user', content: message },
+        ],
         temperature: 0.1,
         max_tokens: 200,
       });
-      return JSON.parse((response.choices[0].message.content ?? '{}').replace(/```json\n?|```\n?/g, '').trim());
+      return JSON.parse(
+        (response.choices[0].message.content ?? '{}').replace(/```json\n?|```\n?/g, '').trim(),
+      );
     } catch {
-      return { level: 'low', keywords: [], requiresImmediate: false, suggestedResponse: '', alertStaff: false };
+      return {
+        level: 'low',
+        keywords: [],
+        requiresImmediate: false,
+        suggestedResponse: '',
+        alertStaff: false,
+      };
     }
   }
 }

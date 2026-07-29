@@ -16,7 +16,7 @@ export class ManualVerifyPaymentDto {
   @IsUUID()
   orderId!: string;
 
-  @ApiProperty({ example: 350.00 })
+  @ApiProperty({ example: 350.0 })
   @IsNumber()
   amount!: number;
 

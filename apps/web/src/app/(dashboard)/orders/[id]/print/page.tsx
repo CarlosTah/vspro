@@ -16,7 +16,8 @@ export default function PrintTicketPage() {
   }, [order, loading]);
 
   if (loading) return <div className="p-4 text-center">Cargando...</div>;
-  if (error || !order) return <div className="p-4 text-center text-red-500">Error al cargar pedido</div>;
+  if (error || !order)
+    return <div className="p-4 text-center text-red-500">Error al cargar pedido</div>;
 
   const items = typeof order.items === 'string' ? JSON.parse(order.items) : (order.items ?? []);
   const address = order.shippingAddress
@@ -30,10 +31,23 @@ export default function PrintTicketPage() {
       {/* Print styles */}
       <style jsx global>{`
         @media print {
-          body * { visibility: hidden; }
-          #print-ticket, #print-ticket * { visibility: visible; }
-          #print-ticket { position: absolute; left: 0; top: 0; width: 80mm; }
-          @page { size: 80mm auto; margin: 2mm; }
+          body * {
+            visibility: hidden;
+          }
+          #print-ticket,
+          #print-ticket * {
+            visibility: visible;
+          }
+          #print-ticket {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 80mm;
+          }
+          @page {
+            size: 80mm auto;
+            margin: 2mm;
+          }
         }
         #print-ticket {
           font-family: 'Courier New', monospace;
@@ -48,16 +62,10 @@ export default function PrintTicketPage() {
       <div className="min-h-screen bg-gray-900 p-4">
         {/* Screen controls */}
         <div className="max-w-md mx-auto mb-4 flex gap-2 print:hidden">
-          <button
-            onClick={() => window.print()}
-            className="vspro-btn-primary flex-1"
-          >
+          <button onClick={() => window.print()} className="vspro-btn-primary flex-1">
             🖨️ Imprimir ticket
           </button>
-          <button
-            onClick={() => window.history.back()}
-            className="vspro-btn-secondary"
-          >
+          <button onClick={() => window.history.back()} className="vspro-btn-secondary">
             ← Volver
           </button>
         </div>
@@ -70,8 +78,11 @@ export default function PrintTicketPage() {
             <p className="text-xl font-bold">{order.orderNumber}</p>
             <p className="text-xs text-gray-500">
               {new Date(order.createdAt).toLocaleString('es-MX', {
-                day: '2-digit', month: '2-digit', year: 'numeric',
-                hour: '2-digit', minute: '2-digit',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
               })}
             </p>
           </div>

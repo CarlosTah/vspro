@@ -11,25 +11,53 @@
       "name": "vspro-api",
       "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/vspro-api:latest",
       "essential": true,
-      "portMappings": [
-        { "containerPort": 3001, "protocol": "tcp" }
-      ],
+      "portMappings": [{ "containerPort": 3001, "protocol": "tcp" }],
       "environment": [
         { "name": "NODE_ENV", "value": "production" },
         { "name": "PORT", "value": "3001" },
         { "name": "TRUST_PROXY", "value": "true" }
       ],
       "secrets": [
-        { "name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/DATABASE_URL" },
-        { "name": "REDIS_HOST", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/REDIS_HOST" },
-        { "name": "REDIS_PASSWORD", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/REDIS_PASSWORD" },
-        { "name": "JWT_SECRET", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/JWT_SECRET" },
-        { "name": "OPENAI_API_KEY", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/OPENAI_API_KEY" },
-        { "name": "META_APP_SECRET", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/META_APP_SECRET" },
-        { "name": "STRIPE_SECRET_KEY", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/STRIPE_SECRET_KEY" },
-        { "name": "STRIPE_WEBHOOK_SECRET", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/STRIPE_WEBHOOK_SECRET" },
-        { "name": "AWS_ACCESS_KEY_ID", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/AWS_ACCESS_KEY_ID" },
-        { "name": "AWS_SECRET_ACCESS_KEY", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/AWS_SECRET_ACCESS_KEY" }
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/DATABASE_URL"
+        },
+        {
+          "name": "REDIS_HOST",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/REDIS_HOST"
+        },
+        {
+          "name": "REDIS_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/REDIS_PASSWORD"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/JWT_SECRET"
+        },
+        {
+          "name": "OPENAI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/OPENAI_API_KEY"
+        },
+        {
+          "name": "META_APP_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/META_APP_SECRET"
+        },
+        {
+          "name": "STRIPE_SECRET_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/STRIPE_SECRET_KEY"
+        },
+        {
+          "name": "STRIPE_WEBHOOK_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/STRIPE_WEBHOOK_SECRET"
+        },
+        {
+          "name": "AWS_ACCESS_KEY_ID",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/AWS_ACCESS_KEY_ID"
+        },
+        {
+          "name": "AWS_SECRET_ACCESS_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:vspro/prod/AWS_SECRET_ACCESS_KEY"
+        }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",

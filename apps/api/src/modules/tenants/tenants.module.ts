@@ -12,7 +12,13 @@ import { ProductsModule } from '../products/products.module';
 @Module({
   imports: [ProductsModule],
   controllers: [TenantsController, TeamController, IndustryTemplatesController],
-  providers: [TenantsService, TenantProvisioningService, OnboardingService, IndustryTemplatesService, TeamService],
+  providers: [
+    TenantsService,
+    TenantProvisioningService,
+    OnboardingService,
+    IndustryTemplatesService,
+    TeamService,
+  ],
   exports: [TenantsService, TenantProvisioningService, IndustryTemplatesService],
 })
 export class TenantsModule {}

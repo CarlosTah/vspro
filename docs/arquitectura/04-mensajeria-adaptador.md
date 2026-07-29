@@ -19,14 +19,14 @@ export interface IMessagingChannel {
 // Mensaje normalizado (independiente del canal)
 export interface IncomingMessage {
   channelType: 'whatsapp' | 'messenger' | 'instagram';
-  senderId: string;          // ID del usuario en el canal
+  senderId: string; // ID del usuario en el canal
   senderName?: string;
   messageId: string;
   type: 'text' | 'image' | 'audio' | 'document' | 'location';
   text?: string;
   mediaUrl?: string;
   timestamp: Date;
-  raw: any;                  // payload original por si se necesita
+  raw: any; // payload original por si se necesita
 }
 ```
 
@@ -54,17 +54,13 @@ export class WhatsAppChannel implements IMessagingChannel {
         recipient_type: 'individual',
         to: recipientId,
         type: 'text',
-        text: { body: text, preview_url: false }
+        text: { body: text, preview_url: false },
       },
-      { headers: { Authorization: `Bearer ${this.accessToken}` } }
+      { headers: { Authorization: `Bearer ${this.accessToken}` } },
     );
   }
 
-  async sendButtons(
-    recipientId: string,
-    text: string,
-    buttons: Button[]
-  ): Promise<void> {
+  async sendButtons(recipientId: string, text: string, buttons: Button[]): Promise<void> {
     await axios.post(
       `${this.baseUrl}/${this.phoneNumberId}/messages`,
       {
@@ -77,12 +73,12 @@ export class WhatsAppChannel implements IMessagingChannel {
           action: {
             buttons: buttons.map((btn, i) => ({
               type: 'reply',
-              reply: { id: btn.id || `btn_${i}`, title: btn.label }
-            }))
-          }
-        }
+              reply: { id: btn.id || `btn_${i}`, title: btn.label },
+            })),
+          },
+        },
       },
-      { headers: { Authorization: `Bearer ${this.accessToken}` } }
+      { headers: { Authorization: `Bearer ${this.accessToken}` } },
     );
   }
 
@@ -126,19 +122,15 @@ export class MessengerChannel implements IMessagingChannel {
       {
         recipient: { id: recipientId },
         message: { text },
-        messaging_type: 'RESPONSE'
+        messaging_type: 'RESPONSE',
       },
       {
-        params: { access_token: this.accessToken }
-      }
+        params: { access_token: this.accessToken },
+      },
     );
   }
 
-  async sendButtons(
-    recipientId: string,
-    text: string,
-    buttons: Button[]
-  ): Promise<void> {
+  async sendButtons(recipientId: string, text: string, buttons: Button[]): Promise<void> {
     await axios.post(
       `${this.baseUrl}/me/messages`,
       {
@@ -149,16 +141,16 @@ export class MessengerChannel implements IMessagingChannel {
             payload: {
               template_type: 'button',
               text,
-              buttons: buttons.map(btn => ({
+              buttons: buttons.map((btn) => ({
                 type: 'postback',
                 title: btn.label,
-                payload: btn.id
-              }))
-            }
-          }
-        }
+                payload: btn.id,
+              })),
+            },
+          },
+        },
       },
-      { params: { access_token: this.accessToken } }
+      { params: { access_token: this.accessToken } },
     );
   }
 
@@ -196,17 +188,13 @@ export class InstagramChannel extends MessengerChannel {
 
 @Injectable()
 export class MessagingFactory {
-
   createChannel(
     type: 'whatsapp' | 'messenger' | 'instagram',
-    config: ChannelConfig
+    config: ChannelConfig,
   ): IMessagingChannel {
     switch (type) {
       case 'whatsapp':
-        return new WhatsAppChannel(
-          config.phoneNumberId,
-          config.accessToken
-        );
+        return new WhatsAppChannel(config.phoneNumberId, config.accessToken);
       case 'messenger':
         return new MessengerChannel(config.accessToken);
       case 'instagram':

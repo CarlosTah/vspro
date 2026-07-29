@@ -42,10 +42,7 @@ class ApiClient {
     return this.tenantSlug;
   }
 
-  async request<T = any>(
-    path: string,
-    options: RequestInit = {},
-  ): Promise<T> {
+  async request<T = any>(path: string, options: RequestInit = {}): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),

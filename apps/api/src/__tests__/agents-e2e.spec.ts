@@ -104,12 +104,23 @@ describe('SalesAgent — Discount Policy Enforcement', () => {
       customerId: 'cust-1',
       conversationHistory: [],
       tenant: { id: 't1', slug: 'test', businessName: 'Test', schemaName: 'tenant_test' },
-      agentConfig: { ...DEFAULT_AGENT_CONFIG, commercial_policies: { max_discount_percent: 10, first_purchase_discount: 5, active_promotions: [] } },
+      agentConfig: {
+        ...DEFAULT_AGENT_CONFIG,
+        commercial_policies: {
+          max_discount_percent: 10,
+          first_purchase_discount: 5,
+          active_promotions: [],
+        },
+      },
       schemaName: 'tenant_test',
       memoryContext: '',
     };
 
-    const result = await agent.executeTool('apply_discount', { orderId: 'order-1', discountPercent: 25, reason: 'test' }, context);
+    const result = await agent.executeTool(
+      'apply_discount',
+      { orderId: 'order-1', discountPercent: 25, reason: 'test' },
+      context,
+    );
     const parsed = JSON.parse(result);
 
     expect(parsed.success).toBe(false);
@@ -124,12 +135,23 @@ describe('SalesAgent — Discount Policy Enforcement', () => {
       customerId: 'cust-1',
       conversationHistory: [],
       tenant: { id: 't1', slug: 'test', businessName: 'Test', schemaName: 'tenant_test' },
-      agentConfig: { ...DEFAULT_AGENT_CONFIG, commercial_policies: { max_discount_percent: 15, first_purchase_discount: 10, active_promotions: [] } },
+      agentConfig: {
+        ...DEFAULT_AGENT_CONFIG,
+        commercial_policies: {
+          max_discount_percent: 15,
+          first_purchase_discount: 10,
+          active_promotions: [],
+        },
+      },
       schemaName: 'tenant_test',
       memoryContext: '',
     };
 
-    const result = await agent.executeTool('apply_discount', { orderId: 'order-1', discountPercent: 10, reason: 'primera compra' }, context);
+    const result = await agent.executeTool(
+      'apply_discount',
+      { orderId: 'order-1', discountPercent: 10, reason: 'primera compra' },
+      context,
+    );
     const parsed = JSON.parse(result);
 
     expect(parsed.success).toBe(true);
@@ -146,10 +168,12 @@ describe('FinanceAgent — Reconciliation Tolerance', () => {
   });
 
   it('auto-reconciles within tolerance', async () => {
-    mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([{ id: 'pay-1', amount: '299.50', status: 'verified', order_number: 'ORD-001' }]);
+    mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([
+      { id: 'pay-1', amount: '299.50', status: 'verified', order_number: 'ORD-001' },
+    ]);
 
     const result = await agent.reconcileStripeEvent(
-      { amount: 299.00, reference: 'ORD-001', stripeId: 'evt_123' },
+      { amount: 299.0, reference: 'ORD-001', stripeId: 'evt_123' },
       'tenant_test',
       5.0,
     );
@@ -159,10 +183,12 @@ describe('FinanceAgent — Reconciliation Tolerance', () => {
   });
 
   it('escalates when discrepancy exceeds tolerance', async () => {
-    mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([{ id: 'pay-2', amount: '299.00', status: 'verified', order_number: 'ORD-002' }]);
+    mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([
+      { id: 'pay-2', amount: '299.00', status: 'verified', order_number: 'ORD-002' },
+    ]);
 
     const result = await agent.reconcileStripeEvent(
-      { amount: 280.00, reference: 'ORD-002', stripeId: 'evt_456' },
+      { amount: 280.0, reference: 'ORD-002', stripeId: 'evt_456' },
       'tenant_test',
       5.0,
     );
@@ -192,8 +218,22 @@ describe('InventoryAgent — Stock Scanning', () => {
 
   it('generates supplier draft with correct format', () => {
     const items = [
-      { id: '1', name: 'Vestido Mariposas', sku: 'VK-001', stockAvailable: 2, stockMinimum: 5, supplierInfo: { supplier_name: 'Textiles MX', supplier_email: 'compras@textiles.mx' } },
-      { id: '2', name: 'Chamarra Estrellas', sku: 'VK-002', stockAvailable: 1, stockMinimum: 5, supplierInfo: { supplier_name: 'Textiles MX', supplier_email: 'compras@textiles.mx' } },
+      {
+        id: '1',
+        name: 'Vestido Mariposas',
+        sku: 'VK-001',
+        stockAvailable: 2,
+        stockMinimum: 5,
+        supplierInfo: { supplier_name: 'Textiles MX', supplier_email: 'compras@textiles.mx' },
+      },
+      {
+        id: '2',
+        name: 'Chamarra Estrellas',
+        sku: 'VK-002',
+        stockAvailable: 1,
+        stockMinimum: 5,
+        supplierInfo: { supplier_name: 'Textiles MX', supplier_email: 'compras@textiles.mx' },
+      },
     ];
 
     const draft = agent.generateSupplierDraft(items, 'Vikids');
@@ -207,7 +247,14 @@ describe('InventoryAgent — Stock Scanning', () => {
 
   it('scans tenant stock correctly', async () => {
     mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([
-      { id: '1', name: 'Product A', sku: 'SKU-A', supplierInfo: {}, stockAvailable: 2, stockMinimum: 10 },
+      {
+        id: '1',
+        name: 'Product A',
+        sku: 'SKU-A',
+        supplierInfo: {},
+        stockAvailable: 2,
+        stockMinimum: 10,
+      },
     ]);
 
     const items = await agent.scanTenantStock('tenant_test');
@@ -228,7 +275,7 @@ describe('GeneralAgent — Backward Compatibility', () => {
 
   it('has all expected tools', () => {
     const tools = agent.getTools();
-    const toolNames = tools.map(t => t.function.name);
+    const toolNames = tools.map((t) => t.function.name);
 
     expect(toolNames).toContain('check_product_availability');
     expect(toolNames).toContain('get_order_status');
@@ -238,7 +285,10 @@ describe('GeneralAgent — Backward Compatibility', () => {
   });
 
   it('system prompt mentions the tenant business name', () => {
-    const prompt = agent.getSystemPrompt({ businessName: 'Mi Tienda' }, { enabled: true, model: 'gpt-4o' });
+    const prompt = agent.getSystemPrompt(
+      { businessName: 'Mi Tienda' },
+      { enabled: true, model: 'gpt-4o' },
+    );
 
     expect(prompt).toContain('Mi Tienda');
     expect(prompt).toContain('español');
@@ -248,7 +298,9 @@ describe('GeneralAgent — Backward Compatibility', () => {
 describe('Tenant Isolation — Agent Context', () => {
   it('SalesAgent uses schemaName from context for all queries', async () => {
     const agent = new SalesAgent(mockPrisma, mockConfig, mockCustomerMemory);
-    mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([{ name: 'Product', price: '100', stock_available: 5 }]);
+    mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([
+      { name: 'Product', price: '100', stock_available: 5 },
+    ]);
 
     const context: AgentContext = {
       conversationId: 'conv-1',

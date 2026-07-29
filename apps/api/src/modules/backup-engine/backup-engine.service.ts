@@ -48,7 +48,12 @@ export class BackupEngineService {
 
     // 1. Backup public schema (tenants, plans, subscriptions)
     try {
-      const publicResult = await this.backupSchema(dbUrl, 'public', `backups/full/${date}-public.sql.gz`, isProd);
+      const publicResult = await this.backupSchema(
+        dbUrl,
+        'public',
+        `backups/full/${date}-public.sql.gz`,
+        isProd,
+      );
       report.publicSchema = publicResult;
     } catch (err: any) {
       this.logger.error(`Public schema backup failed: ${err.message}`);
@@ -66,7 +71,13 @@ export class BackupEngineService {
         const result = await this.backupSchema(dbUrl, tenant.schemaName, key, isProd);
         report.tenants.push({ slug: tenant.slug, schemaName: tenant.schemaName, ...result });
       } catch (err: any) {
-        report.tenants.push({ slug: tenant.slug, schemaName: tenant.schemaName, success: false, sizeBytes: 0, error: err.message });
+        report.tenants.push({
+          slug: tenant.slug,
+          schemaName: tenant.schemaName,
+          success: false,
+          sizeBytes: 0,
+          error: err.message,
+        });
         this.logger.error(`Backup failed for ${tenant.slug}: ${err.message}`);
       }
     }
@@ -76,7 +87,9 @@ export class BackupEngineService {
     report.durationMs = Date.now() - startTime;
     report.auditSaved = await this.saveAuditLog(report, date);
 
-    this.logger.log(`💾 Backup complete: ${report.tenants.filter(t => t.success).length}/${report.tenants.length} tenants, ${report.durationMs}ms`);
+    this.logger.log(
+      `💾 Backup complete: ${report.tenants.filter((t) => t.success).length}/${report.tenants.length} tenants, ${report.durationMs}ms`,
+    );
 
     return report;
   }
@@ -92,7 +105,9 @@ export class BackupEngineService {
   ): Promise<{ success: boolean; sizeBytes: number; error?: string }> {
     if (!dbUrl || !execute) {
       // Dev mode: simulate
-      const simData = Buffer.from(`-- Simulated backup of ${schemaName} at ${new Date().toISOString()}\n`);
+      const simData = Buffer.from(
+        `-- Simulated backup of ${schemaName} at ${new Date().toISOString()}\n`,
+      );
       const result = await this.s3.upload(s3Key, simData, 'application/gzip');
       return { success: result.success, sizeBytes: result.sizeBytes };
     }
@@ -100,7 +115,10 @@ export class BackupEngineService {
     try {
       // Production: pg_dump → gzip → buffer → S3
       const dumpCmd = `pg_dump "${dbUrl}" --schema="${schemaName}" --no-owner --no-acl`;
-      const output = execSync(`${dumpCmd} | gzip`, { maxBuffer: 100 * 1024 * 1024, timeout: 300000 });
+      const output = execSync(`${dumpCmd} | gzip`, {
+        maxBuffer: 100 * 1024 * 1024,
+        timeout: 300000,
+      });
       const result = await this.s3.upload(s3Key, output, 'application/gzip');
       return { success: result.success, sizeBytes: result.sizeBytes };
     } catch (err: any) {
@@ -122,7 +140,9 @@ export class BackupEngineService {
    * Cleanup old backups beyond retention period.
    */
   async cleanupOldBackups(): Promise<{ deleted: number }> {
-    const cutoffDate = new Date(Date.now() - this.retentionDays * 86400000).toISOString().split('T')[0];
+    const cutoffDate = new Date(Date.now() - this.retentionDays * 86400000)
+      .toISOString()
+      .split('T')[0];
 
     // List all audit files to find old dates
     const auditFiles = await this.s3.listObjects('backups/audit/');
@@ -137,7 +157,8 @@ export class BackupEngineService {
       }
     }
 
-    if (deleted > 0) this.logger.log(`Cleanup: ${deleted} old backups removed (before ${cutoffDate})`);
+    if (deleted > 0)
+      this.logger.log(`Cleanup: ${deleted} old backups removed (before ${cutoffDate})`);
     return { deleted };
   }
 
@@ -155,7 +176,13 @@ export interface BackupReport {
   date: string;
   startedAt: string;
   completedAt: string;
-  tenants: Array<{ slug: string; schemaName: string; success: boolean; sizeBytes: number; error?: string }>;
+  tenants: Array<{
+    slug: string;
+    schemaName: string;
+    success: boolean;
+    sizeBytes: number;
+    error?: string;
+  }>;
   publicSchema: { success: boolean; sizeBytes: number; error?: string };
   auditSaved: boolean;
   durationMs: number;

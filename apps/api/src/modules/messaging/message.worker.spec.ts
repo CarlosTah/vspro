@@ -21,8 +21,12 @@ const mockMessagingFactory = {
 } as any;
 
 const mockSalesAgent = { process: jest.fn().mockResolvedValue({ text: 'Sales response' }) } as any;
-const mockFinanceAgent = { process: jest.fn().mockResolvedValue({ text: 'Finance response' }) } as any;
-const mockGeneralAgent = { process: jest.fn().mockResolvedValue({ text: 'General response', toolsExecuted: [] }) } as any;
+const mockFinanceAgent = {
+  process: jest.fn().mockResolvedValue({ text: 'Finance response' }),
+} as any;
+const mockGeneralAgent = {
+  process: jest.fn().mockResolvedValue({ text: 'General response', toolsExecuted: [] }),
+} as any;
 
 // ─── Test Data ──────────────────────────────────────────────────
 
@@ -64,7 +68,10 @@ describe('MessageWorker', () => {
 
   describe('Tenant Isolation', () => {
     it('rejects if tenant schema does not match', async () => {
-      mockPrisma.tenant.findUnique.mockResolvedValue({ schemaName: 'tenant_other', status: 'ACTIVE' });
+      mockPrisma.tenant.findUnique.mockResolvedValue({
+        schemaName: 'tenant_other',
+        status: 'ACTIVE',
+      });
 
       await worker.handleMessage(baseJob);
 
@@ -73,7 +80,10 @@ describe('MessageWorker', () => {
     });
 
     it('rejects if tenant is SUSPENDED', async () => {
-      mockPrisma.tenant.findUnique.mockResolvedValue({ schemaName: 'tenant_test', status: 'SUSPENDED' });
+      mockPrisma.tenant.findUnique.mockResolvedValue({
+        schemaName: 'tenant_test',
+        status: 'SUSPENDED',
+      });
 
       await worker.handleMessage(baseJob);
 
@@ -81,7 +91,10 @@ describe('MessageWorker', () => {
     });
 
     it('rejects if tenant is CANCELLED', async () => {
-      mockPrisma.tenant.findUnique.mockResolvedValue({ schemaName: 'tenant_test', status: 'CANCELLED' });
+      mockPrisma.tenant.findUnique.mockResolvedValue({
+        schemaName: 'tenant_test',
+        status: 'CANCELLED',
+      });
 
       await worker.handleMessage(baseJob);
 
@@ -108,7 +121,11 @@ describe('MessageWorker', () => {
     });
 
     it('routes to GeneralAgent by default', async () => {
-      mockRouter.route.mockResolvedValue({ agent: 'general', confidence: 0.5, source: 'heuristic' });
+      mockRouter.route.mockResolvedValue({
+        agent: 'general',
+        confidence: 0.5,
+        source: 'heuristic',
+      });
 
       await worker.handleMessage(baseJob);
 
@@ -125,7 +142,11 @@ describe('MessageWorker', () => {
     });
 
     it('routes to FinanceAgent for finance intent', async () => {
-      mockRouter.route.mockResolvedValue({ agent: 'finance', confidence: 0.8, source: 'heuristic' });
+      mockRouter.route.mockResolvedValue({
+        agent: 'finance',
+        confidence: 0.8,
+        source: 'heuristic',
+      });
 
       await worker.handleMessage(baseJob);
 
@@ -143,7 +164,11 @@ describe('MessageWorker', () => {
     });
 
     it('sends response via MessagingFactory.sendText', async () => {
-      mockRouter.route.mockResolvedValue({ agent: 'general', confidence: 0.5, source: 'heuristic' });
+      mockRouter.route.mockResolvedValue({
+        agent: 'general',
+        confidence: 0.5,
+        source: 'heuristic',
+      });
 
       await worker.handleMessage(baseJob);
 
@@ -156,7 +181,11 @@ describe('MessageWorker', () => {
     });
 
     it('stores outbound message in DB before sending', async () => {
-      mockRouter.route.mockResolvedValue({ agent: 'general', confidence: 0.5, source: 'heuristic' });
+      mockRouter.route.mockResolvedValue({
+        agent: 'general',
+        confidence: 0.5,
+        source: 'heuristic',
+      });
 
       await worker.handleMessage(baseJob);
 
@@ -231,8 +260,8 @@ describe('MessageWorker', () => {
 
       await worker.handleMessage(baseJob);
 
-      const contextCall = mockPrisma.$executeRawUnsafe.mock.calls.find(
-        (c: any[]) => c[0].includes('agent_context'),
+      const contextCall = mockPrisma.$executeRawUnsafe.mock.calls.find((c: any[]) =>
+        c[0].includes('agent_context'),
       );
       expect(contextCall).toBeDefined();
       const savedContext = JSON.parse(contextCall[1]);

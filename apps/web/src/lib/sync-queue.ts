@@ -17,7 +17,9 @@ export interface QueuedOperation {
 }
 
 /** Add an operation to the sync queue */
-export async function enqueueOperation(op: Omit<QueuedOperation, 'id' | 'status' | 'createdAt'>): Promise<void> {
+export async function enqueueOperation(
+  op: Omit<QueuedOperation, 'id' | 'status' | 'createdAt'>,
+): Promise<void> {
   const db = await openDB();
   const tx = db.transaction(SYNC_STORE, 'readwrite');
   tx.objectStore(SYNC_STORE).add({

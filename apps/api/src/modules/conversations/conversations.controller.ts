@@ -1,7 +1,15 @@
 import {
-  Controller, Get, Post, Patch, Param, Body,
-  Query, UseGuards, ParseUUIDPipe,
-  UseInterceptors, UploadedFile,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  ParseUUIDPipe,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -28,18 +36,12 @@ export class ConversationsController {
 
   @Get()
   @ApiQuery({ name: 'status', required: false, enum: ['active', 'resolved', 'waiting'] })
-  findAll(
-    @TenantSchema() schema: string,
-    @Query('status') status?: string,
-  ) {
+  findAll(@TenantSchema() schema: string, @Query('status') status?: string) {
     return this.conversationsService.findAll(schema, status);
   }
 
   @Get(':id')
-  findOne(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantSchema() schema: string,
-  ) {
+  findOne(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
     return this.conversationsService.findById(id, schema);
   }
 
@@ -54,10 +56,7 @@ export class ConversationsController {
   }
 
   @Post(':id/resolve')
-  resolve(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantSchema() schema: string,
-  ) {
+  resolve(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
     return this.conversationsService.resolve(id, schema);
   }
 
@@ -69,29 +68,51 @@ export class ConversationsController {
     @TenantSchema() schema: string,
   ) {
     // Get conversation details (customer + channel)
-    const convRows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const convRows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT c.channel_type, c.customer_id, cu.channel_id AS recipient_id, cu.name AS customer_name
       FROM "${schema}".conversations c
       JOIN "${schema}".customers cu ON cu.id = c.customer_id
       WHERE c.id = $1::uuid
-    `, id);
+    `,
+      id,
+    );
 
     if (!convRows[0]) throw new Error('Conversación no encontrada');
 
     const { channel_type, recipient_id } = convRows[0];
 
     // Send message via WhatsApp/Messenger
-    const result = await this.messagingFactory.sendText(recipient_id, body.text, channel_type, schema);
+    const result = await this.messagingFactory.sendText(
+      recipient_id,
+      body.text,
+      channel_type,
+      schema,
+    );
 
     // Save outbound message in conversation
-    await this.conversationsService.saveMessage(id, 'outbound', 'text', body.text, null, null, schema);
+    await this.conversationsService.saveMessage(
+      id,
+      'outbound',
+      'text',
+      body.text,
+      null,
+      null,
+      schema,
+    );
 
     // Update last_message_at
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schema}".conversations SET last_message_at = NOW() WHERE id = $1::uuid
-    `, id);
+    `,
+      id,
+    );
 
-    return { success: result.success, message: result.success ? 'Mensaje enviado' : `Error: ${result.error}` };
+    return {
+      success: result.success,
+      message: result.success ? 'Mensaje enviado' : `Error: ${result.error}`,
+    };
   }
 
   /** Send media (image, document, audio) from dashboard */
@@ -107,12 +128,15 @@ export class ConversationsController {
     if (!file) throw new Error('No se proporcionó archivo');
 
     // Get conversation details
-    const convRows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const convRows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT c.channel_type, cu.channel_id AS recipient_id
       FROM "${schema}".conversations c
       JOIN "${schema}".customers cu ON cu.id = c.customer_id
       WHERE c.id = $1::uuid
-    `, id);
+    `,
+      id,
+    );
 
     if (!convRows[0]) throw new Error('Conversación no encontrada');
     const { channel_type, recipient_id } = convRows[0];
@@ -129,22 +153,40 @@ export class ConversationsController {
     );
 
     // Determine message type for storage
-    const msgType = file.mimetype.startsWith('image/') ? 'image'
-      : file.mimetype.startsWith('audio/') ? 'audio'
-      : 'document';
+    const msgType = file.mimetype.startsWith('image/')
+      ? 'image'
+      : file.mimetype.startsWith('audio/')
+        ? 'audio'
+        : 'document';
 
     // Save outbound message
     const content = body.caption
       ? `[${msgType === 'image' ? '📷' : msgType === 'audio' ? '🎤' : '📄'} ${file.originalname}] ${body.caption}`
       : `[${msgType === 'image' ? '📷 Imagen' : msgType === 'audio' ? '🎤 Audio' : '📄 ' + file.originalname}]`;
 
-    await this.conversationsService.saveMessage(id, 'outbound', msgType, content, null, null, schema);
+    await this.conversationsService.saveMessage(
+      id,
+      'outbound',
+      msgType,
+      content,
+      null,
+      null,
+      schema,
+    );
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schema}".conversations SET last_message_at = NOW() WHERE id = $1::uuid
-    `, id);
+    `,
+      id,
+    );
 
-    return { success: result.success, type: msgType, filename: file.originalname, error: result.error };
+    return {
+      success: result.success,
+      type: msgType,
+      filename: file.originalname,
+      error: result.error,
+    };
   }
 
   // ─── Message Rating & Correction (Layer 3: AI Maturation) ─────
@@ -162,9 +204,13 @@ export class ConversationsController {
     await this.prisma.$executeRawUnsafe(`
       ALTER TABLE "${schema}".messages ADD COLUMN IF NOT EXISTS correction TEXT
     `);
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schema}".messages SET rating = $1 WHERE id = $2::uuid
-    `, body.rating, messageId);
+    `,
+      body.rating,
+      messageId,
+    );
     return { success: true };
   }
 
@@ -184,22 +230,32 @@ export class ConversationsController {
     `);
 
     // Get the original message content
-    const msgs = await this.prisma.$queryRawUnsafe<any[]>(`
+    const msgs = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT content FROM "${schema}".messages WHERE id = $1::uuid
-    `, messageId);
+    `,
+      messageId,
+    );
     const originalContent = msgs[0]?.content ?? '';
 
     // Save correction and mark as thumbs down
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schema}".messages SET rating = 'down', correction = $1 WHERE id = $2::uuid
-    `, body.correction, messageId);
+    `,
+      body.correction,
+      messageId,
+    );
 
     // Auto-create Knowledge Base entry with the correction
-    await this.knowledgeBase.create({
-      title: `Corrección: ${originalContent.slice(0, 80)}...`,
-      content: `Cuando el agente responda sobre este tema, la respuesta correcta es:\n\n${body.correction}\n\n(Respuesta original incorrecta: "${originalContent.slice(0, 200)}")`,
-      category: 'correction',
-    }, schema);
+    await this.knowledgeBase.create(
+      {
+        title: `Corrección: ${originalContent.slice(0, 80)}...`,
+        content: `Cuando el agente responda sobre este tema, la respuesta correcta es:\n\n${body.correction}\n\n(Respuesta original incorrecta: "${originalContent.slice(0, 200)}")`,
+        category: 'correction',
+      },
+      schema,
+    );
 
     return { success: true, message: 'Corrección guardada y base de conocimiento actualizada' };
   }

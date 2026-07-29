@@ -61,9 +61,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Room personal del usuario (para notificaciones directas)
       client.join(`user:${userId}`);
 
-      this.logger.debug(
-        `Cliente conectado: ${client.id} → tenant:${tenantId} user:${userId}`,
-      );
+      this.logger.debug(`Cliente conectado: ${client.id} → tenant:${tenantId} user:${userId}`);
     } catch (err) {
       this.logger.warn(`Token inválido — desconectando ${client.id}`);
       client.disconnect();
@@ -101,12 +99,15 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /**
    * Emite una notificación genérica al tenant.
    */
-  notifyTenant(tenantId: string, notification: {
-    type: string;
-    title: string;
-    message: string;
-    data?: any;
-  }) {
+  notifyTenant(
+    tenantId: string,
+    notification: {
+      type: string;
+      title: string;
+      message: string;
+      data?: any;
+    },
+  ) {
     this.server.to(`tenant:${tenantId}`).emit('notification', {
       ...notification,
       timestamp: new Date().toISOString(),

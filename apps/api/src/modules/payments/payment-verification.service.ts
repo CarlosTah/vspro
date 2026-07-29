@@ -24,9 +24,8 @@ export class PaymentVerificationService {
     private readonly config: ConfigService,
   ) {
     const key = this.config.get('OPENAI_API_KEY');
-    this.openai = key && !key.startsWith('sk-test') && key !== 'sk-...'
-      ? new OpenAI({ apiKey: key })
-      : null;
+    this.openai =
+      key && !key.startsWith('sk-test') && key !== 'sk-...' ? new OpenAI({ apiKey: key }) : null;
   }
 
   /**
@@ -39,13 +38,16 @@ export class PaymentVerificationService {
     schemaName: string,
   ): Promise<VerificationResult> {
     // 1. Get the pending payment for this order
-    const payments = await this.prisma.$queryRawUnsafe<any[]>(`
+    const payments = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT p.id, p.amount, p.status, o.order_number, o.total
       FROM "${schemaName}".payments p
       JOIN "${schemaName}".orders o ON o.id = p.order_id
       WHERE p.order_id = $1::uuid AND p.status = 'pending'
       ORDER BY p.created_at DESC LIMIT 1
-    `, orderId);
+    `,
+      orderId,
+    );
 
     if (!payments[0]) {
       return {
@@ -70,24 +72,32 @@ export class PaymentVerificationService {
     }
 
     // 3. Match extracted amount against expected
-    const amountMatch = ocrData.amount !== null
-      && Math.abs(ocrData.amount - expectedAmount) <= this.AMOUNT_TOLERANCE;
+    const amountMatch =
+      ocrData.amount !== null && Math.abs(ocrData.amount - expectedAmount) <= this.AMOUNT_TOLERANCE;
 
     // 4. Update payment record with OCR data
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".payments
       SET ocr_data = $1::jsonb,
           proof_image_url = $2
       WHERE id = $3::uuid
-    `, JSON.stringify(ocrData), imageUrl, payment.id);
+    `,
+      JSON.stringify(ocrData),
+      imageUrl,
+      payment.id,
+    );
 
     if (amountMatch) {
       // Auto-verify
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".payments
         SET status = 'verified', verified_at = NOW()
         WHERE id = $1::uuid
-      `, payment.id);
+      `,
+        payment.id,
+      );
 
       this.logger.log(
         `[${schemaName}] Payment ${payment.id} auto-verified: $${ocrData.amount} matches expected $${expectedAmount}`,
@@ -170,7 +180,9 @@ Si no puedes leer algún campo, usa null. El campo confidence indica tu certeza 
       }
 
       const parsed = JSON.parse(jsonMatch[0]) as OcrPaymentData;
-      this.logger.debug(`OCR extracted: amount=${parsed.amount}, ref=${parsed.reference}, confidence=${parsed.confidence}`);
+      this.logger.debug(
+        `OCR extracted: amount=${parsed.amount}, ref=${parsed.reference}, confidence=${parsed.confidence}`,
+      );
 
       return parsed;
     } catch (err: any) {
@@ -182,16 +194,16 @@ Si no puedes leer algún campo, usa null. El campo confidence indica tu certeza 
   /**
    * Manual verification by admin (when OCR is inconclusive).
    */
-  async verifyManual(
-    paymentId: string,
-    verifiedById: string,
-    schemaName: string,
-  ): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+  async verifyManual(paymentId: string, verifiedById: string, schemaName: string): Promise<void> {
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".payments
       SET status = 'verified', verified_by = $1::uuid, verified_at = NOW()
       WHERE id = $2::uuid AND status IN ('pending', 'review')
-    `, verifiedById, paymentId);
+    `,
+      verifiedById,
+      paymentId,
+    );
   }
 
   /**
@@ -203,14 +215,19 @@ Si no puedes leer algún campo, usa null. El campo confidence indica tu certeza 
     verifiedById: string,
     schemaName: string,
   ): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".payments
       SET status = 'rejected',
           verified_by = $1::uuid,
           verified_at = NOW(),
           reference = COALESCE(reference, '') || $2
       WHERE id = $3::uuid
-    `, verifiedById, `\n[RECHAZADO: ${reason}]`, paymentId);
+    `,
+      verifiedById,
+      `\n[RECHAZADO: ${reason}]`,
+      paymentId,
+    );
   }
 }
 

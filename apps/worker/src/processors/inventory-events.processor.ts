@@ -25,11 +25,15 @@ export class InventoryEventsProcessor {
     if (!tenant || tenant.schemaName !== schemaName) return;
 
     for (const item of items) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".inventory
         SET stock_reserved = GREATEST(stock_reserved - $1, 0), updated_at = NOW()
         WHERE product_id = $2::uuid
-      `, item.quantity, item.productId);
+      `,
+        item.quantity,
+        item.productId,
+      );
     }
 
     this.logger.log(`[${schemaName}] Stock committed for order ${orderId}`);
@@ -43,13 +47,17 @@ export class InventoryEventsProcessor {
     if (!tenant || tenant.schemaName !== schemaName) return;
 
     for (const item of items) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".inventory
         SET stock_available = stock_available + $1,
             stock_reserved = GREATEST(stock_reserved - $1, 0),
             updated_at = NOW()
         WHERE product_id = $2::uuid
-      `, item.quantity, item.productId);
+      `,
+        item.quantity,
+        item.productId,
+      );
     }
 
     this.logger.log(`[${schemaName}] Stock released for cancelled order ${orderId}`);

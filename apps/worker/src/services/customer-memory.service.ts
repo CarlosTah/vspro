@@ -17,12 +17,15 @@ export class CustomerMemoryService {
     private readonly config: ConfigService,
   ) {
     const key = this.config.get('OPENAI_API_KEY');
-    this.openai = key && !key.startsWith('sk-test') && key !== 'sk-...'
-      ? new OpenAI({ apiKey: key })
-      : null;
+    this.openai =
+      key && !key.startsWith('sk-test') && key !== 'sk-...' ? new OpenAI({ apiKey: key }) : null;
   }
 
-  async buildMemoryContext(customerId: string, message: string, schemaName: string): Promise<string> {
+  async buildMemoryContext(
+    customerId: string,
+    message: string,
+    schemaName: string,
+  ): Promise<string> {
     if (!customerId) return '';
 
     try {
@@ -63,9 +66,12 @@ export class CustomerMemoryService {
   }
 
   private async getRecentEpisodes(customerId: string, schema: string) {
-    return this.prisma.$queryRawUnsafe<any[]>(`
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT content, category FROM "${schema}".customer_memory_episodes
       WHERE customer_id = $1::uuid ORDER BY created_at DESC LIMIT 5
-    `, customerId);
+    `,
+      customerId,
+    );
   }
 }

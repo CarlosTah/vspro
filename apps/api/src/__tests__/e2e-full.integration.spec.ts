@@ -59,10 +59,7 @@ describe('VSPRO E2E Integration Suite', () => {
   }, 60_000);
 
   afterAll(async () => {
-    await Promise.all([
-      helper.destroyTenant(tenantA),
-      helper.destroyTenant(tenantB),
-    ]);
+    await Promise.all([helper.destroyTenant(tenantA), helper.destroyTenant(tenantB)]);
     await app.close();
   }, 30_000);
 
@@ -116,16 +113,18 @@ describe('VSPRO E2E Integration Suite', () => {
 
   describe('TENANTS', () => {
     it('GET /tenants/check-slug — available slug', async () => {
-      const res = await request(app.getHttpServer())
-        .get('/tenants/check-slug?slug=totally-new-slug-xyz');
+      const res = await request(app.getHttpServer()).get(
+        '/tenants/check-slug?slug=totally-new-slug-xyz',
+      );
 
       expect(res.status).toBe(200);
       expect(res.body.available).toBe(true);
     });
 
     it('GET /tenants/check-slug — taken slug', async () => {
-      const res = await request(app.getHttpServer())
-        .get(`/tenants/check-slug?slug=${tenantA.slug}`);
+      const res = await request(app.getHttpServer()).get(
+        `/tenants/check-slug?slug=${tenantA.slug}`,
+      );
 
       expect(res.status).toBe(200);
       expect(res.body.available).toBe(false);
@@ -163,13 +162,11 @@ describe('VSPRO E2E Integration Suite', () => {
   describe('WEBHOOKS', () => {
     it('GET /webhooks/meta/:slug — verify token challenge', async () => {
       const challenge = 'TEST_CHALLENGE_123';
-      const res = await request(app.getHttpServer())
-        .get(`/webhooks/meta/${tenantA.slug}`)
-        .query({
-          'hub.mode': 'subscribe',
-          'hub.verify_token': '', // empty token matches empty config
-          'hub.challenge': challenge,
-        });
+      const res = await request(app.getHttpServer()).get(`/webhooks/meta/${tenantA.slug}`).query({
+        'hub.mode': 'subscribe',
+        'hub.verify_token': '', // empty token matches empty config
+        'hub.challenge': challenge,
+      });
 
       // Should echo challenge or reject (depends on verify_token config)
       expect([200, 403]).toContain(res.status);
@@ -535,11 +532,14 @@ async function seedTenantData(prisma: PrismaService, schemaName: string) {
     `SELECT id FROM "${schemaName}".products WHERE sku = 'E2E-PROD-001'`,
   );
   if (products[0]) {
-    await prisma.$executeRawUnsafe(`
+    await prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${schemaName}".inventory (product_id, stock_available)
       VALUES ($1::uuid, 50)
       ON CONFLICT (product_id) DO NOTHING
-    `, products[0].id);
+    `,
+      products[0].id,
+    );
   }
 
   // Seed AI config

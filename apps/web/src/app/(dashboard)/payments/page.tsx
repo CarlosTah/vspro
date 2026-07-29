@@ -74,11 +74,13 @@ export default function PaymentsPage() {
       </div>
 
       {result && (
-        <div className={`rounded-lg px-4 py-3 text-sm ${
-          result.startsWith('Error') || result.startsWith('⚠️')
-            ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
-            : 'bg-green-50 text-green-700 border border-green-200'
-        }`}>
+        <div
+          className={`rounded-lg px-4 py-3 text-sm ${
+            result.startsWith('Error') || result.startsWith('⚠️')
+              ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+              : 'bg-green-50 text-green-700 border border-green-200'
+          }`}
+        >
           {result}
         </div>
       )}
@@ -128,7 +130,9 @@ export default function PaymentsPage() {
               </select>
             </div>
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Referencia (opcional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Referencia (opcional)
+              </label>
               <input
                 value={formReference}
                 onChange={(e) => setFormReference(e.target.value)}
@@ -160,7 +164,9 @@ export default function PaymentsPage() {
               <div key={order.id} className="flex items-center justify-between px-5 py-4">
                 <div>
                   <p className="text-sm font-medium text-gray-900">{order.orderNumber}</p>
-                  <p className="text-xs text-gray-500">{order.customerName} · Total: ${order.total}</p>
+                  <p className="text-xs text-gray-500">
+                    {order.customerName} · Total: ${order.total}
+                  </p>
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -171,7 +177,11 @@ export default function PaymentsPage() {
                     📷 Verificar con imagen
                   </button>
                   <button
-                    onClick={() => { setFormOrderId(order.id); setFormAmount(order.total); setShowForm(true); }}
+                    onClick={() => {
+                      setFormOrderId(order.id);
+                      setFormAmount(order.total);
+                      setShowForm(true);
+                    }}
                     className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
                   >
                     ✓ Confirmar manual
@@ -181,9 +191,7 @@ export default function PaymentsPage() {
             ))}
           </div>
         ) : (
-          <div className="p-8 text-center text-gray-400">
-            No hay pedidos pendientes de pago
-          </div>
+          <div className="p-8 text-center text-gray-400">No hay pedidos pendientes de pago</div>
         )}
       </div>
     </div>

@@ -31,23 +31,34 @@ export class CartTool {
     const quantity = args.quantity ?? 1;
 
     // Resolve product
-    const products = await this.prisma.$queryRawUnsafe<any[]>(`
+    const products = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT p.id, p.name, p.price, p.images, i.stock_available
       FROM "${schemaName}".products p
       LEFT JOIN "${schemaName}".inventory i ON i.product_id = p.id
       WHERE p.is_active = true AND p.name ILIKE $1
       LIMIT 1
-    `, `%${args.productName}%`);
+    `,
+      `%${args.productName}%`,
+    );
 
     if (!products[0]) {
-      return { success: false, message: `No encontré "${args.productName}" en el catálogo.`, cart: await this.getCart(conversationId, schemaName) };
+      return {
+        success: false,
+        message: `No encontré "${args.productName}" en el catálogo.`,
+        cart: await this.getCart(conversationId, schemaName),
+      };
     }
 
     const product = products[0];
     const stock = product.stock_available ?? 0;
 
     if (stock < quantity) {
-      return { success: false, message: `Solo hay ${stock} disponibles de "${product.name}".`, cart: await this.getCart(conversationId, schemaName) };
+      return {
+        success: false,
+        message: `Solo hay ${stock} disponibles de "${product.name}".`,
+        cart: await this.getCart(conversationId, schemaName),
+      };
     }
 
     // Resolve variant if specified
@@ -56,18 +67,26 @@ export class CartTool {
     let finalPrice = parseFloat(product.price);
 
     if (args.variant) {
-      const variants = await this.prisma.$queryRawUnsafe<any[]>(`
+      const variants = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT id, name, price, stock_available FROM "${schemaName}".product_variants
         WHERE product_id = $1::uuid AND is_active = true AND name ILIKE $2
         LIMIT 1
-      `, product.id, `%${args.variant}%`);
+      `,
+        product.id,
+        `%${args.variant}%`,
+      );
 
       if (variants[0]) {
         variantId = variants[0].id;
         variantName = variants[0].name;
         if (variants[0].price) finalPrice = parseFloat(variants[0].price);
         if ((variants[0].stock_available ?? 0) < quantity) {
-          return { success: false, message: `La variante "${variantName}" solo tiene ${variants[0].stock_available} en stock.`, cart: await this.getCart(conversationId, schemaName) };
+          return {
+            success: false,
+            message: `La variante "${variantName}" solo tiene ${variants[0].stock_available} en stock.`,
+            cart: await this.getCart(conversationId, schemaName),
+          };
         }
       }
     }
@@ -119,8 +138,8 @@ export class CartTool {
   ): Promise<CartActionResult> {
     const cart = await this.getCart(conversationId, schemaName);
 
-    const index = cart.items.findIndex(
-      (item) => item.productName.toLowerCase().includes(args.productName.toLowerCase()),
+    const index = cart.items.findIndex((item) =>
+      item.productName.toLowerCase().includes(args.productName.toLowerCase()),
     );
 
     if (index < 0) {
@@ -144,10 +163,7 @@ export class CartTool {
   /**
    * Show the current cart.
    */
-  async showCart(
-    conversationId: string,
-    schemaName: string,
-  ): Promise<CartActionResult> {
+  async showCart(conversationId: string, schemaName: string): Promise<CartActionResult> {
     const cart = await this.getCart(conversationId, schemaName);
 
     if (cart.items.length === 0) {
@@ -160,11 +176,13 @@ export class CartTool {
   /**
    * Clear the entire cart.
    */
-  async clearCart(
-    conversationId: string,
-    schemaName: string,
-  ): Promise<CartActionResult> {
-    const emptyCart: Cart = { items: [], total: 0, itemCount: 0, updatedAt: new Date().toISOString() };
+  async clearCart(conversationId: string, schemaName: string): Promise<CartActionResult> {
+    const emptyCart: Cart = {
+      items: [],
+      total: 0,
+      itemCount: 0,
+      updatedAt: new Date().toISOString(),
+    };
     await this.saveCart(conversationId, emptyCart, schemaName);
     return { success: true, message: '🗑️ Carrito vaciado.', cart: emptyCart };
   }
@@ -178,13 +196,23 @@ export class CartTool {
     schemaName: string,
   ): Promise<OrderConfirmResult> {
     if (!customerId) {
-      return { success: false, message: 'No pude identificar al cliente para crear el pedido.', orderId: null, orderNumber: null };
+      return {
+        success: false,
+        message: 'No pude identificar al cliente para crear el pedido.',
+        orderId: null,
+        orderNumber: null,
+      };
     }
 
     const cart = await this.getCart(conversationId, schemaName);
 
     if (cart.items.length === 0) {
-      return { success: false, message: 'El carrito está vacío. Agrega productos primero.', orderId: null, orderNumber: null };
+      return {
+        success: false,
+        message: 'El carrito está vacío. Agrega productos primero.',
+        orderId: null,
+        orderNumber: null,
+      };
     }
 
     // Generate order number
@@ -204,29 +232,46 @@ export class CartTool {
       unitPrice: item.unitPrice,
     }));
 
-    const orders = await this.prisma.$queryRawUnsafe<any[]>(`
+    const orders = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".orders
         (order_number, customer_id, channel_type, status, items, subtotal, total)
       VALUES ($1, $2::uuid, 'whatsapp', 'new', $3::jsonb, $4, $4)
       RETURNING id, order_number
-    `, orderNumber, customerId, JSON.stringify(orderItems), cart.total);
+    `,
+      orderNumber,
+      customerId,
+      JSON.stringify(orderItems),
+      cart.total,
+    );
 
     // Reserve stock
     for (const item of cart.items) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".inventory
         SET stock_available = stock_available - $1,
             stock_reserved = stock_reserved + $1,
             updated_at = NOW()
         WHERE product_id = $2::uuid AND stock_available >= $1
-      `, item.quantity, item.productId);
+      `,
+        item.quantity,
+        item.productId,
+      );
     }
 
     // Clear cart
-    const emptyCart: Cart = { items: [], total: 0, itemCount: 0, updatedAt: new Date().toISOString() };
+    const emptyCart: Cart = {
+      items: [],
+      total: 0,
+      itemCount: 0,
+      updatedAt: new Date().toISOString(),
+    };
     await this.saveCart(conversationId, emptyCart, schemaName);
 
-    this.logger.log(`[${schemaName}] Order ${orderNumber} created from cart (${cart.items.length} items, $${cart.total})`);
+    this.logger.log(
+      `[${schemaName}] Order ${orderNumber} created from cart (${cart.items.length} items, $${cart.total})`,
+    );
 
     return {
       success: true,
@@ -245,16 +290,21 @@ export class CartTool {
     );
 
     const raw = rows[0]?.cart;
-    if (!raw || !raw.items) return { items: [], total: 0, itemCount: 0, updatedAt: new Date().toISOString() };
+    if (!raw || !raw.items)
+      return { items: [], total: 0, itemCount: 0, updatedAt: new Date().toISOString() };
     return raw as Cart;
   }
 
   private async saveCart(conversationId: string, cart: Cart, schemaName: string): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".conversations
       SET context = jsonb_set(COALESCE(context, '{}'::jsonb), '{cart}', $1::jsonb)
       WHERE id = $2::uuid
-    `, JSON.stringify(cart), conversationId);
+    `,
+      JSON.stringify(cart),
+      conversationId,
+    );
   }
 
   // ─── Formatting ───────────────────────────────────────────────

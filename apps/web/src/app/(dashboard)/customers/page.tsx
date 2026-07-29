@@ -16,9 +16,7 @@ export default function CustomersPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
-        <p className="text-sm text-gray-500">
-          Todos los clientes que han contactado tu negocio
-        </p>
+        <p className="text-sm text-gray-500">Todos los clientes que han contactado tu negocio</p>
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">

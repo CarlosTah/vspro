@@ -1,5 +1,13 @@
 import {
-  Controller, Get, Post, Patch, Param, Body, UseGuards, Req, ParseUUIDPipe,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  UseGuards,
+  Req,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -64,7 +72,10 @@ export class SuperAdminController {
     let templateApplied = null;
     if (dto.industry) {
       try {
-        templateApplied = await this.industryTemplates.applyTemplate(dto.industry, tenant.schemaName);
+        templateApplied = await this.industryTemplates.applyTemplate(
+          dto.industry,
+          tenant.schemaName,
+        );
       } catch {
         // Template failure is non-critical
       }
@@ -119,32 +130,29 @@ export class SuperAdminController {
   @Patch('tenants/:id')
   updateTenant(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: { businessName?: string; ownerEmail?: string; ownerName?: string; settings?: Record<string, any> },
+    @Body()
+    dto: {
+      businessName?: string;
+      ownerEmail?: string;
+      ownerName?: string;
+      settings?: Record<string, any>;
+    },
   ) {
     return this.superAdminService.updateTenantData(id, dto);
   }
 
   @Post('tenants/:id/extend-trial')
-  extendTrial(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: { days: number },
-  ) {
+  extendTrial(@Param('id', ParseUUIDPipe) id: string, @Body() dto: { days: number }) {
     return this.superAdminService.extendTrial(id, dto.days);
   }
 
   @Post('tenants/:id/change-plan')
-  changePlan(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: { planSlug: string },
-  ) {
+  changePlan(@Param('id', ParseUUIDPipe) id: string, @Body() dto: { planSlug: string }) {
     return this.superAdminService.changeTenantPlan(id, dto.planSlug);
   }
 
   @Post('tenants/:id/add-grace-days')
-  addGraceDays(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: { days: number },
-  ) {
+  addGraceDays(@Param('id', ParseUUIDPipe) id: string, @Body() dto: { days: number }) {
     return this.superAdminService.addGraceDays(id, dto.days);
   }
 
@@ -182,20 +190,24 @@ export class SuperAdminController {
   }
 
   @Post('plans')
-  createPlan(@Body() dto: {
-    name: string;
-    slug: string;
-    priceMonthly: number;
-    priceYearly: number;
-    features: Record<string, any>;
-  }) {
+  createPlan(
+    @Body()
+    dto: {
+      name: string;
+      slug: string;
+      priceMonthly: number;
+      priceYearly: number;
+      features: Record<string, any>;
+    },
+  ) {
     return this.superAdminService.createPlan(dto);
   }
 
   @Patch('plans/:id')
   updatePlan(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: {
+    @Body()
+    dto: {
       name?: string;
       priceMonthly?: number;
       priceYearly?: number;
@@ -222,10 +234,9 @@ export class SuperAdminController {
   // ─── Broadcasts ───────────────────────────────────────────────
 
   @Post('broadcast')
-  sendBroadcast(@Body() dto: {
-    message: string;
-    filter?: 'all' | 'active' | 'trial' | 'suspended';
-  }) {
+  sendBroadcast(
+    @Body() dto: { message: string; filter?: 'all' | 'active' | 'trial' | 'suspended' },
+  ) {
     return this.superAdminService.sendBroadcast(dto.message, dto.filter ?? 'all');
   }
 

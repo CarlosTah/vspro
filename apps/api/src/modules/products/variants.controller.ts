@@ -1,6 +1,13 @@
 import {
-  Controller, Get, Post, Patch, Delete,
-  Body, Param, UseGuards, ParseUUIDPipe,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -42,10 +49,7 @@ export class VariantsController {
 
   /** Eliminar variante */
   @Delete('variants/:id')
-  remove(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantSchema() schema: string,
-  ) {
+  remove(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
     return this.variantsService.remove(id, schema);
   }
 }

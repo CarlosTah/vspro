@@ -25,13 +25,16 @@ export class ConversationContextService {
    * Get the full context (business + agent) for a conversation.
    */
   async getContext(conversationId: string, schemaName: string): Promise<ConversationState> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT context, agent_context AS "agentContext",
              status, customer_id AS "customerId",
              last_message_at AS "lastMessageAt"
       FROM "${schemaName}".conversations
       WHERE id = $1::uuid
-    `, conversationId);
+    `,
+      conversationId,
+    );
 
     if (!rows[0]) {
       return { context: {}, agentContext: {}, status: 'unknown', customerId: null };
@@ -54,11 +57,15 @@ export class ConversationContextService {
     key: string,
     schemaName: string,
   ): Promise<T | null> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT context->$2 AS value
       FROM "${schemaName}".conversations
       WHERE id = $1::uuid
-    `, conversationId, key);
+    `,
+      conversationId,
+      key,
+    );
 
     return rows[0]?.value ?? null;
   }
@@ -74,7 +81,8 @@ export class ConversationContextService {
     value: any,
     schemaName: string,
   ): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".conversations
       SET context = jsonb_set(
         COALESCE(context, '{}'::jsonb),
@@ -82,7 +90,11 @@ export class ConversationContextService {
         $3::jsonb
       )
       WHERE id = $1::uuid
-    `, conversationId, key, JSON.stringify(value));
+    `,
+      conversationId,
+      key,
+      JSON.stringify(value),
+    );
   }
 
   /**
@@ -93,11 +105,15 @@ export class ConversationContextService {
     data: Record<string, any>,
     schemaName: string,
   ): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".conversations
       SET context = COALESCE(context, '{}'::jsonb) || $2::jsonb
       WHERE id = $1::uuid
-    `, conversationId, JSON.stringify(data));
+    `,
+      conversationId,
+      JSON.stringify(data),
+    );
   }
 
   /**
@@ -108,11 +124,15 @@ export class ConversationContextService {
     agentData: AgentContextData,
     schemaName: string,
   ): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".conversations
       SET agent_context = $2::jsonb
       WHERE id = $1::uuid
-    `, conversationId, JSON.stringify(agentData));
+    `,
+      conversationId,
+      JSON.stringify(agentData),
+    );
   }
 
   /**
@@ -123,11 +143,15 @@ export class ConversationContextService {
     data: Partial<AgentContextData>,
     schemaName: string,
   ): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".conversations
       SET agent_context = COALESCE(agent_context, '{}'::jsonb) || $2::jsonb
       WHERE id = $1::uuid
-    `, conversationId, JSON.stringify(data));
+    `,
+      conversationId,
+      JSON.stringify(data),
+    );
   }
 
   // ─── State Transitions ────────────────────────────────────────
@@ -142,11 +166,15 @@ export class ConversationContextService {
     orderState: string,
     schemaName: string,
   ): Promise<void> {
-    await this.mergeContext(conversationId, {
-      orderId,
-      orderState,
-      orderStateUpdatedAt: new Date().toISOString(),
-    }, schemaName);
+    await this.mergeContext(
+      conversationId,
+      {
+        orderId,
+        orderState,
+        orderStateUpdatedAt: new Date().toISOString(),
+      },
+      schemaName,
+    );
 
     this.logger.debug(`[${schemaName}] Conv ${conversationId}: order ${orderId} → ${orderState}`);
   }
@@ -160,11 +188,16 @@ export class ConversationContextService {
     cartItems: CartItem[],
     schemaName: string,
   ): Promise<void> {
-    await this.setContextKey(conversationId, 'cart', {
-      items: cartItems,
-      updatedAt: new Date().toISOString(),
-      total: cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0),
-    }, schemaName);
+    await this.setContextKey(
+      conversationId,
+      'cart',
+      {
+        items: cartItems,
+        updatedAt: new Date().toISOString(),
+        total: cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0),
+      },
+      schemaName,
+    );
   }
 
   /**
@@ -180,11 +213,14 @@ export class ConversationContextService {
    * Reset all context for a conversation (on resolution).
    */
   async resetContext(conversationId: string, schemaName: string): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".conversations
       SET context = '{}'::jsonb, agent_context = '{}'::jsonb
       WHERE id = $1::uuid
-    `, conversationId);
+    `,
+      conversationId,
+    );
   }
 }
 

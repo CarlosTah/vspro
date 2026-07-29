@@ -49,8 +49,8 @@ export function StepProducts({ products, onChange, onNext, onBack, loading }: Pr
       <div>
         <h2 className="text-xl font-semibold text-white">Tu primer producto</h2>
         <p className="text-sm text-gray-400 mt-1">
-          Agrega al menos un producto para que tus clientes puedan pedir por WhatsApp.
-          Puedes agregar más después.
+          Agrega al menos un producto para que tus clientes puedan pedir por WhatsApp. Puedes
+          agregar más después.
         </p>
       </div>
 
@@ -65,7 +65,8 @@ export function StepProducts({ products, onChange, onNext, onBack, loading }: Pr
               <div>
                 <p className="text-sm font-medium text-white">{p.name}</p>
                 <p className="text-xs text-gray-400">
-                  ${p.price} {p.category && `· ${p.category}`} {p.initialStock && `· Stock: ${p.initialStock}`}
+                  ${p.price} {p.category && `· ${p.category}`}{' '}
+                  {p.initialStock && `· Stock: ${p.initialStock}`}
                 </p>
               </div>
               <button
@@ -132,7 +133,11 @@ export function StepProducts({ products, onChange, onNext, onBack, loading }: Pr
           disabled={loading}
           className="flex-1 rounded-lg bg-blue-600 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
-          {loading ? 'Creando tu negocio...' : products.length > 0 ? 'Crear mi negocio →' : 'Saltar y crear →'}
+          {loading
+            ? 'Creando tu negocio...'
+            : products.length > 0
+              ? 'Crear mi negocio →'
+              : 'Saltar y crear →'}
         </button>
       </div>
     </div>

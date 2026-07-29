@@ -53,7 +53,9 @@ export class ProductionFlowProcessor {
     });
 
     if (!tenant || tenant.schemaName !== schemaName) {
-      this.logger.error(`Tenant isolation violation in ProductionFlow: ${tenantId} / ${schemaName}`);
+      this.logger.error(
+        `Tenant isolation violation in ProductionFlow: ${tenantId} / ${schemaName}`,
+      );
       return;
     }
 
@@ -63,9 +65,12 @@ export class ProductionFlowProcessor {
     }
 
     // 2. Verify order exists and is in correct state
-    const orders = await this.prisma.$queryRawUnsafe<any[]>(`
+    const orders = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id, status FROM "${schemaName}".orders WHERE id = $1::uuid
-    `, orderId);
+    `,
+      orderId,
+    );
 
     if (!orders[0]) {
       this.logger.error(`[${schemaName}] Order ${orderId} not found`);
@@ -79,20 +84,27 @@ export class ProductionFlowProcessor {
       return;
     }
 
-    this.logger.log(`[${schemaName}] Injecting order ${orderNumber} into production (${items.length} items, priority: ${priority})`);
+    this.logger.log(
+      `[${schemaName}] Injecting order ${orderNumber} into production (${items.length} items, priority: ${priority})`,
+    );
 
     // 3. Transition order to in_production
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".orders
       SET status = 'in_production',
           notes = COALESCE(notes, '') || $1,
           updated_at = NOW()
       WHERE id = $2::uuid
-    `, `\n[Producción iniciada: ${new Date().toISOString()}${priority === 'urgent' ? ' — URGENTE' : ''}]`, orderId);
+    `,
+      `\n[Producción iniciada: ${new Date().toISOString()}${priority === 'urgent' ? ' — URGENTE' : ''}]`,
+      orderId,
+    );
 
     // 4. Create production entries for tracking
     for (const item of items) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${schemaName}".messages
           (conversation_id, direction, type, content, ai_processed)
         SELECT c.id, 'system', 'production_log', $1, false
@@ -100,7 +112,10 @@ export class ProductionFlowProcessor {
         JOIN "${schemaName}".orders o ON o.customer_id = c.customer_id
         WHERE o.id = $2::uuid
         LIMIT 1
-      `, `[PRODUCCIÓN] ${item.productName}${item.variantName ? ` (${item.variantName})` : ''} x${item.quantity}${notes ? ` — ${notes}` : ''}`, orderId);
+      `,
+        `[PRODUCCIÓN] ${item.productName}${item.variantName ? ` (${item.variantName})` : ''} x${item.quantity}${notes ? ` — ${notes}` : ''}`,
+        orderId,
+      );
     }
 
     this.logger.log(`[${schemaName}] Order ${orderNumber} injected into production successfully`);

@@ -1,6 +1,12 @@
 import {
-  Controller, Get, Post, Patch,
-  Body, Param, UseGuards, ParseUUIDPipe,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -16,10 +22,7 @@ export class ShipmentsController {
   constructor(private readonly shipmentsService: ShipmentsService) {}
 
   @Get('order/:orderId')
-  findByOrder(
-    @Param('orderId', ParseUUIDPipe) orderId: string,
-    @TenantSchema() schema: string,
-  ) {
+  findByOrder(@Param('orderId', ParseUUIDPipe) orderId: string, @TenantSchema() schema: string) {
     return this.shipmentsService.findByOrder(orderId, schema);
   }
 

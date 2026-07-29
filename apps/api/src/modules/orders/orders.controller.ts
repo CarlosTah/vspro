@@ -1,6 +1,14 @@
 import {
-  Controller, Get, Post, Patch, Body,
-  Param, Query, UseGuards, UseInterceptors, ParseUUIDPipe,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  UseInterceptors,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
@@ -21,10 +29,7 @@ export class OrdersController {
 
   @Get()
   @ApiQuery({ name: 'status', required: false })
-  findAll(
-    @TenantSchema() schema: string,
-    @Query('status') status?: string,
-  ) {
+  findAll(@TenantSchema() schema: string, @Query('status') status?: string) {
     return this.ordersService.findAll(schema, status);
   }
 
@@ -34,10 +39,7 @@ export class OrdersController {
   }
 
   @Get(':id')
-  findOne(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantSchema() schema: string,
-  ) {
+  findOne(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
     return this.ordersService.findById(id, schema);
   }
 

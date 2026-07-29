@@ -117,7 +117,10 @@ export class StaffNotificationsService {
   /**
    * Notify staff about a new order.
    */
-  async notifyNewOrder(order: { orderNumber: string; customerName: string; total: number; items: string }, schemaName: string): Promise<void> {
+  async notifyNewOrder(
+    order: { orderNumber: string; customerName: string; total: number; items: string },
+    schemaName: string,
+  ): Promise<void> {
     const msg = `🔔 *Nuevo pedido*\n\n📋 ${order.orderNumber}\n👤 ${order.customerName}\n💰 $${order.total.toLocaleString()}\n📦 ${order.items}\n\n¡Revísalo en el dashboard!`;
     await this.notifyAllStaff('new_order', msg, schemaName);
   }
@@ -125,7 +128,10 @@ export class StaffNotificationsService {
   /**
    * Notify staff about payment verification.
    */
-  async notifyPaymentVerified(order: { orderNumber: string; total: number; assignedTo?: string }, schemaName: string): Promise<void> {
+  async notifyPaymentVerified(
+    order: { orderNumber: string; total: number; assignedTo?: string },
+    schemaName: string,
+  ): Promise<void> {
     const msg = `✅ *Pago confirmado*\n\n📋 ${order.orderNumber}\n💰 $${order.total.toLocaleString()}\n\nEl pedido ya puede entrar a producción.`;
 
     if (order.assignedTo) {
@@ -138,7 +144,10 @@ export class StaffNotificationsService {
   /**
    * Notify staff about work authorization (mechanic/service scenario).
    */
-  async notifyWorkAuthorized(data: { orderNumber: string; customerName: string; description: string; assignedTo: string }, schemaName: string): Promise<void> {
+  async notifyWorkAuthorized(
+    data: { orderNumber: string; customerName: string; description: string; assignedTo: string },
+    schemaName: string,
+  ): Promise<void> {
     const msg = `✅ *Trabajo autorizado*\n\n📋 ${data.orderNumber}\n👤 ${data.customerName}\n🔧 ${data.description}\n\n¡El cliente autorizó! Puedes proceder.`;
     await this.notifyStaff(data.assignedTo, 'work_authorized', msg, schemaName);
   }
@@ -146,8 +155,11 @@ export class StaffNotificationsService {
   /**
    * Notify about low stock.
    */
-  async notifyLowStock(products: Array<{ name: string; stock: number; minimum: number }>, schemaName: string): Promise<void> {
-    const items = products.map(p => `  ⚠️ ${p.name}: ${p.stock}/${p.minimum}`).join('\n');
+  async notifyLowStock(
+    products: Array<{ name: string; stock: number; minimum: number }>,
+    schemaName: string,
+  ): Promise<void> {
+    const items = products.map((p) => `  ⚠️ ${p.name}: ${p.stock}/${p.minimum}`).join('\n');
     const msg = `📦 *Alerta de Stock Bajo*\n\n${items}\n\n¿Pides más a proveedor o pausas campañas?`;
     await this.notifyAllStaff('low_stock', msg, schemaName);
   }
@@ -155,7 +167,10 @@ export class StaffNotificationsService {
   /**
    * Notify about customer escalation.
    */
-  async notifyEscalation(data: { customerName: string; reason: string; conversationId: string }, schemaName: string): Promise<void> {
+  async notifyEscalation(
+    data: { customerName: string; reason: string; conversationId: string },
+    schemaName: string,
+  ): Promise<void> {
     const msg = `🚨 *Escalación de cliente*\n\n👤 ${data.customerName}\n📝 ${data.reason}\n\nEl cliente necesita atención humana. Revisa la conversación en el dashboard.`;
     await this.notifyAllStaff('customer_escalation', msg, schemaName);
   }
@@ -165,7 +180,10 @@ export class StaffNotificationsService {
   /**
    * Get notification preferences for a staff member.
    */
-  async getPreferences(staffId: string, schemaName: string): Promise<StaffNotificationPreferences | null> {
+  async getPreferences(
+    staffId: string,
+    schemaName: string,
+  ): Promise<StaffNotificationPreferences | null> {
     return this.getStaffWithPreferences(staffId, schemaName);
   }
 
@@ -184,9 +202,12 @@ export class StaffNotificationsService {
 
     if (prefs.phone !== undefined) {
       // Update phone directly on users table
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".users SET last_login_at = last_login_at WHERE id = $1::uuid
-      `, staffId); // placeholder — phone would be a new column
+      `,
+        staffId,
+      ); // placeholder — phone would be a new column
     }
 
     // Store notification prefs as JSONB
@@ -195,11 +216,14 @@ export class StaffNotificationsService {
       types: prefs.types ?? ['new_order', 'payment_verified', 'low_stock', 'customer_escalation'],
     });
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".users
       SET last_login_at = last_login_at
       WHERE id = $1::uuid
-    `, staffId);
+    `,
+      staffId,
+    );
 
     // For now, store in a simple approach — we'll use the existing settings pattern
     // In production: add notification_prefs JSONB column to users
@@ -208,12 +232,18 @@ export class StaffNotificationsService {
 
   // ─── Helpers ──────────────────────────────────────────────────
 
-  private async getStaffWithPreferences(staffId: string, schemaName: string): Promise<(StaffNotificationPreferences & { name: string; id: string }) | null> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+  private async getStaffWithPreferences(
+    staffId: string,
+    schemaName: string,
+  ): Promise<(StaffNotificationPreferences & { name: string; id: string }) | null> {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id, name, email, role
       FROM "${schemaName}".users
       WHERE id = $1::uuid AND is_active = true
-    `, staffId);
+    `,
+      staffId,
+    );
 
     if (!rows[0]) return null;
 
@@ -228,11 +258,28 @@ export class StaffNotificationsService {
       name: user.name,
       phone: '', // Will be populated from tenant.settings.ownerPhone or user.phone field
       enabled: true,
-      types: ['new_order', 'payment_verified', 'work_authorized', 'low_stock', 'appointment_reminder', 'delivery_assigned', 'customer_escalation', 'daily_summary'],
+      types: [
+        'new_order',
+        'payment_verified',
+        'work_authorized',
+        'low_stock',
+        'appointment_reminder',
+        'delivery_assigned',
+        'customer_escalation',
+        'daily_summary',
+      ],
     };
   }
 
-  private async getAllStaffWithPreferences(schemaName: string): Promise<Array<{ id: string; name: string; phone: string; enabled: boolean; types: StaffNotificationType[] }>> {
+  private async getAllStaffWithPreferences(schemaName: string): Promise<
+    Array<{
+      id: string;
+      name: string;
+      phone: string;
+      enabled: boolean;
+      types: StaffNotificationType[];
+    }>
+  > {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`
       SELECT id, name, email, role
       FROM "${schemaName}".users
@@ -240,12 +287,18 @@ export class StaffNotificationsService {
     `);
 
     // In production: each user would have a phone and notification_prefs JSONB
-    return rows.map(user => ({
+    return rows.map((user) => ({
       id: user.id,
       name: user.name,
       phone: '', // Populated from user.phone field when available
       enabled: true,
-      types: ['new_order', 'payment_verified', 'work_authorized', 'low_stock', 'customer_escalation'] as StaffNotificationType[],
+      types: [
+        'new_order',
+        'payment_verified',
+        'work_authorized',
+        'low_stock',
+        'customer_escalation',
+      ] as StaffNotificationType[],
     }));
   }
 }

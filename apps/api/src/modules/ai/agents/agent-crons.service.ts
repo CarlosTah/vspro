@@ -62,6 +62,8 @@ export class AgentCronsService {
       }
     }
 
-    this.logger.log(`✅ FinanceAgent: Reconciliation complete (${processed}/${tenants.length} tenants)`);
+    this.logger.log(
+      `✅ FinanceAgent: Reconciliation complete (${processed}/${tenants.length} tenants)`,
+    );
   }
 }

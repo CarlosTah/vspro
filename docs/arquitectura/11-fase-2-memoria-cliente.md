@@ -10,10 +10,10 @@
 
 Sistema de memoria a largo plazo para clientes que combina dos estrategias complementarias dentro del schema aislado de cada tenant:
 
-| Capa | Almacenamiento | Uso |
-|------|---------------|-----|
-| **Perfil Determinístico** | JSONB en `customer_memories` | Preferencias, tallas, direcciones, historial de compras |
-| **Memoria Episódica** | vector(1536) en `customer_memory_episodes` | Búsqueda semántica sobre conversaciones pasadas |
+| Capa                      | Almacenamiento                             | Uso                                                     |
+| ------------------------- | ------------------------------------------ | ------------------------------------------------------- |
+| **Perfil Determinístico** | JSONB en `customer_memories`               | Preferencias, tallas, direcciones, historial de compras |
+| **Memoria Episódica**     | vector(1536) en `customer_memory_episodes` | Búsqueda semántica sobre conversaciones pasadas         |
 
 La IA escribe autónomamente en ambas capas via el tool `update_customer_memory` durante las conversaciones. Un mecanismo de retrieval híbrido inyecta el contexto completo en el system prompt.
 
@@ -60,9 +60,9 @@ CREATE INDEX IF NOT EXISTS idx_customer_memory_episodes_customer
 
 ```typescript
 interface CustomerProfile {
-  preferences?: Record<string, any>;       // { "color": "azul", "estilo": "casual" }
-  sizes?: Record<string, string>;           // { "camisa": "M", "zapatos": "42" }
-  addresses?: Array<{ label, street, city, zip? }>;
+  preferences?: Record<string, any>; // { "color": "azul", "estilo": "casual" }
+  sizes?: Record<string, string>; // { "camisa": "M", "zapatos": "42" }
+  addresses?: Array<{ label; street; city; zip? }>;
   purchase_history_summary?: {
     total_orders: number;
     favorite_products: string[];
@@ -70,7 +70,7 @@ interface CustomerProfile {
     last_order_date: string;
   };
   important_dates?: Record<string, string>; // { "cumpleaños": "1990-03-15" }
-  custom_facts?: Record<string, any>;       // key-value libre
+  custom_facts?: Record<string, any>; // key-value libre
 }
 ```
 
@@ -138,30 +138,31 @@ Mensaje entrante
 ### 3.3 Integración con `AiEngineService`
 
 Cambios requeridos:
+
 1. **`getTools()`** — Agregar `update_customer_memory` al array de tools
 2. **`executeTool()`** — Agregar case para delegar a `CustomerMemoryService.handleToolCall()`
 3. **`processMessage()`** — Reemplazar `AiMemoryService.buildMemoryContext()` por `CustomerMemoryService.buildMemoryContext()`
 
 ### 3.4 Degradación Graceful
 
-| Escenario | Comportamiento |
-|-----------|---------------|
-| Sin embeddings disponibles | Episodios ordenados por fecha (más recientes) |
-| Sin perfil | Solo episodios en el contexto |
-| Sin episodios | Solo perfil en el contexto |
-| Sistema de memoria caído | IA continúa sin contexto de memoria |
+| Escenario                  | Comportamiento                                   |
+| -------------------------- | ------------------------------------------------ |
+| Sin embeddings disponibles | Episodios ordenados por fecha (más recientes)    |
+| Sin perfil                 | Solo episodios en el contexto                    |
+| Sin episodios              | Solo perfil en el contexto                       |
+| Sistema de memoria caído   | IA continúa sin contexto de memoria              |
 | OpenAI embedding API caída | Almacenar con embedding NULL, backfill posterior |
 
 ---
 
 ## 4. API REST (Dashboard)
 
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/customers/:id/memory` | Perfil + 20 episodios recientes |
-| PATCH | `/customers/:id/memory/profile` | Actualizar keys del perfil |
-| DELETE | `/customers/:id/memory/episodes/:episodeId` | Eliminar episodio |
-| DELETE | `/customers/:id/memory` | Eliminar toda la memoria |
+| Método | Endpoint                                    | Descripción                     |
+| ------ | ------------------------------------------- | ------------------------------- |
+| GET    | `/customers/:id/memory`                     | Perfil + 20 episodios recientes |
+| PATCH  | `/customers/:id/memory/profile`             | Actualizar keys del perfil      |
+| DELETE | `/customers/:id/memory/episodes/:episodeId` | Eliminar episodio               |
+| DELETE | `/customers/:id/memory`                     | Eliminar toda la memoria        |
 
 Todos los endpoints requieren autenticación + contexto de tenant.
 
@@ -189,11 +190,11 @@ Todos los endpoints requieren autenticación + contexto de tenant.
 
 ## 6. Migración desde `ai_memories`
 
-| Legacy Type | → Nueva Categoría |
-|-------------|-------------------|
+| Legacy Type            | → Nueva Categoría      |
+| ---------------------- | ---------------------- |
 | `conversation_summary` | `conversation_summary` |
-| `preference` | `preference_detected` |
-| `order_history` | `general_context` |
+| `preference`           | `preference_detected`  |
+| `order_history`        | `general_context`      |
 
 - Preservar embeddings existentes (copiar vector as-is)
 - Skip registros sin FK válido a customers, log warning
@@ -203,11 +204,11 @@ Todos los endpoints requieren autenticación + contexto de tenant.
 
 ## 7. Dependencias
 
-| Paquete | Versión | Uso |
-|---------|---------|-----|
-| pgvector | (ya instalado) | Extensión PostgreSQL para vectores |
-| openai | ^4.77.3 | text-embedding-3-small |
-| fast-check | ^3.x | Property-based testing |
+| Paquete    | Versión        | Uso                                |
+| ---------- | -------------- | ---------------------------------- |
+| pgvector   | (ya instalado) | Extensión PostgreSQL para vectores |
+| openai     | ^4.77.3        | text-embedding-3-small             |
+| fast-check | ^3.x           | Property-based testing             |
 
 ---
 
@@ -216,6 +217,7 @@ Todos los endpoints requieren autenticación + contexto de tenant.
 Ver `.kiro/specs/customer-memory/tasks.md` para el plan detallado con 24 sub-tareas en 10 waves de ejecución.
 
 **Orden de dependencias:**
+
 1. Schema DDL + tipos TypeScript
 2. CustomerMemoryService (profile → episodes → retrieval → tool handler)
 3. CustomerMemoryController + registro en módulo

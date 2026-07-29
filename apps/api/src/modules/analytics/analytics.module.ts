@@ -7,10 +7,7 @@ import { AnalyticsNotificationDispatcher } from './analytics-notification.dispat
 import { AnalyticsController } from './analytics.controller';
 
 @Module({
-  imports: [
-    ScheduleModule.forRoot(),
-    BullModule.registerQueue({ name: 'analytics-cron' }),
-  ],
+  imports: [ScheduleModule.forRoot(), BullModule.registerQueue({ name: 'analytics-cron' })],
   controllers: [AnalyticsController],
   providers: [AnalyticsReportsService, AnalyticsCronGateway, AnalyticsNotificationDispatcher],
   exports: [AnalyticsReportsService],

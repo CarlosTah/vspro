@@ -1,6 +1,13 @@
 import {
-  Controller, Get, Post, Body, Req,
-  Headers, HttpCode, UseGuards, RawBodyRequest,
+  Controller,
+  Get,
+  Post,
+  Body,
+  Req,
+  Headers,
+  HttpCode,
+  UseGuards,
+  RawBodyRequest,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { AuthGuard } from '@nestjs/passport';
@@ -42,11 +49,7 @@ export class BillingController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
   createCheckout(@Body() dto: CreateCheckoutDto, @Req() req: any) {
-    return this.billingService.createCheckoutSession(
-      req.user.tenantId,
-      dto.planSlug,
-      dto.interval,
-    );
+    return this.billingService.createCheckoutSession(req.user.tenantId, dto.planSlug, dto.interval);
   }
 
   /** Crear sesión del portal de Stripe (gestionar tarjeta, cancelar, etc.) */

@@ -1,4 +1,10 @@
-import { Injectable, Logger, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditLogService } from './audit-log.service';
@@ -39,7 +45,7 @@ export class StaffService {
       ORDER BY created_at ASC
     `);
 
-    return rows.map(r => ({
+    return rows.map((r) => ({
       id: r.id,
       email: r.email,
       name: r.name,
@@ -61,7 +67,15 @@ export class StaffService {
 
     if (!rows[0]) throw new NotFoundException('Staff member not found');
     const r = rows[0];
-    return { id: r.id, email: r.email, name: r.name, role: r.role, isActive: r.is_active, lastLoginAt: r.last_login_at, createdAt: r.created_at };
+    return {
+      id: r.id,
+      email: r.email,
+      name: r.name,
+      role: r.role,
+      isActive: r.is_active,
+      lastLoginAt: r.last_login_at,
+      createdAt: r.created_at,
+    };
   }
 
   /**
@@ -79,17 +93,24 @@ export class StaffService {
 
     // Check email uniqueness within tenant
     const existing = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT id FROM "${schemaName}".users WHERE email = $1`, data.email,
+      `SELECT id FROM "${schemaName}".users WHERE email = $1`,
+      data.email,
     );
     if (existing[0]) throw new ConflictException('Email already exists in this organization');
 
     const passwordHash = await bcrypt.hash(data.password, 12);
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".users (email, password_hash, name, role, is_active)
       VALUES ($1, $2, $3, $4, true)
       RETURNING id, email, name, role, is_active, created_at
-    `, data.email, passwordHash, data.name, data.role);
+    `,
+      data.email,
+      passwordHash,
+      data.name,
+      data.role,
+    );
 
     const newUser = rows[0];
 
@@ -102,9 +123,19 @@ export class StaffService {
       details: { email: data.email, role: data.role },
     });
 
-    this.logger.log(`[${schemaName}] Staff created: ${data.email} (${data.role}) by ${createdBy.id}`);
+    this.logger.log(
+      `[${schemaName}] Staff created: ${data.email} (${data.role}) by ${createdBy.id}`,
+    );
 
-    return { id: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role, isActive: newUser.is_active, lastLoginAt: null, createdAt: newUser.created_at };
+    return {
+      id: newUser.id,
+      email: newUser.email,
+      name: newUser.name,
+      role: newUser.role,
+      isActive: newUser.is_active,
+      lastLoginAt: null,
+      createdAt: newUser.created_at,
+    };
   }
 
   /**
@@ -128,17 +159,29 @@ export class StaffService {
     const params: any[] = [];
     let paramIndex = 1;
 
-    if (data.name) { sets.push(`name = $${paramIndex++}`); params.push(data.name); }
-    if (data.role) { sets.push(`role = $${paramIndex++}`); params.push(data.role); }
-    if (data.isActive !== undefined) { sets.push(`is_active = $${paramIndex++}`); params.push(data.isActive); }
+    if (data.name) {
+      sets.push(`name = $${paramIndex++}`);
+      params.push(data.name);
+    }
+    if (data.role) {
+      sets.push(`role = $${paramIndex++}`);
+      params.push(data.role);
+    }
+    if (data.isActive !== undefined) {
+      sets.push(`is_active = $${paramIndex++}`);
+      params.push(data.isActive);
+    }
 
     if (sets.length === 0) return this.getStaffMember(userId, schemaName);
 
     params.push(userId);
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       UPDATE "${schemaName}".users SET ${sets.join(', ')} WHERE id = $${paramIndex}::uuid
       RETURNING id, email, name, role, is_active, last_login_at, created_at
-    `, ...params);
+    `,
+      ...params,
+    );
 
     if (!rows[0]) throw new NotFoundException('Staff member not found');
 
@@ -151,7 +194,15 @@ export class StaffService {
     });
 
     const r = rows[0];
-    return { id: r.id, email: r.email, name: r.name, role: r.role, isActive: r.is_active, lastLoginAt: r.last_login_at, createdAt: r.created_at };
+    return {
+      id: r.id,
+      email: r.email,
+      name: r.name,
+      role: r.role,
+      isActive: r.is_active,
+      lastLoginAt: r.last_login_at,
+      createdAt: r.created_at,
+    };
   }
 
   /**
@@ -169,7 +220,8 @@ export class StaffService {
     this.validateRoleAssignment(deactivatedBy.role, target.role); // Can only deactivate lower roles
 
     await this.prisma.$executeRawUnsafe(
-      `UPDATE "${schemaName}".users SET is_active = false WHERE id = $1::uuid`, userId,
+      `UPDATE "${schemaName}".users SET is_active = false WHERE id = $1::uuid`,
+      userId,
     );
 
     await this.auditLog.log({
@@ -194,12 +246,14 @@ export class StaffService {
 
     // Only admin can reset others' passwords
     if (userId !== resetBy.id && resetBy.role !== 'admin') {
-      throw new ForbiddenException('Only admins can reset other users\' passwords');
+      throw new ForbiddenException("Only admins can reset other users' passwords");
     }
 
     const hash = await bcrypt.hash(newPassword, 12);
     await this.prisma.$executeRawUnsafe(
-      `UPDATE "${schemaName}".users SET password_hash = $1 WHERE id = $2::uuid`, hash, userId,
+      `UPDATE "${schemaName}".users SET password_hash = $1 WHERE id = $2::uuid`,
+      hash,
+      userId,
     );
 
     await this.auditLog.log({
@@ -234,19 +288,34 @@ export class StaffService {
   getPermissions(role: string): RolePermissions {
     const perms: Record<string, RolePermissions> = {
       admin: {
-        canManageStaff: true, canManageProducts: true, canManageOrders: true,
-        canViewReports: true, canManageConfig: true, canManageBilling: true,
-        canViewConversations: true, canManageChannels: true,
+        canManageStaff: true,
+        canManageProducts: true,
+        canManageOrders: true,
+        canViewReports: true,
+        canManageConfig: true,
+        canManageBilling: true,
+        canViewConversations: true,
+        canManageChannels: true,
       },
       manager: {
-        canManageStaff: false, canManageProducts: true, canManageOrders: true,
-        canViewReports: true, canManageConfig: false, canManageBilling: false,
-        canViewConversations: true, canManageChannels: false,
+        canManageStaff: false,
+        canManageProducts: true,
+        canManageOrders: true,
+        canViewReports: true,
+        canManageConfig: false,
+        canManageBilling: false,
+        canViewConversations: true,
+        canManageChannels: false,
       },
       operator: {
-        canManageStaff: false, canManageProducts: false, canManageOrders: true,
-        canViewReports: false, canManageConfig: false, canManageBilling: false,
-        canViewConversations: true, canManageChannels: false,
+        canManageStaff: false,
+        canManageProducts: false,
+        canManageOrders: true,
+        canViewReports: false,
+        canManageConfig: false,
+        canManageBilling: false,
+        canViewConversations: true,
+        canManageChannels: false,
       },
     };
     return perms[role] ?? perms.operator;

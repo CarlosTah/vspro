@@ -54,15 +54,25 @@ export class RetentionCronGateway {
       }
     }
 
-    this.logger.log(`💜 Retention cron: ${totalEnqueued} messages enqueued across ${tenants.length} tenants`);
+    this.logger.log(
+      `💜 Retention cron: ${totalEnqueued} messages enqueued across ${tenants.length} tenants`,
+    );
   }
 
-  private async processRetentionForTenant(tenant: { id: string; schemaName: string; slug: string }): Promise<number> {
+  private async processRetentionForTenant(tenant: {
+    id: string;
+    schemaName: string;
+    slug: string;
+  }): Promise<number> {
     // Check if re-engagement is enabled for this tenant
-    const config = await this.prisma.$queryRawUnsafe<any[]>(`
+    const config = await this.prisma
+      .$queryRawUnsafe<any[]>(
+        `
       SELECT agent_config->'retention' AS retention
       FROM "${tenant.schemaName}".ai_config LIMIT 1
-    `).catch(() => []);
+    `,
+      )
+      .catch(() => []);
 
     if (config[0]?.retention?.enabled === false) return 0;
 
@@ -74,28 +84,34 @@ export class RetentionCronGateway {
     const toSend = targets.slice(0, this.MAX_MESSAGES_PER_DAY);
 
     for (const target of toSend) {
-      await this.retentionQueue.add('send-re-engagement', {
-        tenantId: tenant.id,
-        schemaName: tenant.schemaName,
-        slug: tenant.slug,
-        customerId: target.id,
-        customerName: target.name,
-        channelType: target.channelType,
-        channelId: target.channelId,
-        action: target.action,
-        templateName: target.templateName,
-        message: target.message,
-        segment: target.segment,
-        daysSinceLastOrder: target.daysSinceLastOrder,
-      }, {
-        jobId: `retention-${tenant.slug}-${target.id}-${new Date().toISOString().split('T')[0]}`,
-        attempts: 2,
-        backoff: { type: 'fixed', delay: 60000 },
-      });
+      await this.retentionQueue.add(
+        'send-re-engagement',
+        {
+          tenantId: tenant.id,
+          schemaName: tenant.schemaName,
+          slug: tenant.slug,
+          customerId: target.id,
+          customerName: target.name,
+          channelType: target.channelType,
+          channelId: target.channelId,
+          action: target.action,
+          templateName: target.templateName,
+          message: target.message,
+          segment: target.segment,
+          daysSinceLastOrder: target.daysSinceLastOrder,
+        },
+        {
+          jobId: `retention-${tenant.slug}-${target.id}-${new Date().toISOString().split('T')[0]}`,
+          attempts: 2,
+          backoff: { type: 'fixed', delay: 60000 },
+        },
+      );
     }
 
     if (toSend.length > 0) {
-      this.logger.log(`[${tenant.slug}] ${toSend.length} re-engagement messages queued (${targets.length} total opportunities)`);
+      this.logger.log(
+        `[${tenant.slug}] ${toSend.length} re-engagement messages queued (${targets.length} total opportunities)`,
+      );
     }
 
     return toSend.length;

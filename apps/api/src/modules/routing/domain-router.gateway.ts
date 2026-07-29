@@ -34,7 +34,9 @@ export class DomainRouterGateway {
    * Resolve tenant from request headers.
    * Returns null if no valid tenant found.
    */
-  async resolve(headers: Record<string, string | string[] | undefined>): Promise<ResolvedTenant | null> {
+  async resolve(
+    headers: Record<string, string | string[] | undefined>,
+  ): Promise<ResolvedTenant | null> {
     // 1. Explicit header (highest priority)
     const explicitSlug = this.getHeader(headers, 'x-tenant-slug');
     if (explicitSlug) return this.lookupBySlug(explicitSlug);
@@ -60,7 +62,9 @@ export class DomainRouterGateway {
         const url = new URL(origin);
         const slug = this.extractSubdomain(url.hostname);
         if (slug) return this.lookupBySlug(slug);
-      } catch { /* invalid origin */ }
+      } catch {
+        /* invalid origin */
+      }
     }
 
     return null;
@@ -120,7 +124,13 @@ export class DomainRouterGateway {
     // Check if it matches *.baseDomain
     if (hostname.endsWith(`.${this.baseDomain}`)) {
       const subdomain = hostname.replace(`.${this.baseDomain}`, '');
-      if (subdomain && !subdomain.includes('.') && subdomain !== 'www' && subdomain !== 'api' && subdomain !== 'app') {
+      if (
+        subdomain &&
+        !subdomain.includes('.') &&
+        subdomain !== 'www' &&
+        subdomain !== 'api' &&
+        subdomain !== 'app'
+      ) {
         return subdomain;
       }
     }
@@ -133,7 +143,10 @@ export class DomainRouterGateway {
     return null;
   }
 
-  private getHeader(headers: Record<string, string | string[] | undefined>, key: string): string | null {
+  private getHeader(
+    headers: Record<string, string | string[] | undefined>,
+    key: string,
+  ): string | null {
     const value = headers[key] ?? headers[key.toLowerCase()];
     if (!value) return null;
     return Array.isArray(value) ? value[0] : value;

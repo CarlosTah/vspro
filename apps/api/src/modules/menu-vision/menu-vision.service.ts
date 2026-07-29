@@ -103,7 +103,9 @@ Responde SOLO con JSON válido:
       temperature: 0.1,
     });
 
-    const content = response.choices[0]?.message?.content ?? '{"items":[],"warnings":["No se pudo leer la imagen"]}';
+    const content =
+      response.choices[0]?.message?.content ??
+      '{"items":[],"warnings":["No se pudo leer la imagen"]}';
 
     try {
       // Clean response (remove markdown code blocks if present)
@@ -130,7 +132,6 @@ Responde SOLO con JSON válido:
 
       this.logger.log(`Menu parsed: ${result.totalItems} items extracted`);
       return result;
-
     } catch (err: any) {
       this.logger.error(`Failed to parse GPT response: ${err.message}`);
       return {
@@ -138,7 +139,9 @@ Responde SOLO con JSON válido:
         totalItems: 0,
         parsedAt: new Date().toISOString(),
         imageUrl,
-        warnings: ['No se pudo interpretar la respuesta de la IA. Intenta con una imagen más clara.'],
+        warnings: [
+          'No se pudo interpretar la respuesta de la IA. Intenta con una imagen más clara.',
+        ],
         rawResponse: content,
       };
     }
@@ -172,10 +175,13 @@ Responde SOLO con JSON válido:
       }
 
       // Check if product already exists (by name, case-insensitive)
-      const existing = await this.prisma.$queryRawUnsafe<any[]>(`
+      const existing = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT id FROM "${schemaName}".products
         WHERE LOWER(name) = LOWER($1) AND is_active = true
-      `, item.name);
+      `,
+        item.name,
+      );
 
       if (existing.length > 0) {
         skipped++;
@@ -186,7 +192,8 @@ Responde SOLO con JSON válido:
       const sku = this.generateSku(item.name, item.category, created);
 
       // Create product
-      const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      const rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         INSERT INTO "${schemaName}".products
           (name, price, category, description, sku, is_active)
         VALUES ($1, $2, $3, $4, $5, true)
@@ -202,12 +209,16 @@ Responde SOLO con JSON válido:
       const product = rows[0];
 
       // Create inventory record
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${schemaName}".inventory
           (product_id, stock_available, stock_minimum)
         VALUES ($1::uuid, $2, 5)
         ON CONFLICT (product_id) DO NOTHING
-      `, product.id, defaultStock);
+      `,
+        product.id,
+        defaultStock,
+      );
 
       createdProducts.push(product);
       created++;

@@ -24,13 +24,13 @@ export type ChannelType = 'whatsapp' | 'messenger' | 'instagram';
 
 export interface ChannelConfig {
   type: ChannelType;
-  externalId: string;    // Phone Number ID (WA) / Page ID (FB)
+  externalId: string; // Phone Number ID (WA) / Page ID (FB)
   accessToken: string;
   webhookVerifyToken?: string;
 }
 
 export interface SendTextParams {
-  recipientId: string;   // wa_id / psid / ig_id
+  recipientId: string; // wa_id / psid / ig_id
   text: string;
   channelConfig: ChannelConfig;
 }

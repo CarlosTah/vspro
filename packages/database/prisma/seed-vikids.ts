@@ -19,7 +19,8 @@ const PRODUCTS = [
   {
     sku: 'VK-VEST-FLOR-001',
     name: 'Vestido Floral Primavera',
-    description: 'Vestido de algodón con estampado floral en tonos rosa y lila. Falda con vuelo y lazo en la espalda.',
+    description:
+      'Vestido de algodón con estampado floral en tonos rosa y lila. Falda con vuelo y lazo en la espalda.',
     price: 389,
     category: 'Vestidos',
     images: [
@@ -39,7 +40,8 @@ const PRODUCTS = [
   {
     sku: 'VK-VEST-TUTU-002',
     name: 'Vestido Tutú Fiesta',
-    description: 'Vestido de tul con lentejuelas doradas en el corpiño. Perfecto para fiestas y eventos especiales.',
+    description:
+      'Vestido de tul con lentejuelas doradas en el corpiño. Perfecto para fiestas y eventos especiales.',
     price: 549,
     category: 'Vestidos',
     images: [
@@ -58,7 +60,8 @@ const PRODUCTS = [
   {
     sku: 'VK-CONJ-MARIN-003',
     name: 'Conjunto Marinero',
-    description: 'Blusa a rayas azul marino con short blanco de algodón. Incluye cinto decorativo con ancla.',
+    description:
+      'Blusa a rayas azul marino con short blanco de algodón. Incluye cinto decorativo con ancla.',
     price: 429,
     category: 'Conjuntos',
     images: [
@@ -75,7 +78,8 @@ const PRODUCTS = [
   {
     sku: 'VK-LEGN-UNIC-004',
     name: 'Leggings Unicornio',
-    description: 'Leggings estampados con unicornios y arcoíris. Tela stretch suave con cintura elástica.',
+    description:
+      'Leggings estampados con unicornios y arcoíris. Tela stretch suave con cintura elástica.',
     price: 199,
     category: 'Pantalones',
     images: [
@@ -94,12 +98,11 @@ const PRODUCTS = [
   {
     sku: 'VK-PLAY-DINO-005',
     name: 'Playera Dinosaurio Glitter',
-    description: 'Playera de algodón con estampado de dinosaurio en glitter rosa. Cuello redondo y manga corta.',
+    description:
+      'Playera de algodón con estampado de dinosaurio en glitter rosa. Cuello redondo y manga corta.',
     price: 179,
     category: 'Playeras',
-    images: [
-      'https://cdn.vikids.mx/productos/playera-dino-glitter-front.webp',
-    ],
+    images: ['https://cdn.vikids.mx/productos/playera-dino-glitter-front.webp'],
     variants: [
       { name: 'Talla 2 - Blanco', attributes: { talla: '2', color: 'Blanco' }, stock: 20 },
       { name: 'Talla 4 - Blanco', attributes: { talla: '4', color: 'Blanco' }, stock: 25 },
@@ -112,7 +115,8 @@ const PRODUCTS = [
   {
     sku: 'VK-CHAM-ESTRE-006',
     name: 'Chamarra Estrellas',
-    description: 'Chamarra ligera tipo bomber con estampado de estrellas. Cierre frontal y bolsillos laterales.',
+    description:
+      'Chamarra ligera tipo bomber con estampado de estrellas. Cierre frontal y bolsillos laterales.',
     price: 599,
     category: 'Chamarras',
     images: [
@@ -131,7 +135,8 @@ const PRODUCTS = [
   {
     sku: 'VK-FALDA-JEAN-007',
     name: 'Falda de Mezclilla con Bordado',
-    description: 'Falda de mezclilla con bordado de flores en el frente. Cintura ajustable con botón.',
+    description:
+      'Falda de mezclilla con bordado de flores en el frente. Cintura ajustable con botón.',
     price: 349,
     category: 'Faldas',
     images: [
@@ -167,7 +172,8 @@ const PRODUCTS = [
   {
     sku: 'VK-SAND-BRILL-009',
     name: 'Sandalias Brillantes',
-    description: 'Sandalias con tiras de glitter y suela antiderrapante. Cierre de velcro para fácil uso.',
+    description:
+      'Sandalias con tiras de glitter y suela antiderrapante. Cierre de velcro para fácil uso.',
     price: 329,
     category: 'Calzado',
     images: [
@@ -186,15 +192,18 @@ const PRODUCTS = [
   {
     sku: 'VK-ACCS-DIADE-010',
     name: 'Set Diademas Mariposa (3 piezas)',
-    description: 'Set de 3 diademas con mariposas de tela en colores pastel. Ajuste cómodo para todo el día.',
+    description:
+      'Set de 3 diademas con mariposas de tela en colores pastel. Ajuste cómodo para todo el día.',
     price: 149,
     category: 'Accesorios',
-    images: [
-      'https://cdn.vikids.mx/productos/diademas-mariposa-set.webp',
-    ],
+    images: ['https://cdn.vikids.mx/productos/diademas-mariposa-set.webp'],
     variants: [
       { name: 'Talla Única - Pastel', attributes: { talla: 'Única', color: 'Pastel' }, stock: 30 },
-      { name: 'Talla Única - Brillante', attributes: { talla: 'Única', color: 'Brillante' }, stock: 25 },
+      {
+        name: 'Talla Única - Brillante',
+        attributes: { talla: 'Única', color: 'Brillante' },
+        stock: 25,
+      },
     ],
   },
 ];
@@ -309,14 +318,17 @@ async function main() {
   console.log('✅ Configuración de IA (Viki) creada');
 
   // 6. Crear canal de WhatsApp
-  await prisma.$executeRawUnsafe(`
+  await prisma.$executeRawUnsafe(
+    `
     INSERT INTO "${schemaName}".channels (type, external_id, access_token, is_active, config)
     VALUES ('whatsapp', '521555VIKIDS', 'encrypted_token_placeholder', true, $1::jsonb)
-  `, JSON.stringify({
-    phoneNumberId: '521555VIKIDS',
-    businessName: 'Vikids Moda Infantil',
-    displayPhone: '+52 1 55 5555 KIDS',
-  }));
+  `,
+    JSON.stringify({
+      phoneNumberId: '521555VIKIDS',
+      businessName: 'Vikids Moda Infantil',
+      displayPhone: '+52 1 55 5555 KIDS',
+    }),
+  );
 
   // 7. Crear productos con variantes e inventario
   const productIds: string[] = [];
@@ -328,7 +340,13 @@ async function main() {
     await prisma.$executeRawUnsafe(
       `INSERT INTO "${schemaName}".products (id, sku, name, description, price, category, images, is_active)
        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::text[], true)`,
-      id, p.sku, p.name, p.description, p.price, p.category, p.images,
+      id,
+      p.sku,
+      p.name,
+      p.description,
+      p.price,
+      p.category,
+      p.images,
     );
 
     // Stock total = suma de variantes
@@ -336,7 +354,8 @@ async function main() {
     await prisma.$executeRawUnsafe(
       `INSERT INTO "${schemaName}".inventory (product_id, stock_available, stock_minimum)
        VALUES ($1::uuid, $2, 5)`,
-      id, totalStock,
+      id,
+      totalStock,
     );
 
     // Variantes
@@ -352,7 +371,9 @@ async function main() {
       );
     }
   }
-  console.log(`✅ ${PRODUCTS.length} productos con ${PRODUCTS.reduce((s, p) => s + p.variants.length, 0)} variantes creados`);
+  console.log(
+    `✅ ${PRODUCTS.length} productos con ${PRODUCTS.reduce((s, p) => s + p.variants.length, 0)} variantes creados`,
+  );
 
   // 8. Crear clientes
   const customerIds: string[] = [];
@@ -362,7 +383,10 @@ async function main() {
     await prisma.$executeRawUnsafe(
       `INSERT INTO "${schemaName}".customers (id, name, phone, email, channel_type, channel_id)
        VALUES ($1::uuid, $2, $3, $4, 'whatsapp', $3)`,
-      id, c.name, c.phone, c.email,
+      id,
+      c.name,
+      c.phone,
+      c.email,
     );
   }
   console.log(`✅ ${CUSTOMERS.length} clientes creados`);
@@ -382,12 +406,20 @@ async function main() {
     await prisma.$executeRawUnsafe(
       `INSERT INTO "${schemaName}".orders (id, order_number, customer_id, channel_type, status, items, subtotal, total, created_at)
        VALUES ($1::uuid, $2, $3::uuid, 'whatsapp', $4, $5::jsonb, $6, $6, NOW() - INTERVAL '${8 - i} days')`,
-      orderId, orderNumber, customerId, status,
-      JSON.stringify([{
-        productId, productName: product.name, quantity: qty,
-        unitPrice: product.price, subtotal: total,
-        variant: product.variants[0].name,
-      }]),
+      orderId,
+      orderNumber,
+      customerId,
+      status,
+      JSON.stringify([
+        {
+          productId,
+          productName: product.name,
+          quantity: qty,
+          unitPrice: product.price,
+          subtotal: total,
+          variant: product.variants[0].name,
+        },
+      ]),
       total,
     );
 
@@ -395,7 +427,9 @@ async function main() {
       await prisma.$executeRawUnsafe(
         `INSERT INTO "${schemaName}".payments (order_id, method, amount, status, reference, verified_at)
          VALUES ($1::uuid, 'transfer', $2, 'verified', $3, NOW())`,
-        orderId, total, `REF-VK-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+        orderId,
+        total,
+        `REF-VK-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
       );
     }
 
@@ -417,21 +451,30 @@ async function main() {
     await prisma.$executeRawUnsafe(
       `INSERT INTO "${schemaName}".conversations (id, customer_id, channel_type, status, last_message_at)
        VALUES ($1::uuid, $2::uuid, 'whatsapp', 'active', NOW())`,
-      convId, customerIds[i],
+      convId,
+      customerIds[i],
     );
 
     const msgs = [
       { dir: 'inbound', text: 'Hola, busco un vestido para mi hija de 4 años' },
-      { dir: 'outbound', text: '¡Hola! 🎀 Soy Viki. Tenemos vestidos hermosos en talla 4. ¿Para qué ocasión lo buscas?' },
+      {
+        dir: 'outbound',
+        text: '¡Hola! 🎀 Soy Viki. Tenemos vestidos hermosos en talla 4. ¿Para qué ocasión lo buscas?',
+      },
       { dir: 'inbound', text: 'Para una fiesta de cumpleaños' },
-      { dir: 'outbound', text: '¡Perfecto! Te recomiendo nuestro Vestido Tutú Fiesta en dorado o plateado. Es precioso con lentejuelas ✨ Está en $549. ¿Te gustaría verlo?' },
+      {
+        dir: 'outbound',
+        text: '¡Perfecto! Te recomiendo nuestro Vestido Tutú Fiesta en dorado o plateado. Es precioso con lentejuelas ✨ Está en $549. ¿Te gustaría verlo?',
+      },
     ];
 
     for (const msg of msgs) {
       await prisma.$executeRawUnsafe(
         `INSERT INTO "${schemaName}".messages (conversation_id, direction, type, content, ai_processed)
          VALUES ($1::uuid, $2, 'text', $3, true)`,
-        convId, msg.dir, msg.text,
+        convId,
+        msg.dir,
+        msg.text,
       );
     }
   }
@@ -461,5 +504,8 @@ async function main() {
 }
 
 main()
-  .catch((e) => { console.error('❌ Error:', e); process.exit(1); })
+  .catch((e) => {
+    console.error('❌ Error:', e);
+    process.exit(1);
+  })
   .finally(() => prisma.$disconnect());

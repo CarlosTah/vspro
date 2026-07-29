@@ -63,7 +63,9 @@ export class OwnerNotificationService {
       }
 
       if (sentCount > 0) {
-        this.logger.log(`[${payload.schemaName}] Owner notified: ${payload.type} — ${payload.title}`);
+        this.logger.log(
+          `[${payload.schemaName}] Owner notified: ${payload.type} — ${payload.title}`,
+        );
         return { sent: true };
       }
 
@@ -76,7 +78,15 @@ export class OwnerNotificationService {
 
   // ─── Event-driven notifications ────────────────────────────────
 
-  async onNewOrder(data: { tenantId: string; schemaName: string; orderNumber: string; customerName: string; total: number; itemCount: number; channel: string }) {
+  async onNewOrder(data: {
+    tenantId: string;
+    schemaName: string;
+    orderNumber: string;
+    customerName: string;
+    total: number;
+    itemCount: number;
+    channel: string;
+  }) {
     return this.notifyOwner({
       schemaName: data.schemaName,
       type: 'general',
@@ -87,7 +97,14 @@ export class OwnerNotificationService {
     });
   }
 
-  async onPaymentVerified(data: { tenantId: string; schemaName: string; orderNumber: string; amount: number; method: string; customerName: string }) {
+  async onPaymentVerified(data: {
+    tenantId: string;
+    schemaName: string;
+    orderNumber: string;
+    amount: number;
+    method: string;
+    customerName: string;
+  }) {
     return this.notifyOwner({
       schemaName: data.schemaName,
       type: 'general',
@@ -98,7 +115,13 @@ export class OwnerNotificationService {
     });
   }
 
-  async onShipmentDelivered(data: { tenantId: string; schemaName: string; orderNumber: string; customerName: string; carrier: string }) {
+  async onShipmentDelivered(data: {
+    tenantId: string;
+    schemaName: string;
+    orderNumber: string;
+    customerName: string;
+    carrier: string;
+  }) {
     return this.notifyOwner({
       schemaName: data.schemaName,
       type: 'general',
@@ -109,7 +132,14 @@ export class OwnerNotificationService {
     });
   }
 
-  async onDailySummary(data: { tenantId: string; schemaName: string; ordersToday: number; revenueToday: number; pendingPayments: number; pendingShipments: number }) {
+  async onDailySummary(data: {
+    tenantId: string;
+    schemaName: string;
+    ordersToday: number;
+    revenueToday: number;
+    pendingPayments: number;
+    pendingShipments: number;
+  }) {
     const body = `📦 Pedidos hoy: ${data.ordersToday}\n💰 Revenue: $${data.revenueToday.toLocaleString('es-MX')}\n⏳ Pagos pendientes: ${data.pendingPayments}\n🚚 Envíos pendientes: ${data.pendingShipments}`;
     return this.notifyOwner({
       schemaName: data.schemaName,

@@ -116,7 +116,7 @@ Refactor the monolithic AiEngineService into a multi-agent architecture with spe
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 7. Testing
-  - [ ]* 7.1 Write unit tests for AgentRouterService
+  - [ ]\* 7.1 Write unit tests for AgentRouterService
     - Test heuristic classification: sales keywords → sales agent
     - Test heuristic classification: finance keywords → finance agent
     - Test confidence threshold: < 0.7 → GeneralAgent
@@ -125,49 +125,49 @@ Refactor the monolithic AiEngineService into a multi-agent architecture with spe
     - Test disabled agent in config → GeneralAgent
     - _Requirements: 2.1, 2.4, 2.5, 6.3, 9.2_
 
-  - [ ]* 7.2 Write unit tests for SalesAgent
+  - [ ]\* 7.2 Write unit tests for SalesAgent
     - Test discount enforcement: rejects discount > max_discount_percent
     - Test discount within policy: applies successfully
     - Test suggest_upsell tool returns related products
     - Test schedule_follow_up triggered on hesitation
     - _Requirements: 3.3, 3.4, 3.5_
 
-  - [ ]* 7.3 Write unit tests for InventoryAgent
+  - [ ]\* 7.3 Write unit tests for InventoryAgent
     - Test scanTenantStock returns items below minimum
     - Test generateSupplierDraft formats email correctly
     - Test missing supplier_info creates alert
     - Test scan skips inactive products
     - _Requirements: 4.2, 4.3, 4.4, 4.6_
 
-  - [ ]* 7.4 Write unit tests for FinanceAgent
+  - [ ]\* 7.4 Write unit tests for FinanceAgent
     - Test auto-reconcile within tolerance
     - Test escalation above tolerance
     - Test no-match creates alert
     - Test daily reconciliation finds stale payments
     - _Requirements: 5.2, 5.3, 5.4, 5.6_
 
-  - [ ]* 7.5 Write unit tests for GeneralAgent backward compatibility
+  - [ ]\* 7.5 Write unit tests for GeneralAgent backward compatibility
     - Test same tools as current AiEngineService.getTools()
     - Test same system prompt structure
     - Test custom_tools from AiToolsExtenderService still work
     - _Requirements: 8.1, 8.4, 8.5_
 
-  - [ ]* 7.6 Write property test for confidence threshold
+  - [ ]\* 7.6 Write property test for confidence threshold
     - **Property 1: Router confidence threshold enforcement**
     - Use fast-check to generate random confidence values; verify < 0.7 always routes to general
     - **Validates: Requirements 2.4, 8.2**
 
-  - [ ]* 7.7 Write property test for discount policy enforcement
+  - [ ]\* 7.7 Write property test for discount policy enforcement
     - **Property 3: Discount policy enforcement**
     - Use fast-check to generate random discount values and policy limits; verify never exceeds max
     - **Validates: Requirements 3.3, 3.4**
 
-  - [ ]* 7.8 Write property test for reconciliation tolerance
+  - [ ]\* 7.8 Write property test for reconciliation tolerance
     - **Property 4: Reconciliation tolerance boundary**
     - Use fast-check to generate random discrepancy amounts; verify correct auto-resolve vs escalate
     - **Validates: Requirements 5.2, 5.3**
 
-  - [ ]* 7.9 Write integration test for full message routing flow
+  - [ ]\* 7.9 Write integration test for full message routing flow
     - Test: sales message → SalesAgent processes → response
     - Test: ambiguous message → LLM classification → appropriate agent
     - Test: follow-up message → cache hit → same agent

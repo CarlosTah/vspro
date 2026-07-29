@@ -26,7 +26,12 @@ import { OrdersModule } from '../orders/orders.module';
  */
 @Module({
   imports: [MessagingModule, OrdersModule],
-  controllers: [DeliveryController, DeliverySettingsController, DeliveryTrackingController, NotificationSettingsController],
+  controllers: [
+    DeliveryController,
+    DeliverySettingsController,
+    DeliveryTrackingController,
+    NotificationSettingsController,
+  ],
   providers: [DeliveryService, DeliveryDispatchCronService],
   exports: [DeliveryService],
 })

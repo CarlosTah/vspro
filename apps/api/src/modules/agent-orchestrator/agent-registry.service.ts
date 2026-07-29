@@ -2,7 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { LeadManagerAgent } from './agents/lead-manager.agent';
 import { ItInfrastructureAgent } from './agents/it-infrastructure.agent';
 import { RealEstateAnalyticsAgent } from './agents/real-estate-analytics.agent';
-import { OrchestratorAgentType, AgentCapability, AgentTask, AgentTaskOutput, SessionContext } from './types';
+import {
+  OrchestratorAgentType,
+  AgentCapability,
+  AgentTask,
+  AgentTaskOutput,
+  SessionContext,
+} from './types';
 
 /**
  * Interface that all orchestrator agents must implement.
@@ -63,8 +69,8 @@ export class AgentRegistryService {
   }
 
   getCapabilitySummary(): string {
-    return this.getAllAgents().map(a =>
-      `- ${a.name}: ${a.description} (domains: ${a.domains.join(', ')})`
-    ).join('\n');
+    return this.getAllAgents()
+      .map((a) => `- ${a.name}: ${a.description} (domains: ${a.domains.join(', ')})`)
+      .join('\n');
   }
 }

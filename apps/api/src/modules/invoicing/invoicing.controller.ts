@@ -1,7 +1,4 @@
-import {
-  Controller, Get, Post, Body, Param,
-  UseGuards, ParseUUIDPipe,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, ParseUUIDPipe } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { InvoicingService } from './invoicing.service';
@@ -27,10 +24,7 @@ export class InvoicingController {
   /** Historial de facturas/entradas contables de un pedido */
   @Get('order/:orderId')
   @Roles('admin', 'manager')
-  getByOrder(
-    @Param('orderId', ParseUUIDPipe) orderId: string,
-    @TenantSchema() schema: string,
-  ) {
+  getByOrder(@Param('orderId', ParseUUIDPipe) orderId: string, @TenantSchema() schema: string) {
     return this.invoicingService.getByOrder(orderId, schema);
   }
 

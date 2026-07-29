@@ -47,14 +47,32 @@ export class NotificationsController {
         FROM "${schema}".orders
         ORDER BY created_at DESC LIMIT 5
       `);
-      orders.forEach(o => events.push({
-        type: 'order',
-        icon: o.status === 'delivered' ? '✅' : o.status === 'ready' ? '🎉' : o.status === 'in_production' ? '👨‍🍳' : '🛒',
-        title: `Pedido ${o.orderNumber}`,
-        subtitle: o.status === 'new' ? 'Nuevo' : o.status === 'in_production' ? 'En cocina' : o.status === 'ready' ? 'Listo' : o.status === 'delivered' ? 'Entregado' : o.status,
-        total: o.total,
-        createdAt: o.createdAt,
-      }));
+      orders.forEach((o) =>
+        events.push({
+          type: 'order',
+          icon:
+            o.status === 'delivered'
+              ? '✅'
+              : o.status === 'ready'
+                ? '🎉'
+                : o.status === 'in_production'
+                  ? '👨‍🍳'
+                  : '🛒',
+          title: `Pedido ${o.orderNumber}`,
+          subtitle:
+            o.status === 'new'
+              ? 'Nuevo'
+              : o.status === 'in_production'
+                ? 'En cocina'
+                : o.status === 'ready'
+                  ? 'Listo'
+                  : o.status === 'delivered'
+                    ? 'Entregado'
+                    : o.status,
+          total: o.total,
+          createdAt: o.createdAt,
+        }),
+      );
     } catch {}
 
     try {
@@ -63,13 +81,15 @@ export class NotificationsController {
         FROM "${schema}".escalations
         ORDER BY created_at DESC LIMIT 3
       `);
-      escalations.forEach(e => events.push({
-        type: 'complaint',
-        icon: '⚠️',
-        title: `Queja: ${e.reason?.substring(0, 40)}`,
-        subtitle: e.orderNumber ?? 'Sin pedido',
-        createdAt: e.createdAt,
-      }));
+      escalations.forEach((e) =>
+        events.push({
+          type: 'complaint',
+          icon: '⚠️',
+          title: `Queja: ${e.reason?.substring(0, 40)}`,
+          subtitle: e.orderNumber ?? 'Sin pedido',
+          createdAt: e.createdAt,
+        }),
+      );
     } catch {}
 
     events.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -86,9 +106,12 @@ export class NotificationsController {
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `);
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${schema}".push_subscriptions (subscription) VALUES ($1::jsonb)
-    `, JSON.stringify(body.subscription));
+    `,
+      JSON.stringify(body.subscription),
+    );
     return { success: true };
   }
 
@@ -100,24 +123,24 @@ export class NotificationsController {
       `SELECT agent_config->'notifications' AS prefs FROM "${schema}".ai_config LIMIT 1`,
     );
 
-    return rows[0]?.prefs ?? {
-      new_order: true,
-      payment_verified: true,
-      low_stock: true,
-      shipment_delivered: true,
-      escalation: true,
-      daily_summary: true,
-    };
+    return (
+      rows[0]?.prefs ?? {
+        new_order: true,
+        payment_verified: true,
+        low_stock: true,
+        shipment_delivered: true,
+        escalation: true,
+        daily_summary: true,
+      }
+    );
   }
 
   /** Update notification preferences */
   @Patch('preferences')
   @Roles('admin')
-  async updatePreferences(
-    @Body() prefs: Record<string, boolean>,
-    @TenantSchema() schema: string,
-  ) {
-    await this.prisma.$executeRawUnsafe(`
+  async updatePreferences(@Body() prefs: Record<string, boolean>, @TenantSchema() schema: string) {
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schema}".ai_config
       SET agent_config = jsonb_set(
         COALESCE(agent_config, '{}'::jsonb),
@@ -125,7 +148,9 @@ export class NotificationsController {
         $1::jsonb
       )
       WHERE id = (SELECT id FROM "${schema}".ai_config LIMIT 1)
-    `, JSON.stringify(prefs));
+    `,
+      JSON.stringify(prefs),
+    );
 
     return { success: true, preferences: prefs };
   }
@@ -133,10 +158,7 @@ export class NotificationsController {
   /** Set owner's WhatsApp phone for notifications */
   @Patch('owner-phone')
   @Roles('admin')
-  async setOwnerPhone(
-    @Body() body: { phone: string },
-    @TenantSchema() schema: string,
-  ) {
+  async setOwnerPhone(@Body() body: { phone: string }, @TenantSchema() schema: string) {
     // Store in tenant settings
     const tenant = await this.prisma.tenant.findFirst({ where: { schemaName: schema } });
     if (tenant) {

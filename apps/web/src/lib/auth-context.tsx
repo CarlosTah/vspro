@@ -37,7 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Verificar sesión existente al cargar
   useEffect(() => {
     if (api.isAuthenticated()) {
-      api.get('/auth/me')
+      api
+        .get('/auth/me')
         .then((payload) => {
           setUser({
             id: payload.sub,

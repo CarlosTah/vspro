@@ -23,7 +23,10 @@ export default function NewProductPage() {
 
   const addCharacteristic = () => {
     if (!newCharKey.trim()) return;
-    setForm({ ...form, characteristics: [...form.characteristics, { key: newCharKey, value: newCharValue }] });
+    setForm({
+      ...form,
+      characteristics: [...form.characteristics, { key: newCharKey, value: newCharValue }],
+    });
     setNewCharKey('');
     setNewCharValue('');
   };
@@ -67,19 +70,25 @@ export default function NewProductPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <button onClick={() => router.back()} className="text-sm text-accent hover:underline mb-1">← Volver a productos</button>
+        <button onClick={() => router.back()} className="text-sm text-accent hover:underline mb-1">
+          ← Volver a productos
+        </button>
         <h1 className="text-2xl font-bold text-white">Nuevo Producto</h1>
         <p className="text-sm text-gray-400">Agrega un producto o servicio a tu catálogo</p>
       </div>
 
       {error && (
-        <div className="rounded-lg bg-red-900/30 border border-red-500/50 px-4 py-3 text-sm text-red-300">{error}</div>
+        <div className="rounded-lg bg-red-900/30 border border-red-500/50 px-4 py-3 text-sm text-red-300">
+          {error}
+        </div>
       )}
 
       <div className="rounded-xl border border-card-border bg-card p-6 space-y-5">
         {/* Name */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1.5">Nombre del producto *</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1.5">
+            Nombre del producto *
+          </label>
           <input
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -131,7 +140,9 @@ export default function NewProductPage() {
         {/* Stock + Discount row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Stock disponible</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5">
+              Stock disponible
+            </label>
             <input
               type="number"
               min="0"
@@ -143,7 +154,9 @@ export default function NewProductPage() {
             <p className="text-xs text-gray-500 mt-1">Usa -1 para stock ilimitado (servicios)</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Descuento (opcional)</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5">
+              Descuento (opcional)
+            </label>
             <div className="flex gap-2">
               <input
                 type="number"
@@ -168,15 +181,25 @@ export default function NewProductPage() {
         {/* Characteristics */}
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-1.5">Características</label>
-          <p className="text-xs text-gray-500 mb-2">Agrega atributos como talla, color, material, ingredientes, etc.</p>
+          <p className="text-xs text-gray-500 mb-2">
+            Agrega atributos como talla, color, material, ingredientes, etc.
+          </p>
 
           {form.characteristics.length > 0 && (
             <div className="space-y-2 mb-3">
               {form.characteristics.map((c, i) => (
-                <div key={i} className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-2">
+                <div
+                  key={i}
+                  className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-2"
+                >
                   <span className="text-sm text-accent font-medium">{c.key}:</span>
                   <span className="text-sm text-white">{c.value}</span>
-                  <button onClick={() => removeCharacteristic(i)} className="ml-auto text-red-400 text-xs hover:text-red-300">✕</button>
+                  <button
+                    onClick={() => removeCharacteristic(i)}
+                    className="ml-auto text-red-400 text-xs hover:text-red-300"
+                  >
+                    ✕
+                  </button>
                 </div>
               ))}
             </div>
@@ -196,7 +219,12 @@ export default function NewProductPage() {
               className="vspro-input flex-1"
               onKeyDown={(e) => e.key === 'Enter' && addCharacteristic()}
             />
-            <button onClick={addCharacteristic} className="px-3 py-2 rounded-lg bg-gray-700 text-white text-sm hover:bg-gray-600">+</button>
+            <button
+              onClick={addCharacteristic}
+              className="px-3 py-2 rounded-lg bg-gray-700 text-white text-sm hover:bg-gray-600"
+            >
+              +
+            </button>
           </div>
         </div>
       </div>
@@ -210,7 +238,9 @@ export default function NewProductPage() {
         >
           {saving ? 'Creando...' : '✓ Crear producto'}
         </button>
-        <button onClick={() => router.back()} className="vspro-btn-secondary">Cancelar</button>
+        <button onClick={() => router.back()} className="vspro-btn-secondary">
+          Cancelar
+        </button>
       </div>
     </div>
   );

@@ -20,8 +20,18 @@ export class ItInfrastructureAgent implements OrchestratorAgent {
   private readonly logger = new Logger(ItInfrastructureAgent.name);
 
   readonly name: OrchestratorAgentType = 'it-infrastructure';
-  readonly description = 'Monitoreo de infraestructura: health checks, queues, recursos, despliegues';
-  readonly domains = ['infrastructure', 'health', 'monitoring', 'database', 'redis', 'queues', 'deployment', 'performance'];
+  readonly description =
+    'Monitoreo de infraestructura: health checks, queues, recursos, despliegues';
+  readonly domains = [
+    'infrastructure',
+    'health',
+    'monitoring',
+    'database',
+    'redis',
+    'queues',
+    'deployment',
+    'performance',
+  ];
   readonly riskLevel = 'high' as const;
   readonly requiresApproval = true; // Actions on infrastructure require approval
 
@@ -62,17 +72,23 @@ export class ItInfrastructureAgent implements OrchestratorAgent {
       heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
       heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
       rssMB: Math.round(mem.rss / 1024 / 1024),
-      ratio: (mem.heapUsed / mem.heapTotal * 100).toFixed(1) + '%',
+      ratio: ((mem.heapUsed / mem.heapTotal) * 100).toFixed(1) + '%',
     };
 
     // Tenant count
-    const tenants = await this.prisma.tenant.count({ where: { status: { in: ['ACTIVE', 'TRIAL'] } } });
+    const tenants = await this.prisma.tenant.count({
+      where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+    });
     checks.tenants = { active: tenants };
 
     // Uptime
-    checks.uptime = { seconds: Math.round(process.uptime()), formatted: this.formatUptime(process.uptime()) };
+    checks.uptime = {
+      seconds: Math.round(process.uptime()),
+      formatted: this.formatUptime(process.uptime()),
+    };
 
-    const allHealthy = checks.postgresql?.status === 'healthy' && parseInt(checks.memory.ratio) < 90;
+    const allHealthy =
+      checks.postgresql?.status === 'healthy' && parseInt(checks.memory.ratio) < 90;
 
     return {
       response: allHealthy
@@ -81,7 +97,9 @@ export class ItInfrastructureAgent implements OrchestratorAgent {
       toolsUsed: ['health_check', 'memory_analysis'],
       confidence: 0.95,
       data: checks,
-      suggestedActions: allHealthy ? [] : ['Revisar logs', 'Considerar restart', 'Escalar recursos'],
+      suggestedActions: allHealthy
+        ? []
+        : ['Revisar logs', 'Considerar restart', 'Escalar recursos'],
     };
   }
 

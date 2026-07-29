@@ -45,10 +45,14 @@ export class KnowledgeBaseService {
   // ─── Ensure embedding column exists ─────────────────────────
 
   private async ensureEmbeddingColumn(schemaName: string): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma
+      .$executeRawUnsafe(
+        `
       ALTER TABLE "${schemaName}".knowledge_base
       ADD COLUMN IF NOT EXISTS embedding vector(1536)
-    `).catch(() => {});
+    `,
+      )
+      .catch(() => {});
   }
 
   // ─── Embedding generation ───────────────────────────────────
@@ -73,7 +77,12 @@ export class KnowledgeBaseService {
    * Search knowledge base using semantic similarity.
    * Returns top-K entries most relevant to the query.
    */
-  async semanticSearch(query: string, schemaName: string, limit = 3, minSimilarity = 0.3): Promise<KnowledgeBaseEntry[]> {
+  async semanticSearch(
+    query: string,
+    schemaName: string,
+    limit = 3,
+    minSimilarity = 0.3,
+  ): Promise<KnowledgeBaseEntry[]> {
     await this.ensureEmbeddingColumn(schemaName);
 
     const embedding = await this.generateEmbedding(query);
@@ -84,7 +93,8 @@ export class KnowledgeBaseService {
 
     const vectorStr = `[${embedding.join(',')}]`;
 
-    const results = await this.prisma.$queryRawUnsafe<any[]>(`
+    const results = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id, title, content, category,
              is_active AS "isActive",
              sort_order AS "sortOrder",
@@ -95,7 +105,9 @@ export class KnowledgeBaseService {
         AND 1 - (embedding <=> $1::vector) > ${minSimilarity}
       ORDER BY embedding <=> $1::vector
       LIMIT ${limit}
-    `, vectorStr);
+    `,
+      vectorStr,
+    );
 
     // If no results with embeddings, try keyword fallback
     if (results.length === 0) {
@@ -108,14 +120,25 @@ export class KnowledgeBaseService {
   /**
    * Fallback keyword search when embeddings aren't available.
    */
-  private async keywordSearch(query: string, schemaName: string, limit: number): Promise<KnowledgeBaseEntry[]> {
-    const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 3).slice(0, 5);
+  private async keywordSearch(
+    query: string,
+    schemaName: string,
+    limit: number,
+  ): Promise<KnowledgeBaseEntry[]> {
+    const words = query
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length > 3)
+      .slice(0, 5);
     if (words.length === 0) return this.findAll(schemaName, true);
 
-    const conditions = words.map((_, i) => `(LOWER(title) LIKE $${i + 1} OR LOWER(content) LIKE $${i + 1})`);
-    const values = words.map(w => `%${w}%`);
+    const conditions = words.map(
+      (_, i) => `(LOWER(title) LIKE $${i + 1} OR LOWER(content) LIKE $${i + 1})`,
+    );
+    const values = words.map((w) => `%${w}%`);
 
-    const results = await this.prisma.$queryRawUnsafe<KnowledgeBaseEntry[]>(`
+    const results = await this.prisma.$queryRawUnsafe<KnowledgeBaseEntry[]>(
+      `
       SELECT id, title, content, category,
              is_active AS "isActive",
              sort_order AS "sortOrder"
@@ -123,7 +146,9 @@ export class KnowledgeBaseService {
       WHERE is_active = true AND (${conditions.join(' OR ')})
       ORDER BY sort_order ASC
       LIMIT ${limit}
-    `, ...values);
+    `,
+      ...values,
+    );
 
     return results;
   }
@@ -136,7 +161,7 @@ export class KnowledgeBaseService {
     const results = await this.semanticSearch(query, schemaName, 3);
     if (results.length === 0) return '';
 
-    const sections = results.map(e => `[${e.title}]: ${e.content}`);
+    const sections = results.map((e) => `[${e.title}]: ${e.content}`);
     return `\n\nINFORMACIÓN VERIFICADA DEL NEGOCIO:\n${sections.join('\n')}`;
   }
 
@@ -157,7 +182,8 @@ export class KnowledgeBaseService {
   }
 
   async findById(id: string, schemaName: string): Promise<KnowledgeBaseEntry> {
-    const rows = await this.prisma.$queryRawUnsafe<KnowledgeBaseEntry[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<KnowledgeBaseEntry[]>(
+      `
       SELECT id, title, content, category,
              is_active AS "isActive",
              sort_order AS "sortOrder",
@@ -165,7 +191,9 @@ export class KnowledgeBaseService {
              updated_at AS "updatedAt"
       FROM "${schemaName}".knowledge_base
       WHERE id = $1::uuid
-    `, id);
+    `,
+      id,
+    );
 
     if (!rows[0]) throw new NotFoundException('Entrada no encontrada');
     return rows[0];
@@ -181,7 +209,8 @@ export class KnowledgeBaseService {
     let rows: KnowledgeBaseEntry[];
     if (embedding) {
       const vectorStr = `[${embedding.join(',')}]`;
-      rows = await this.prisma.$queryRawUnsafe<KnowledgeBaseEntry[]>(`
+      rows = await this.prisma.$queryRawUnsafe<KnowledgeBaseEntry[]>(
+        `
         INSERT INTO "${schemaName}".knowledge_base (title, content, category, sort_order, embedding)
         VALUES ($1, $2, $3, $4, $5::vector)
         RETURNING id, title, content, category,
@@ -189,9 +218,16 @@ export class KnowledgeBaseService {
                   sort_order AS "sortOrder",
                   created_at AS "createdAt",
                   updated_at AS "updatedAt"
-      `, dto.title, dto.content, dto.category ?? 'general', dto.sortOrder ?? 0, vectorStr);
+      `,
+        dto.title,
+        dto.content,
+        dto.category ?? 'general',
+        dto.sortOrder ?? 0,
+        vectorStr,
+      );
     } else {
-      rows = await this.prisma.$queryRawUnsafe<KnowledgeBaseEntry[]>(`
+      rows = await this.prisma.$queryRawUnsafe<KnowledgeBaseEntry[]>(
+        `
         INSERT INTO "${schemaName}".knowledge_base (title, content, category, sort_order)
         VALUES ($1, $2, $3, $4)
         RETURNING id, title, content, category,
@@ -199,10 +235,17 @@ export class KnowledgeBaseService {
                   sort_order AS "sortOrder",
                   created_at AS "createdAt",
                   updated_at AS "updatedAt"
-      `, dto.title, dto.content, dto.category ?? 'general', dto.sortOrder ?? 0);
+      `,
+        dto.title,
+        dto.content,
+        dto.category ?? 'general',
+        dto.sortOrder ?? 0,
+      );
     }
 
-    this.logger.log(`KB entry created: "${dto.title}" in ${schemaName} (embedding: ${!!embedding})`);
+    this.logger.log(
+      `KB entry created: "${dto.title}" in ${schemaName} (embedding: ${!!embedding})`,
+    );
     return rows[0];
   }
 
@@ -213,11 +256,26 @@ export class KnowledgeBaseService {
     const values: any[] = [];
     let idx = 1;
 
-    if (dto.title !== undefined) { fields.push(`title = $${idx++}`); values.push(dto.title); }
-    if (dto.content !== undefined) { fields.push(`content = $${idx++}`); values.push(dto.content); }
-    if (dto.category !== undefined) { fields.push(`category = $${idx++}`); values.push(dto.category); }
-    if (dto.isActive !== undefined) { fields.push(`is_active = $${idx++}`); values.push(dto.isActive); }
-    if (dto.sortOrder !== undefined) { fields.push(`sort_order = $${idx++}`); values.push(dto.sortOrder); }
+    if (dto.title !== undefined) {
+      fields.push(`title = $${idx++}`);
+      values.push(dto.title);
+    }
+    if (dto.content !== undefined) {
+      fields.push(`content = $${idx++}`);
+      values.push(dto.content);
+    }
+    if (dto.category !== undefined) {
+      fields.push(`category = $${idx++}`);
+      values.push(dto.category);
+    }
+    if (dto.isActive !== undefined) {
+      fields.push(`is_active = $${idx++}`);
+      values.push(dto.isActive);
+    }
+    if (dto.sortOrder !== undefined) {
+      fields.push(`sort_order = $${idx++}`);
+      values.push(dto.sortOrder);
+    }
 
     if (fields.length === 0) return this.findById(id, schemaName);
 
@@ -269,7 +327,8 @@ export class KnowledgeBaseService {
       if (embedding) {
         await this.prisma.$executeRawUnsafe(
           `UPDATE "${schemaName}".knowledge_base SET embedding = $1::vector WHERE id = $2::uuid`,
-          `[${embedding.join(',')}]`, entry.id,
+          `[${embedding.join(',')}]`,
+          entry.id,
         );
         count++;
       }
@@ -287,7 +346,7 @@ export class KnowledgeBaseService {
     const entries = await this.findAll(schemaName, true);
     if (entries.length === 0) return '';
 
-    const sections = entries.map(e => `### ${e.title}\n${e.content}`);
+    const sections = entries.map((e) => `### ${e.title}\n${e.content}`);
     return `\n\n## BASE DE CONOCIMIENTO\n${sections.join('\n\n')}`;
   }
 }

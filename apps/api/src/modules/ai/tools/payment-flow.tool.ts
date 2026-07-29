@@ -41,10 +41,13 @@ export class PaymentFlowTool {
     schemaName: string,
   ): Promise<PaymentRequestResult> {
     // Get order details
-    const orders = await this.prisma.$queryRawUnsafe<any[]>(`
+    const orders = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id, order_number, total, status
       FROM "${schemaName}".orders WHERE id = $1::uuid
-    `, args.orderId);
+    `,
+      args.orderId,
+    );
 
     if (!orders[0]) return { success: false, message: 'Pedido no encontrado' };
 
@@ -62,16 +65,24 @@ export class PaymentFlowTool {
     const paymentInfo = config[0]?.payment_info ?? this.getDefaultPaymentInfo();
 
     // Transition order to payment_pending
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".orders SET status = 'payment_pending', updated_at = NOW()
       WHERE id = $1::uuid
-    `, args.orderId);
+    `,
+      args.orderId,
+    );
 
     // Create payment record
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       INSERT INTO "${schemaName}".payments (order_id, method, amount, status, reference)
       VALUES ($1::uuid, 'transfer', $2, 'pending', $3)
-    `, args.orderId, parseFloat(order.total), `REF-${order.order_number}`);
+    `,
+      args.orderId,
+      parseFloat(order.total),
+      `REF-${order.order_number}`,
+    );
 
     // Format payment message
     const total = parseFloat(order.total);
@@ -91,12 +102,15 @@ export class PaymentFlowTool {
     schemaName: string,
   ): Promise<PaymentVerifyResult> {
     // Get expected amount
-    const orders = await this.prisma.$queryRawUnsafe<any[]>(`
+    const orders = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT o.id, o.order_number, o.total, o.status, p.id AS payment_id
       FROM "${schemaName}".orders o
       LEFT JOIN "${schemaName}".payments p ON p.order_id = o.id AND p.status = 'pending'
       WHERE o.id = $1::uuid
-    `, args.orderId);
+    `,
+      args.orderId,
+    );
 
     if (!orders[0]) return { verified: false, message: 'Pedido no encontrado' };
 
@@ -109,13 +123,18 @@ export class PaymentFlowTool {
     if (!ocrResult) {
       // OCR failed — save image for manual review
       if (order.payment_id) {
-        await this.prisma.$executeRawUnsafe(`
+        await this.prisma.$executeRawUnsafe(
+          `
           UPDATE "${schemaName}".payments SET proof_image_url = $1 WHERE id = $2::uuid
-        `, args.imageUrl, order.payment_id);
+        `,
+          args.imageUrl,
+          order.payment_id,
+        );
       }
       return {
         verified: false,
-        message: '📷 Recibí tu comprobante pero no pude leerlo automáticamente. Lo revisaremos manualmente y te confirmo pronto.',
+        message:
+          '📷 Recibí tu comprobante pero no pude leerlo automáticamente. Lo revisaremos manualmente y te confirmo pronto.',
         needsManualReview: true,
       };
     }
@@ -126,20 +145,30 @@ export class PaymentFlowTool {
     if (discrepancy <= this.AMOUNT_TOLERANCE) {
       // Auto-verify!
       if (order.payment_id) {
-        await this.prisma.$executeRawUnsafe(`
+        await this.prisma.$executeRawUnsafe(
+          `
           UPDATE "${schemaName}".payments
           SET status = 'verified', proof_image_url = $1, ocr_data = $2::jsonb, verified_at = NOW()
           WHERE id = $3::uuid
-        `, args.imageUrl, JSON.stringify(ocrResult), order.payment_id);
+        `,
+          args.imageUrl,
+          JSON.stringify(ocrResult),
+          order.payment_id,
+        );
       }
 
       // Transition order to paid
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".orders SET status = 'paid', updated_at = NOW()
         WHERE id = $1::uuid
-      `, args.orderId);
+      `,
+        args.orderId,
+      );
 
-      this.logger.log(`[${schemaName}] Payment auto-verified for ${order.order_number}: $${ocrResult.amount} (expected $${expectedAmount})`);
+      this.logger.log(
+        `[${schemaName}] Payment auto-verified for ${order.order_number}: $${ocrResult.amount} (expected $${expectedAmount})`,
+      );
 
       return {
         verified: true,
@@ -151,10 +180,15 @@ export class PaymentFlowTool {
 
     // Amount mismatch — flag for review
     if (order.payment_id) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".payments SET proof_image_url = $1, ocr_data = $2::jsonb, status = 'review'
         WHERE id = $3::uuid
-      `, args.imageUrl, JSON.stringify({ ...ocrResult, expectedAmount, discrepancy }), order.payment_id);
+      `,
+        args.imageUrl,
+        JSON.stringify({ ...ocrResult, expectedAmount, discrepancy }),
+        order.payment_id,
+      );
     }
 
     return {
@@ -186,14 +220,17 @@ export class PaymentFlowTool {
       return JSON.stringify({ found: false, message: 'Necesito el número de pedido' });
     }
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT o.order_number, o.status AS order_status, o.total,
              p.status AS payment_status, p.verified_at
       FROM "${schemaName}".orders o
       LEFT JOIN "${schemaName}".payments p ON p.order_id = o.id
       WHERE ${whereClause}
       ORDER BY p.created_at DESC LIMIT 1
-    `, param);
+    `,
+      param,
+    );
 
     if (!rows[0]) return JSON.stringify({ found: false, message: 'Pedido no encontrado' });
 
@@ -262,14 +299,16 @@ Si no puedes leer el monto, responde: {"amount": null, "bank": null, "confidence
   // ─── Helpers ──────────────────────────────────────────────────
 
   private formatPaymentInstructions(orderNumber: string, total: number, info: PaymentInfo): string {
-    return `💳 *Datos para transferencia*\n\n` +
+    return (
+      `💳 *Datos para transferencia*\n\n` +
       `📋 Pedido: ${orderNumber}\n` +
       `💰 Total: *$${total.toLocaleString()} MXN*\n\n` +
       `🏦 Banco: ${info.bank}\n` +
       `📝 CLABE: ${info.clabe}\n` +
       `👤 Beneficiario: ${info.beneficiary}\n` +
       `🔢 Referencia: ${orderNumber}\n\n` +
-      `📷 *Envía una foto de tu comprobante* y lo verifico automáticamente. ¡Gracias!`;
+      `📷 *Envía una foto de tu comprobante* y lo verifico automáticamente. ¡Gracias!`
+    );
   }
 
   private getDefaultPaymentInfo(): PaymentInfo {

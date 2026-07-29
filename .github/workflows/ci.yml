@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true  # cancela runs anteriores del mismo branch
+  cancel-in-progress: true # cancela runs anteriores del mismo branch
 
 env:
   NODE_VERSION: '20'
@@ -342,7 +342,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: deploy-staging
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    environment: production  # requiere aprobación manual configurada en GitHub
+    environment: production # requiere aprobación manual configurada en GitHub
 
     steps:
       - uses: actions/checkout@v4

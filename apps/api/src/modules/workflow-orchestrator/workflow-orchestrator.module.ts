@@ -55,11 +55,7 @@ import { WorkflowCronService } from './workflow-cron.service';
     ),
   ],
   controllers: [WorkflowOrchestratorController],
-  providers: [
-    WorkflowOrchestratorService,
-    WorkflowEventBus,
-    WorkflowCronService,
-  ],
+  providers: [WorkflowOrchestratorService, WorkflowEventBus, WorkflowCronService],
   exports: [WorkflowOrchestratorService, WorkflowEventBus],
 })
 export class WorkflowOrchestratorModule {}

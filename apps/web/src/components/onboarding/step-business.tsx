@@ -20,8 +20,10 @@ export function StepBusiness({ data, onChange, onNext }: Props) {
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!data.businessName || data.businessName.length < 2) e.businessName = 'Nombre requerido (mín 2 caracteres)';
-    if (!data.slug || !/^[a-z0-9-]+$/.test(data.slug)) e.slug = 'Solo letras minúsculas, números y guiones';
+    if (!data.businessName || data.businessName.length < 2)
+      e.businessName = 'Nombre requerido (mín 2 caracteres)';
+    if (!data.slug || !/^[a-z0-9-]+$/.test(data.slug))
+      e.slug = 'Solo letras minúsculas, números y guiones';
     if (!data.email || !data.email.includes('@')) e.email = 'Email inválido';
     if (!data.ownerName || data.ownerName.length < 2) e.ownerName = 'Nombre requerido';
     if (!data.password || data.password.length < 8) e.password = 'Mínimo 8 caracteres';
@@ -42,7 +44,8 @@ export function StepBusiness({ data, onChange, onNext }: Props) {
   const handleBusinessName = (value: string) => {
     const slug = value
       .toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
     onChange({ ...data, businessName: value, slug });
@@ -113,10 +116,23 @@ export function StepBusiness({ data, onChange, onNext }: Props) {
 }
 
 function Field({
-  label, value, onChange, error, placeholder, type = 'text', prefix, suffix,
+  label,
+  value,
+  onChange,
+  error,
+  placeholder,
+  type = 'text',
+  prefix,
+  suffix,
 }: {
-  label: string; value: string; onChange: (v: string) => void;
-  error?: string; placeholder?: string; type?: string; prefix?: string; suffix?: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  error?: string;
+  placeholder?: string;
+  type?: string;
+  prefix?: string;
+  suffix?: string;
 }) {
   return (
     <div>

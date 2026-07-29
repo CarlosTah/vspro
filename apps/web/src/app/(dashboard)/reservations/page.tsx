@@ -3,7 +3,20 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 
-const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const MONTHS = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
 const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 type Tab = 'calendar' | 'list' | 'pricing' | 'metrics';
@@ -24,14 +37,31 @@ export default function ReservationsPage() {
   const [saving, setSaving] = useState(false);
 
   // New reservation form
-  const [form, setForm] = useState({ guestName: '', guestPhone: '', checkIn: '', checkOut: '', guests: 1, notes: '' });
+  const [form, setForm] = useState({
+    guestName: '',
+    guestPhone: '',
+    checkIn: '',
+    checkOut: '',
+    guests: 1,
+    notes: '',
+  });
   // New pricing form
-  const [priceForm, setPriceForm] = useState({ pricePerNight: 0, pricePerWeek: 0, pricePerMonth: 0, dateFrom: '', dateTo: '', label: '', minNights: 1 });
+  const [priceForm, setPriceForm] = useState({
+    pricePerNight: 0,
+    pricePerWeek: 0,
+    pricePerMonth: 0,
+    dateFrom: '',
+    dateTo: '',
+    label: '',
+    minNights: 1,
+  });
 
   // Block dates form
   const [blockForm, setBlockForm] = useState({ checkIn: '', checkOut: '', notes: 'Bloqueado' });
 
-  useEffect(() => { loadData(); }, [year, month]);
+  useEffect(() => {
+    loadData();
+  }, [year, month]);
 
   const loadData = async () => {
     setLoading(true);
@@ -57,8 +87,11 @@ export default function ReservationsPage() {
       setShowNewReservation(false);
       setForm({ guestName: '', guestPhone: '', checkIn: '', checkOut: '', guests: 1, notes: '' });
       loadData();
-    } catch (err: any) { alert(err.message); }
-    finally { setSaving(false); }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCreatePrice = async (e: React.FormEvent) => {
@@ -67,10 +100,21 @@ export default function ReservationsPage() {
     try {
       await api.post('/reservations/pricing', priceForm);
       setShowNewPrice(false);
-      setPriceForm({ pricePerNight: 0, pricePerWeek: 0, pricePerMonth: 0, dateFrom: '', dateTo: '', label: '', minNights: 1 });
+      setPriceForm({
+        pricePerNight: 0,
+        pricePerWeek: 0,
+        pricePerMonth: 0,
+        dateFrom: '',
+        dateTo: '',
+        label: '',
+        minNights: 1,
+      });
       loadData();
-    } catch (err: any) { alert(err.message); }
-    finally { setSaving(false); }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancelReservation = async (id: string) => {
@@ -83,12 +127,20 @@ export default function ReservationsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/reservations', { guestName: 'BLOQUEADO', checkIn: blockForm.checkIn, checkOut: blockForm.checkOut, notes: blockForm.notes });
+      await api.post('/reservations', {
+        guestName: 'BLOQUEADO',
+        checkIn: blockForm.checkIn,
+        checkOut: blockForm.checkOut,
+        notes: blockForm.notes,
+      });
       setShowBlockDates(false);
       setBlockForm({ checkIn: '', checkOut: '', notes: 'Bloqueado' });
       loadData();
-    } catch (err: any) { alert(err.message); }
-    finally { setSaving(false); }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDeletePrice = async (id: string) => {
@@ -103,7 +155,7 @@ export default function ReservationsPage() {
 
   const getReservationsForDay = (day: number) => {
     const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return reservations.filter(r => {
+    return reservations.filter((r) => {
       const ci = r.checkIn?.split('T')[0] ?? r.checkIn;
       const co = r.checkOut?.split('T')[0] ?? r.checkOut;
       const inRange = r.status !== 'cancelled' && ci <= date && co > date;
@@ -113,8 +165,18 @@ export default function ReservationsPage() {
     });
   };
 
-  const prevMonth = () => { if (month === 1) { setMonth(12); setYear(year - 1); } else setMonth(month - 1); };
-  const nextMonth = () => { if (month === 12) { setMonth(1); setYear(year + 1); } else setMonth(month + 1); };
+  const prevMonth = () => {
+    if (month === 1) {
+      setMonth(12);
+      setYear(year - 1);
+    } else setMonth(month - 1);
+  };
+  const nextMonth = () => {
+    if (month === 12) {
+      setMonth(1);
+      setYear(year + 1);
+    } else setMonth(month + 1);
+  };
 
   const statusColors: Record<string, string> = {
     confirmed: 'bg-green-900/40 text-green-300',
@@ -130,17 +192,33 @@ export default function ReservationsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">📅 Reservaciones</h1>
-          <p className="text-sm text-gray-400">{reservations.filter(r => r.status === 'confirmed').length} reservas activas</p>
+          <p className="text-sm text-gray-400">
+            {reservations.filter((r) => r.status === 'confirmed').length} reservas activas
+          </p>
         </div>
-        <button onClick={() => setShowNewReservation(true)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        <button
+          onClick={() => setShowNewReservation(true)}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
           + Nueva reserva
         </button>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg bg-gray-800 p-1 w-fit">
-        {([{ key: 'calendar', label: '📅 Calendario' }, { key: 'list', label: '📋 Lista' }, { key: 'pricing', label: '💰 Precios' }, { key: 'metrics', label: '📊 Ocupación' }] as { key: Tab; label: string }[]).map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === t.key ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>
+        {(
+          [
+            { key: 'calendar', label: '📅 Calendario' },
+            { key: 'list', label: '📋 Lista' },
+            { key: 'pricing', label: '💰 Precios' },
+            { key: 'metrics', label: '📊 Ocupación' },
+          ] as { key: Tab; label: string }[]
+        ).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === t.key ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+          >
             {t.label}
           </button>
         ))}
@@ -149,12 +227,23 @@ export default function ReservationsPage() {
       {/* Property filter + Block dates */}
       {(tab === 'calendar' || tab === 'list') && properties.length > 0 && (
         <div className="flex items-center gap-3">
-          <select value={selectedProperty} onChange={e => setSelectedProperty(e.target.value)} className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-1.5 text-sm text-white">
+          <select
+            value={selectedProperty}
+            onChange={(e) => setSelectedProperty(e.target.value)}
+            className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-1.5 text-sm text-white"
+          >
             <option value="all">Todas las propiedades</option>
-            {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {properties.map((p: any) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
           </select>
           {tab === 'calendar' && (
-            <button onClick={() => setShowBlockDates(true)} className="rounded-lg border border-yellow-600 px-3 py-1.5 text-xs text-yellow-300 hover:bg-yellow-900/30">
+            <button
+              onClick={() => setShowBlockDates(true)}
+              className="rounded-lg border border-yellow-600 px-3 py-1.5 text-xs text-yellow-300 hover:bg-yellow-900/30"
+            >
               🔒 Bloquear fechas
             </button>
           )}
@@ -166,18 +255,31 @@ export default function ReservationsPage() {
         <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
           {/* Month nav */}
           <div className="flex items-center justify-between mb-4">
-            <button onClick={prevMonth} className="text-gray-400 hover:text-white text-lg">←</button>
-            <h2 className="text-lg font-semibold text-white">{MONTHS[month - 1]} {year}</h2>
-            <button onClick={nextMonth} className="text-gray-400 hover:text-white text-lg">→</button>
+            <button onClick={prevMonth} className="text-gray-400 hover:text-white text-lg">
+              ←
+            </button>
+            <h2 className="text-lg font-semibold text-white">
+              {MONTHS[month - 1]} {year}
+            </h2>
+            <button onClick={nextMonth} className="text-gray-400 hover:text-white text-lg">
+              →
+            </button>
           </div>
 
           {/* Calendar grid */}
           <div className="grid grid-cols-7 gap-1">
-            {DAYS.map(d => <div key={d} className="text-center text-xs text-gray-500 py-1">{d}</div>)}
-            {Array.from({ length: firstDay }).map((_, i) => <div key={`empty-${i}`} />)}
-            {calendarDays.map(day => {
+            {DAYS.map((d) => (
+              <div key={d} className="text-center text-xs text-gray-500 py-1">
+                {d}
+              </div>
+            ))}
+            {Array.from({ length: firstDay }).map((_, i) => (
+              <div key={`empty-${i}`} />
+            ))}
+            {calendarDays.map((day) => {
               const dayReservations = getReservationsForDay(day);
-              const isToday = day === now.getDate() && month === now.getMonth() + 1 && year === now.getFullYear();
+              const isToday =
+                day === now.getDate() && month === now.getMonth() + 1 && year === now.getFullYear();
               const isBooked = dayReservations.length > 0;
 
               return (
@@ -187,9 +289,14 @@ export default function ReservationsPage() {
                     isBooked ? 'border-green-700 bg-green-900/20' : 'border-gray-700 bg-gray-900/50'
                   } ${isToday ? 'ring-2 ring-blue-500' : ''}`}
                 >
-                  <span className={`font-medium ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{day}</span>
+                  <span className={`font-medium ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>
+                    {day}
+                  </span>
                   {dayReservations.map((r, i) => (
-                    <div key={i} className="mt-0.5 truncate rounded bg-green-800/60 px-1 text-[10px] text-green-200">
+                    <div
+                      key={i}
+                      className="mt-0.5 truncate rounded bg-green-800/60 px-1 text-[10px] text-green-200"
+                    >
                       {r.guestName}
                     </div>
                   ))}
@@ -216,27 +323,46 @@ export default function ReservationsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700/50">
-              {reservations.map(r => (
+              {reservations.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-750">
                   <td className="px-4 py-3">
                     <p className="text-white font-medium">{r.guestName}</p>
                     <p className="text-xs text-gray-500">{r.guestPhone ?? ''}</p>
                   </td>
-                  <td className="px-4 py-3 text-gray-300">{new Date(r.checkIn).toLocaleDateString('es-MX')}</td>
-                  <td className="px-4 py-3 text-gray-300">{new Date(r.checkOut).toLocaleDateString('es-MX')}</td>
+                  <td className="px-4 py-3 text-gray-300">
+                    {new Date(r.checkIn).toLocaleDateString('es-MX')}
+                  </td>
+                  <td className="px-4 py-3 text-gray-300">
+                    {new Date(r.checkOut).toLocaleDateString('es-MX')}
+                  </td>
                   <td className="px-4 py-3 text-white font-medium">{r.nights}</td>
-                  <td className="px-4 py-3 text-green-400 font-medium">${parseFloat(r.totalPrice).toLocaleString('es-MX')}</td>
-                  <td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-xs ${statusColors[r.status] ?? ''}`}>{r.status}</span></td>
+                  <td className="px-4 py-3 text-green-400 font-medium">
+                    ${parseFloat(r.totalPrice).toLocaleString('es-MX')}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs ${statusColors[r.status] ?? ''}`}
+                    >
+                      {r.status}
+                    </span>
+                  </td>
                   <td className="px-4 py-3">
                     {r.status === 'confirmed' && (
-                      <button onClick={() => handleCancelReservation(r.id)} className="text-xs text-red-400 hover:text-red-300">Cancelar</button>
+                      <button
+                        onClick={() => handleCancelReservation(r.id)}
+                        className="text-xs text-red-400 hover:text-red-300"
+                      >
+                        Cancelar
+                      </button>
                     )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {reservations.length === 0 && <p className="text-center text-gray-500 py-8">Sin reservaciones</p>}
+          {reservations.length === 0 && (
+            <p className="text-center text-gray-500 py-8">Sin reservaciones</p>
+          )}
         </div>
       )}
 
@@ -244,28 +370,57 @@ export default function ReservationsPage() {
       {tab === 'pricing' && (
         <div className="space-y-4">
           <div className="flex justify-end">
-            <button onClick={() => setShowNewPrice(true)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
+            <button
+              onClick={() => setShowNewPrice(true)}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+            >
               + Nueva regla de precio
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {pricing.map(p => (
-              <div key={p.id} className={`rounded-xl border p-4 ${p.isDefault ? 'border-blue-600 bg-blue-900/10' : 'border-gray-700 bg-gray-800'}`}>
+            {pricing.map((p) => (
+              <div
+                key={p.id}
+                className={`rounded-xl border p-4 ${p.isDefault ? 'border-blue-600 bg-blue-900/10' : 'border-gray-700 bg-gray-800'}`}
+              >
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="text-white font-semibold">${parseFloat(p.pricePerNight).toLocaleString('es-MX')}/noche</p>
-                    {p.pricePerWeek && <p className="text-sm text-blue-300">${parseFloat(p.pricePerWeek).toLocaleString('es-MX')}/semana</p>}
-                    {p.pricePerMonth && <p className="text-sm text-green-300">${parseFloat(p.pricePerMonth).toLocaleString('es-MX')}/mes</p>}
-                    <p className="text-xs text-gray-400 mt-1">{p.isDefault ? 'Precio base' : p.label ?? `${p.dateFrom} → ${p.dateTo}`}</p>
-                    {p.minNights > 1 && <p className="text-xs text-gray-500">Mínimo {p.minNights} noches</p>}
+                    <p className="text-white font-semibold">
+                      ${parseFloat(p.pricePerNight).toLocaleString('es-MX')}/noche
+                    </p>
+                    {p.pricePerWeek && (
+                      <p className="text-sm text-blue-300">
+                        ${parseFloat(p.pricePerWeek).toLocaleString('es-MX')}/semana
+                      </p>
+                    )}
+                    {p.pricePerMonth && (
+                      <p className="text-sm text-green-300">
+                        ${parseFloat(p.pricePerMonth).toLocaleString('es-MX')}/mes
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-400 mt-1">
+                      {p.isDefault ? 'Precio base' : (p.label ?? `${p.dateFrom} → ${p.dateTo}`)}
+                    </p>
+                    {p.minNights > 1 && (
+                      <p className="text-xs text-gray-500">Mínimo {p.minNights} noches</p>
+                    )}
                   </div>
                   {!p.isDefault && (
-                    <button onClick={() => handleDeletePrice(p.id)} className="text-xs text-red-400 hover:text-red-300">✕</button>
+                    <button
+                      onClick={() => handleDeletePrice(p.id)}
+                      className="text-xs text-red-400 hover:text-red-300"
+                    >
+                      ✕
+                    </button>
                   )}
                 </div>
               </div>
             ))}
-            {pricing.length === 0 && <p className="text-gray-500 text-sm col-span-2">Sin reglas de precio. Agrega una para que el agente pueda cotizar.</p>}
+            {pricing.length === 0 && (
+              <p className="text-gray-500 text-sm col-span-2">
+                Sin reglas de precio. Agrega una para que el agente pueda cotizar.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -276,17 +431,71 @@ export default function ReservationsPage() {
           <div className="w-full max-w-md rounded-2xl bg-gray-800 border border-gray-700 p-6">
             <h2 className="text-lg font-semibold text-white mb-4">Nueva reserva</h2>
             <form onSubmit={handleCreateReservation} className="space-y-3">
-              <input value={form.guestName} onChange={e => setForm({ ...form, guestName: e.target.value })} placeholder="Nombre del huésped" required className="w-full vspro-input" />
-              <input value={form.guestPhone} onChange={e => setForm({ ...form, guestPhone: e.target.value })} placeholder="Teléfono" className="w-full vspro-input" />
+              <input
+                value={form.guestName}
+                onChange={(e) => setForm({ ...form, guestName: e.target.value })}
+                placeholder="Nombre del huésped"
+                required
+                className="w-full vspro-input"
+              />
+              <input
+                value={form.guestPhone}
+                onChange={(e) => setForm({ ...form, guestPhone: e.target.value })}
+                placeholder="Teléfono"
+                className="w-full vspro-input"
+              />
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-gray-400">Check-in</label><input type="date" value={form.checkIn} onChange={e => setForm({ ...form, checkIn: e.target.value })} required className="w-full vspro-input" /></div>
-                <div><label className="text-xs text-gray-400">Check-out</label><input type="date" value={form.checkOut} onChange={e => setForm({ ...form, checkOut: e.target.value })} required className="w-full vspro-input" /></div>
+                <div>
+                  <label className="text-xs text-gray-400">Check-in</label>
+                  <input
+                    type="date"
+                    value={form.checkIn}
+                    onChange={(e) => setForm({ ...form, checkIn: e.target.value })}
+                    required
+                    className="w-full vspro-input"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400">Check-out</label>
+                  <input
+                    type="date"
+                    value={form.checkOut}
+                    onChange={(e) => setForm({ ...form, checkOut: e.target.value })}
+                    required
+                    className="w-full vspro-input"
+                  />
+                </div>
               </div>
-              <input type="number" value={form.guests} onChange={e => setForm({ ...form, guests: parseInt(e.target.value) || 1 })} min={1} placeholder="Huéspedes" className="w-full vspro-input" />
-              <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Notas (hora llegada, etc.)" rows={2} className="w-full vspro-input resize-none" />
+              <input
+                type="number"
+                value={form.guests}
+                onChange={(e) => setForm({ ...form, guests: parseInt(e.target.value) || 1 })}
+                min={1}
+                placeholder="Huéspedes"
+                className="w-full vspro-input"
+              />
+              <textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="Notas (hora llegada, etc.)"
+                rows={2}
+                className="w-full vspro-input resize-none"
+              />
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowNewReservation(false)} className="flex-1 rounded-lg border border-gray-600 py-2 text-sm text-gray-300 hover:bg-gray-700">Cancelar</button>
-                <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-blue-600 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{saving ? 'Guardando...' : 'Reservar'}</button>
+                <button
+                  type="button"
+                  onClick={() => setShowNewReservation(false)}
+                  className="flex-1 rounded-lg border border-gray-600 py-2 text-sm text-gray-300 hover:bg-gray-700"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 rounded-lg bg-blue-600 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {saving ? 'Guardando...' : 'Reservar'}
+                </button>
               </div>
             </form>
           </div>
@@ -299,20 +508,100 @@ export default function ReservationsPage() {
           <div className="w-full max-w-md rounded-2xl bg-gray-800 border border-gray-700 p-6">
             <h2 className="text-lg font-semibold text-white mb-4">Nueva regla de precio</h2>
             <form onSubmit={handleCreatePrice} className="space-y-3">
-              <div><label className="text-xs text-gray-400">Precio por noche (MXN)</label><input type="number" value={priceForm.pricePerNight} onChange={e => setPriceForm({ ...priceForm, pricePerNight: parseFloat(e.target.value) || 0 })} required min={0} className="w-full vspro-input" /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-gray-400">Precio por semana (7 noches)</label><input type="number" value={priceForm.pricePerWeek} onChange={e => setPriceForm({ ...priceForm, pricePerWeek: parseFloat(e.target.value) || 0 })} min={0} className="w-full vspro-input" placeholder="Opcional" /></div>
-                <div><label className="text-xs text-gray-400">Precio por mes (30 noches)</label><input type="number" value={priceForm.pricePerMonth} onChange={e => setPriceForm({ ...priceForm, pricePerMonth: parseFloat(e.target.value) || 0 })} min={0} className="w-full vspro-input" placeholder="Opcional" /></div>
+              <div>
+                <label className="text-xs text-gray-400">Precio por noche (MXN)</label>
+                <input
+                  type="number"
+                  value={priceForm.pricePerNight}
+                  onChange={(e) =>
+                    setPriceForm({ ...priceForm, pricePerNight: parseFloat(e.target.value) || 0 })
+                  }
+                  required
+                  min={0}
+                  className="w-full vspro-input"
+                />
               </div>
-              <input value={priceForm.label} onChange={e => setPriceForm({ ...priceForm, label: e.target.value })} placeholder="Etiqueta (ej: Temporada alta, Navidad)" className="w-full vspro-input" />
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-gray-400">Desde (vacío = precio base)</label><input type="date" value={priceForm.dateFrom} onChange={e => setPriceForm({ ...priceForm, dateFrom: e.target.value })} className="w-full vspro-input" /></div>
-                <div><label className="text-xs text-gray-400">Hasta</label><input type="date" value={priceForm.dateTo} onChange={e => setPriceForm({ ...priceForm, dateTo: e.target.value })} className="w-full vspro-input" /></div>
+                <div>
+                  <label className="text-xs text-gray-400">Precio por semana (7 noches)</label>
+                  <input
+                    type="number"
+                    value={priceForm.pricePerWeek}
+                    onChange={(e) =>
+                      setPriceForm({ ...priceForm, pricePerWeek: parseFloat(e.target.value) || 0 })
+                    }
+                    min={0}
+                    className="w-full vspro-input"
+                    placeholder="Opcional"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400">Precio por mes (30 noches)</label>
+                  <input
+                    type="number"
+                    value={priceForm.pricePerMonth}
+                    onChange={(e) =>
+                      setPriceForm({ ...priceForm, pricePerMonth: parseFloat(e.target.value) || 0 })
+                    }
+                    min={0}
+                    className="w-full vspro-input"
+                    placeholder="Opcional"
+                  />
+                </div>
               </div>
-              <div><label className="text-xs text-gray-400">Noches mínimas</label><input type="number" value={priceForm.minNights} onChange={e => setPriceForm({ ...priceForm, minNights: parseInt(e.target.value) || 1 })} min={1} className="w-full vspro-input" /></div>
+              <input
+                value={priceForm.label}
+                onChange={(e) => setPriceForm({ ...priceForm, label: e.target.value })}
+                placeholder="Etiqueta (ej: Temporada alta, Navidad)"
+                className="w-full vspro-input"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-400">Desde (vacío = precio base)</label>
+                  <input
+                    type="date"
+                    value={priceForm.dateFrom}
+                    onChange={(e) => setPriceForm({ ...priceForm, dateFrom: e.target.value })}
+                    className="w-full vspro-input"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400">Hasta</label>
+                  <input
+                    type="date"
+                    value={priceForm.dateTo}
+                    onChange={(e) => setPriceForm({ ...priceForm, dateTo: e.target.value })}
+                    className="w-full vspro-input"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400">Noches mínimas</label>
+                <input
+                  type="number"
+                  value={priceForm.minNights}
+                  onChange={(e) =>
+                    setPriceForm({ ...priceForm, minNights: parseInt(e.target.value) || 1 })
+                  }
+                  min={1}
+                  className="w-full vspro-input"
+                />
+              </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowNewPrice(false)} className="flex-1 rounded-lg border border-gray-600 py-2 text-sm text-gray-300 hover:bg-gray-700">Cancelar</button>
-                <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-blue-600 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{saving ? 'Guardando...' : 'Guardar'}</button>
+                <button
+                  type="button"
+                  onClick={() => setShowNewPrice(false)}
+                  className="flex-1 rounded-lg border border-gray-600 py-2 text-sm text-gray-300 hover:bg-gray-700"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 rounded-lg bg-blue-600 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {saving ? 'Guardando...' : 'Guardar'}
+                </button>
               </div>
             </form>
           </div>
@@ -320,67 +609,89 @@ export default function ReservationsPage() {
       )}
 
       {/* Metrics Tab */}
-      {tab === 'metrics' && (() => {
-        const confirmed = reservations.filter(r => r.status === 'confirmed' || r.status === 'completed');
-        const totalNights = confirmed.reduce((sum, r) => sum + (r.nights ?? 0), 0);
-        const totalRevenue = confirmed.reduce((sum, r) => sum + (parseFloat(r.totalPrice) || 0), 0);
-        const daysInCurrentMonth = new Date(year, month, 0).getDate();
-        const bookedDaysThisMonth = new Set<number>();
-        confirmed.forEach(r => {
-          const ci = new Date(r.checkIn);
-          const co = new Date(r.checkOut);
-          for (let d = new Date(ci); d < co; d.setDate(d.getDate() + 1)) {
-            if (d.getFullYear() === year && d.getMonth() + 1 === month) {
-              bookedDaysThisMonth.add(d.getDate());
+      {tab === 'metrics' &&
+        (() => {
+          const confirmed = reservations.filter(
+            (r) => r.status === 'confirmed' || r.status === 'completed',
+          );
+          const totalNights = confirmed.reduce((sum, r) => sum + (r.nights ?? 0), 0);
+          const totalRevenue = confirmed.reduce(
+            (sum, r) => sum + (parseFloat(r.totalPrice) || 0),
+            0,
+          );
+          const daysInCurrentMonth = new Date(year, month, 0).getDate();
+          const bookedDaysThisMonth = new Set<number>();
+          confirmed.forEach((r) => {
+            const ci = new Date(r.checkIn);
+            const co = new Date(r.checkOut);
+            for (let d = new Date(ci); d < co; d.setDate(d.getDate() + 1)) {
+              if (d.getFullYear() === year && d.getMonth() + 1 === month) {
+                bookedDaysThisMonth.add(d.getDate());
+              }
             }
-          }
-        });
-        const occupancyRate = Math.round((bookedDaysThisMonth.size / daysInCurrentMonth) * 100);
-        const upcoming = confirmed.filter(r => new Date(r.checkIn) > new Date()).sort((a, b) => new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime()).slice(0, 5);
+          });
+          const occupancyRate = Math.round((bookedDaysThisMonth.size / daysInCurrentMonth) * 100);
+          const upcoming = confirmed
+            .filter((r) => new Date(r.checkIn) > new Date())
+            .sort((a, b) => new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime())
+            .slice(0, 5);
 
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
-                <p className="text-3xl font-bold text-blue-400">{occupancyRate}%</p>
-                <p className="text-xs text-gray-400 mt-1">Ocupación {MONTHS[month-1]}</p>
-                <div className="mt-2 w-full bg-gray-700 rounded-full h-1.5">
-                  <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${occupancyRate}%` }} />
+          return (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
+                  <p className="text-3xl font-bold text-blue-400">{occupancyRate}%</p>
+                  <p className="text-xs text-gray-400 mt-1">Ocupación {MONTHS[month - 1]}</p>
+                  <div className="mt-2 w-full bg-gray-700 rounded-full h-1.5">
+                    <div
+                      className="bg-blue-500 h-1.5 rounded-full"
+                      style={{ width: `${occupancyRate}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
+                  <p className="text-3xl font-bold text-green-400">
+                    ${totalRevenue.toLocaleString('es-MX')}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Revenue total</p>
+                </div>
+                <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
+                  <p className="text-3xl font-bold text-white">{confirmed.length}</p>
+                  <p className="text-xs text-gray-400 mt-1">Reservas totales</p>
+                </div>
+                <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
+                  <p className="text-3xl font-bold text-purple-400">{totalNights}</p>
+                  <p className="text-xs text-gray-400 mt-1">Noches vendidas</p>
                 </div>
               </div>
-              <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
-                <p className="text-3xl font-bold text-green-400">${totalRevenue.toLocaleString('es-MX')}</p>
-                <p className="text-xs text-gray-400 mt-1">Revenue total</p>
-              </div>
-              <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
-                <p className="text-3xl font-bold text-white">{confirmed.length}</p>
-                <p className="text-xs text-gray-400 mt-1">Reservas totales</p>
-              </div>
-              <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
-                <p className="text-3xl font-bold text-purple-400">{totalNights}</p>
-                <p className="text-xs text-gray-400 mt-1">Noches vendidas</p>
-              </div>
-            </div>
 
-            {upcoming.length > 0 && (
-              <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
-                <h3 className="text-sm font-semibold text-white mb-3">Próximas reservas</h3>
-                <div className="space-y-2">
-                  {upcoming.map(r => (
-                    <div key={r.id} className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0">
-                      <div>
-                        <p className="text-sm text-white">{r.guestName}</p>
-                        <p className="text-xs text-gray-400">{new Date(r.checkIn).toLocaleDateString('es-MX')} → {new Date(r.checkOut).toLocaleDateString('es-MX')}</p>
+              {upcoming.length > 0 && (
+                <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
+                  <h3 className="text-sm font-semibold text-white mb-3">Próximas reservas</h3>
+                  <div className="space-y-2">
+                    {upcoming.map((r) => (
+                      <div
+                        key={r.id}
+                        className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0"
+                      >
+                        <div>
+                          <p className="text-sm text-white">{r.guestName}</p>
+                          <p className="text-xs text-gray-400">
+                            {new Date(r.checkIn).toLocaleDateString('es-MX')} →{' '}
+                            {new Date(r.checkOut).toLocaleDateString('es-MX')}
+                          </p>
+                        </div>
+                        <span className="text-sm text-green-400 font-medium">
+                          ${parseFloat(r.totalPrice).toLocaleString('es-MX')}
+                        </span>
                       </div>
-                      <span className="text-sm text-green-400 font-medium">${parseFloat(r.totalPrice).toLocaleString('es-MX')}</span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        );
-      })()}
+              )}
+            </div>
+          );
+        })()}
 
       {/* Block Dates Modal */}
       {showBlockDates && (
@@ -389,13 +700,48 @@ export default function ReservationsPage() {
             <h2 className="text-lg font-semibold text-white mb-4">🔒 Bloquear fechas</h2>
             <form onSubmit={handleBlockDates} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-gray-400">Desde</label><input type="date" value={blockForm.checkIn} onChange={e => setBlockForm({ ...blockForm, checkIn: e.target.value })} required className="w-full vspro-input" /></div>
-                <div><label className="text-xs text-gray-400">Hasta</label><input type="date" value={blockForm.checkOut} onChange={e => setBlockForm({ ...blockForm, checkOut: e.target.value })} required className="w-full vspro-input" /></div>
+                <div>
+                  <label className="text-xs text-gray-400">Desde</label>
+                  <input
+                    type="date"
+                    value={blockForm.checkIn}
+                    onChange={(e) => setBlockForm({ ...blockForm, checkIn: e.target.value })}
+                    required
+                    className="w-full vspro-input"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400">Hasta</label>
+                  <input
+                    type="date"
+                    value={blockForm.checkOut}
+                    onChange={(e) => setBlockForm({ ...blockForm, checkOut: e.target.value })}
+                    required
+                    className="w-full vspro-input"
+                  />
+                </div>
               </div>
-              <input value={blockForm.notes} onChange={e => setBlockForm({ ...blockForm, notes: e.target.value })} placeholder="Motivo (mantenimiento, uso personal...)" className="w-full vspro-input" />
+              <input
+                value={blockForm.notes}
+                onChange={(e) => setBlockForm({ ...blockForm, notes: e.target.value })}
+                placeholder="Motivo (mantenimiento, uso personal...)"
+                className="w-full vspro-input"
+              />
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowBlockDates(false)} className="flex-1 rounded-lg border border-gray-600 py-2 text-sm text-gray-300 hover:bg-gray-700">Cancelar</button>
-                <button type="submit" disabled={saving} className="flex-1 rounded-lg bg-yellow-600 py-2 text-sm text-white hover:bg-yellow-700 disabled:opacity-50">{saving ? 'Bloqueando...' : 'Bloquear'}</button>
+                <button
+                  type="button"
+                  onClick={() => setShowBlockDates(false)}
+                  className="flex-1 rounded-lg border border-gray-600 py-2 text-sm text-gray-300 hover:bg-gray-700"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 rounded-lg bg-yellow-600 py-2 text-sm text-white hover:bg-yellow-700 disabled:opacity-50"
+                >
+                  {saving ? 'Bloqueando...' : 'Bloquear'}
+                </button>
               </div>
             </form>
           </div>

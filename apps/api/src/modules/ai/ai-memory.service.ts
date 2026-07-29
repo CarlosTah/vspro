@@ -59,17 +59,28 @@ export class AiMemoryService {
     await this.ensureMemoryTable(schemaName);
 
     if (embedding) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${schemaName}".ai_memories
           (customer_id, type, content, embedding)
         VALUES ($1::uuid, $2, $3, $4::vector)
-      `, customerId, type, content, `[${embedding.join(',')}]`);
+      `,
+        customerId,
+        type,
+        content,
+        `[${embedding.join(',')}]`,
+      );
     } else {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${schemaName}".ai_memories
           (customer_id, type, content)
         VALUES ($1::uuid, $2, $3)
-      `, customerId, type, content);
+      `,
+        customerId,
+        type,
+        content,
+      );
     }
   }
 
@@ -91,7 +102,8 @@ export class AiMemoryService {
 
     if (embedding) {
       // Búsqueda semántica — las memorias más relevantes al mensaje actual
-      memories = await this.prisma.$queryRawUnsafe<any[]>(`
+      memories = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT content, type,
                1 - (embedding <=> $1::vector) AS similarity
         FROM "${schemaName}".ai_memories
@@ -99,16 +111,24 @@ export class AiMemoryService {
           AND embedding IS NOT NULL
         ORDER BY embedding <=> $1::vector
         LIMIT $3
-      `, `[${embedding.join(',')}]`, customerId, limit);
+      `,
+        `[${embedding.join(',')}]`,
+        customerId,
+        limit,
+      );
     } else {
       // Sin embeddings — retornar las más recientes
-      memories = await this.prisma.$queryRawUnsafe<any[]>(`
+      memories = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT content, type
         FROM "${schemaName}".ai_memories
         WHERE customer_id = $1::uuid
         ORDER BY created_at DESC
         LIMIT $2
-      `, customerId, limit);
+      `,
+        customerId,
+        limit,
+      );
     }
 
     return memories.map((m) => `[${m.type}] ${m.content}`);
@@ -120,24 +140,23 @@ export class AiMemoryService {
   async getCustomerMemories(customerId: string, schemaName: string) {
     await this.ensureMemoryTable(schemaName);
 
-    return this.prisma.$queryRawUnsafe<any[]>(`
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id, type, content, created_at AS "createdAt"
       FROM "${schemaName}".ai_memories
       WHERE customer_id = $1::uuid
       ORDER BY created_at DESC
       LIMIT 20
-    `, customerId);
+    `,
+      customerId,
+    );
   }
 
   /**
    * Genera un resumen de la conversación y lo guarda como memoria.
    * Se llama al resolver una conversación.
    */
-  async summarizeAndSave(
-    customerId: string,
-    conversationMessages: string[],
-    schemaName: string,
-  ) {
+  async summarizeAndSave(customerId: string, conversationMessages: string[], schemaName: string) {
     if (!this.openai || conversationMessages.length < 3) return;
 
     try {
@@ -146,7 +165,8 @@ export class AiMemoryService {
         messages: [
           {
             role: 'system',
-            content: 'Resume esta conversación en 1-2 oraciones. Enfócate en: qué pidió el cliente, preferencias detectadas, y cualquier dato relevante para futuras interacciones.',
+            content:
+              'Resume esta conversación en 1-2 oraciones. Enfócate en: qué pidió el cliente, preferencias detectadas, y cualquier dato relevante para futuras interacciones.',
           },
           {
             role: 'user',

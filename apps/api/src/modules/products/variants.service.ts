@@ -7,7 +7,8 @@ export class VariantsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findByProduct(productId: string, schemaName: string) {
-    return this.prisma.$queryRawUnsafe<any[]>(`
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         id, product_id AS "productId", sku, name, price,
         stock_available AS "stockAvailable",
@@ -17,11 +18,14 @@ export class VariantsService {
       FROM "${schemaName}".product_variants
       WHERE product_id = $1::uuid
       ORDER BY name ASC
-    `, productId);
+    `,
+      productId,
+    );
   }
 
   async findById(id: string, schemaName: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         v.id, v.product_id AS "productId", v.sku, v.name, v.price,
         v.stock_available AS "stockAvailable",
@@ -32,7 +36,9 @@ export class VariantsService {
       FROM "${schemaName}".product_variants v
       JOIN "${schemaName}".products p ON p.id = v.product_id
       WHERE v.id = $1::uuid
-    `, id);
+    `,
+      id,
+    );
 
     if (!rows[0]) throw new NotFoundException(`Variante ${id} no encontrada`);
     return rows[0];
@@ -57,7 +63,8 @@ export class VariantsService {
       }
     }
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".product_variants
         (product_id, sku, name, price, stock_available, attributes)
       VALUES ($1::uuid, $2, $3, $4, $5, $6::jsonb)
@@ -84,11 +91,26 @@ export class VariantsService {
     const values: any[] = [];
     let idx = 1;
 
-    if (dto.name !== undefined) { fields.push(`name = $${idx++}`); values.push(dto.name); }
-    if (dto.price !== undefined) { fields.push(`price = $${idx++}`); values.push(dto.price); }
-    if (dto.stockAvailable !== undefined) { fields.push(`stock_available = $${idx++}`); values.push(dto.stockAvailable); }
-    if (dto.attributes !== undefined) { fields.push(`attributes = $${idx++}::jsonb`); values.push(JSON.stringify(dto.attributes)); }
-    if (dto.isActive !== undefined) { fields.push(`is_active = $${idx++}`); values.push(dto.isActive); }
+    if (dto.name !== undefined) {
+      fields.push(`name = $${idx++}`);
+      values.push(dto.name);
+    }
+    if (dto.price !== undefined) {
+      fields.push(`price = $${idx++}`);
+      values.push(dto.price);
+    }
+    if (dto.stockAvailable !== undefined) {
+      fields.push(`stock_available = $${idx++}`);
+      values.push(dto.stockAvailable);
+    }
+    if (dto.attributes !== undefined) {
+      fields.push(`attributes = $${idx++}::jsonb`);
+      values.push(JSON.stringify(dto.attributes));
+    }
+    if (dto.isActive !== undefined) {
+      fields.push(`is_active = $${idx++}`);
+      values.push(dto.isActive);
+    }
 
     if (fields.length === 0) return this.findById(id, schemaName);
 

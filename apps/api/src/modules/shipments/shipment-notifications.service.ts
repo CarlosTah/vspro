@@ -33,7 +33,8 @@ export class ShipmentNotificationsService {
     const { schemaName, tenantId, shipmentId, orderId, newStatus } = event;
 
     // Get order + customer + conversation details
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT o.order_number, o.customer_id,
              c.name AS customer_name, c.channel_type, c.channel_id,
              s.carrier, s.tracking_number, s.tracking_url, s.estimated_delivery,
@@ -45,10 +46,15 @@ export class ShipmentNotificationsService {
         ON conv.customer_id = o.customer_id AND conv.status = 'active'
       WHERE o.id = $2::uuid
       LIMIT 1
-    `, shipmentId, orderId);
+    `,
+      shipmentId,
+      orderId,
+    );
 
     if (!rows[0]) {
-      this.logger.warn(`[${schemaName}] Cannot notify — order/customer not found for shipment ${shipmentId}`);
+      this.logger.warn(
+        `[${schemaName}] Cannot notify — order/customer not found for shipment ${shipmentId}`,
+      );
       return;
     }
 
@@ -68,42 +74,50 @@ export class ShipmentNotificationsService {
 
     // Store outbound message in DB
     if (data.conversation_id) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${schemaName}".messages
           (conversation_id, direction, type, content, ai_processed)
         VALUES ($1::uuid, 'outbound', 'text', $2, true)
-      `, data.conversation_id, message);
+      `,
+        data.conversation_id,
+        message,
+      );
     }
 
     // Queue for delivery via MessagingFactory
-    await this.messageQueue.add('send-tracking-notification', {
-      tenantId,
-      schemaName,
-      recipientId: data.channel_id,
-      channelType: data.channel_type,
-      message,
-      metadata: {
-        type: 'shipment_tracking',
-        orderId,
-        shipmentId,
-        status: newStatus,
+    await this.messageQueue.add(
+      'send-tracking-notification',
+      {
+        tenantId,
+        schemaName,
+        recipientId: data.channel_id,
+        channelType: data.channel_type,
+        message,
+        metadata: {
+          type: 'shipment_tracking',
+          orderId,
+          shipmentId,
+          status: newStatus,
+        },
       },
-    }, {
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 5000 },
-    });
+      {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+      },
+    );
 
-    this.logger.log(`[${schemaName}] Tracking notification queued: ${data.order_number} → ${newStatus}`);
+    this.logger.log(
+      `[${schemaName}] Tracking notification queued: ${data.order_number} → ${newStatus}`,
+    );
   }
 
   /**
    * Send tracking info when customer asks "¿dónde está mi pedido?"
    */
-  async getTrackingForCustomer(
-    orderId: string,
-    schemaName: string,
-  ): Promise<string> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+  async getTrackingForCustomer(orderId: string, schemaName: string): Promise<string> {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT o.order_number, o.status AS order_status,
              s.carrier, s.tracking_number, s.tracking_url,
              s.status AS shipment_status, s.estimated_delivery
@@ -111,7 +125,9 @@ export class ShipmentNotificationsService {
       LEFT JOIN "${schemaName}".shipments s ON s.order_id = o.id
       WHERE o.id = $1::uuid
       ORDER BY s.created_at DESC LIMIT 1
-    `, orderId);
+    `,
+      orderId,
+    );
 
     if (!rows[0]) return '❌ No encontré información de ese pedido.';
 
@@ -127,13 +143,13 @@ export class ShipmentNotificationsService {
   /**
    * Get tracking by order number (for AI tool).
    */
-  async getTrackingByOrderNumber(
-    orderNumber: string,
-    schemaName: string,
-  ): Promise<string> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+  async getTrackingByOrderNumber(orderNumber: string, schemaName: string): Promise<string> {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT o.id FROM "${schemaName}".orders WHERE order_number = $1
-    `, orderNumber);
+    `,
+      orderNumber,
+    );
 
     if (!rows[0]) return '❌ Pedido no encontrado.';
     return this.getTrackingForCustomer(rows[0].id, schemaName);
@@ -143,50 +159,73 @@ export class ShipmentNotificationsService {
 
   private buildTrackingMessage(
     status: string,
-    data: { orderNumber: string; customerName: string; carrier: string; trackingNumber: string; trackingUrl: string | null; estimatedDelivery: string | null },
+    data: {
+      orderNumber: string;
+      customerName: string;
+      carrier: string;
+      trackingNumber: string;
+      trackingUrl: string | null;
+      estimatedDelivery: string | null;
+    },
   ): string | null {
     switch (status) {
       case 'picked_up':
       case 'shipped':
-        return `🚚 *¡Tu pedido va en camino!*\n\n` +
+        return (
+          `🚚 *¡Tu pedido va en camino!*\n\n` +
           `📋 Pedido: ${data.orderNumber}\n` +
           `📦 Paquetería: ${data.carrier}\n` +
           `🔢 Guía: ${data.trackingNumber}\n` +
-          (data.estimatedDelivery ? `📅 Entrega estimada: ${this.formatDate(data.estimatedDelivery)}\n` : '') +
+          (data.estimatedDelivery
+            ? `📅 Entrega estimada: ${this.formatDate(data.estimatedDelivery)}\n`
+            : '') +
           (data.trackingUrl ? `\n🔗 Rastrear: ${data.trackingUrl}` : '') +
-          `\n\n¡Te avisamos cuando llegue!`;
+          `\n\n¡Te avisamos cuando llegue!`
+        );
 
       case 'in_transit':
-        return `📦 *Tu pedido sigue en camino*\n\n` +
+        return (
+          `📦 *Tu pedido sigue en camino*\n\n` +
           `📋 ${data.orderNumber}\n` +
           `🚚 ${data.carrier} — Guía: ${data.trackingNumber}\n` +
-          (data.estimatedDelivery ? `📅 Llegada estimada: ${this.formatDate(data.estimatedDelivery)}` : 'En tránsito hacia tu dirección.');
+          (data.estimatedDelivery
+            ? `📅 Llegada estimada: ${this.formatDate(data.estimatedDelivery)}`
+            : 'En tránsito hacia tu dirección.')
+        );
 
       case 'out_for_delivery':
-        return `🎉 *¡Tu pedido está por llegar!*\n\n` +
+        return (
+          `🎉 *¡Tu pedido está por llegar!*\n\n` +
           `📋 ${data.orderNumber}\n` +
           `🚚 El repartidor ya va en camino a tu dirección.\n\n` +
-          `Prepárate para recibirlo. 📦✨`;
+          `Prepárate para recibirlo. 📦✨`
+        );
 
       case 'delivered':
-        return `✅ *¡Tu pedido fue entregado!*\n\n` +
+        return (
+          `✅ *¡Tu pedido fue entregado!*\n\n` +
           `📋 ${data.orderNumber}\n` +
           `📦 Entregado por ${data.carrier}\n\n` +
           `Esperamos que lo disfrutes mucho. 😊\n` +
-          `Si tienes algún problema, aquí estamos para ayudarte.`;
+          `Si tienes algún problema, aquí estamos para ayudarte.`
+        );
 
       case 'returned':
-        return `⚠️ *Aviso sobre tu pedido*\n\n` +
+        return (
+          `⚠️ *Aviso sobre tu pedido*\n\n` +
           `📋 ${data.orderNumber}\n` +
           `El paquete fue retornado por la paquetería.\n\n` +
-          `Nos pondremos en contacto contigo para resolver esto.`;
+          `Nos pondremos en contacto contigo para resolver esto.`
+        );
 
       case 'exception':
-        return `⚠️ *Aviso sobre tu envío*\n\n` +
+        return (
+          `⚠️ *Aviso sobre tu envío*\n\n` +
           `📋 ${data.orderNumber}\n` +
           `Hubo un inconveniente con la entrega.\n` +
           `🚚 ${data.carrier} — Guía: ${data.trackingNumber}\n\n` +
-          `Estamos dando seguimiento. Te mantendremos informado.`;
+          `Estamos dando seguimiento. Te mantendremos informado.`
+        );
 
       default:
         return null; // Don't notify for internal statuses
@@ -195,26 +234,28 @@ export class ShipmentNotificationsService {
 
   private getPreShipmentStatus(orderStatus: string, orderNumber: string): string {
     const statusMessages: Record<string, string> = {
-      'new': `📋 Tu pedido ${orderNumber} fue recibido. Estamos procesándolo.`,
-      'payment_pending': `📋 Tu pedido ${orderNumber} está esperando confirmación de pago. 💳`,
-      'paid': `📋 Tu pedido ${orderNumber} fue pagado. Estamos preparándolo. ⏳`,
-      'in_production': `🏭 Tu pedido ${orderNumber} está en producción. Pronto estará listo.`,
-      'ready': `📦 Tu pedido ${orderNumber} está listo y será enviado pronto. ¡Ya casi!`,
+      new: `📋 Tu pedido ${orderNumber} fue recibido. Estamos procesándolo.`,
+      payment_pending: `📋 Tu pedido ${orderNumber} está esperando confirmación de pago. 💳`,
+      paid: `📋 Tu pedido ${orderNumber} fue pagado. Estamos preparándolo. ⏳`,
+      in_production: `🏭 Tu pedido ${orderNumber} está en producción. Pronto estará listo.`,
+      ready: `📦 Tu pedido ${orderNumber} está listo y será enviado pronto. ¡Ya casi!`,
     };
 
-    return statusMessages[orderStatus] ??
-      `📋 Tu pedido ${orderNumber} está en proceso (estado: ${orderStatus}).`;
+    return (
+      statusMessages[orderStatus] ??
+      `📋 Tu pedido ${orderNumber} está en proceso (estado: ${orderStatus}).`
+    );
   }
 
   private formatTrackingInfo(row: any): string {
     const statusEmoji: Record<string, string> = {
-      'pending': '⏳',
-      'picked_up': '📤',
-      'in_transit': '🚚',
-      'out_for_delivery': '🎉',
-      'delivered': '✅',
-      'returned': '↩️',
-      'exception': '⚠️',
+      pending: '⏳',
+      picked_up: '📤',
+      in_transit: '🚚',
+      out_for_delivery: '🎉',
+      delivered: '✅',
+      returned: '↩️',
+      exception: '⚠️',
     };
 
     const emoji = statusEmoji[row.shipment_status] ?? '📦';
@@ -237,13 +278,13 @@ export class ShipmentNotificationsService {
 
   private translateStatus(status: string): string {
     const map: Record<string, string> = {
-      'pending': 'Preparando envío',
-      'picked_up': 'Recolectado',
-      'in_transit': 'En camino',
-      'out_for_delivery': '¡Ya casi llega!',
-      'delivered': 'Entregado ✅',
-      'returned': 'Retornado',
-      'exception': 'Incidencia',
+      pending: 'Preparando envío',
+      picked_up: 'Recolectado',
+      in_transit: 'En camino',
+      out_for_delivery: '¡Ya casi llega!',
+      delivered: 'Entregado ✅',
+      returned: 'Retornado',
+      exception: 'Incidencia',
     };
     return map[status] ?? status;
   }

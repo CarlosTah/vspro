@@ -43,24 +43,27 @@ export default function DeliverySettingsPage() {
     <div className="space-y-6 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold text-white">Configuración de entregas</h1>
-        <p className="text-sm text-gray-400">Automatiza el despacho de pedidos a tus repartidores</p>
+        <p className="text-sm text-gray-400">
+          Automatiza el despacho de pedidos a tus repartidores
+        </p>
       </div>
 
       <div className="rounded-xl border border-card-border bg-card p-6 space-y-6">
-
-          {/* Shipping Cost */}
-          <div className="space-y-2">
-            <label className="text-sm text-gray-300">Costo de envío ($)</label>
-            <input
-              type="number"
-              value={form.shippingCost}
-              onChange={(e) => setForm({ ...form, shippingCost: Number(e.target.value) })}
-              className="vspro-input w-32"
-              min={0}
-              step={5}
-            />
-            <p className="text-xs text-gray-500">Se suma al total cuando el cliente pide envío a domicilio</p>
-          </div>
+        {/* Shipping Cost */}
+        <div className="space-y-2">
+          <label className="text-sm text-gray-300">Costo de envío ($)</label>
+          <input
+            type="number"
+            value={form.shippingCost}
+            onChange={(e) => setForm({ ...form, shippingCost: Number(e.target.value) })}
+            className="vspro-input w-32"
+            min={0}
+            step={5}
+          />
+          <p className="text-xs text-gray-500">
+            Se suma al total cuando el cliente pide envío a domicilio
+          </p>
+        </div>
 
         {/* Auto-dispatch */}
         <ToggleRow
@@ -83,12 +86,16 @@ export default function DeliverySettingsPage() {
                   min={1}
                   max={60}
                   value={form.timeoutMinutes}
-                  onChange={(e) => setForm({ ...form, timeoutMinutes: parseInt(e.target.value) || 10 })}
+                  onChange={(e) =>
+                    setForm({ ...form, timeoutMinutes: parseInt(e.target.value) || 10 })
+                  }
                   className="vspro-input w-24 text-center"
                 />
                 <span className="text-sm text-gray-400">minutos</span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">Si el repartidor no responde en este tiempo, se ofrecerá al siguiente</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Si el repartidor no responde en este tiempo, se ofrecerá al siguiente
+              </p>
             </div>
 
             {/* Max retries */}
@@ -107,7 +114,9 @@ export default function DeliverySettingsPage() {
                 />
                 <span className="text-sm text-gray-400">repartidores</span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">Después de este número de intentos, se notifica al admin</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Después de este número de intentos, se notifica al admin
+              </p>
             </div>
 
             {/* Dispatch message template */}
@@ -122,7 +131,10 @@ export default function DeliverySettingsPage() {
                 className="vspro-input w-full resize-none text-sm"
                 placeholder="📦 Pedido #{orderNumber} listo para entrega.&#10;📍 Dirección: {address}&#10;💰 Total: ${total}&#10;&#10;¿Puedes recogerlo? Responde SI o NO"
               />
-              <p className="text-xs text-gray-500 mt-1">Variables disponibles: {'{orderNumber}'}, {'{address}'}, {'{total}'}, {'{customerName}'}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Variables disponibles: {'{orderNumber}'}, {'{address}'}, {'{total}'},{' '}
+                {'{customerName}'}
+              </p>
             </div>
           </>
         )}
@@ -170,8 +182,16 @@ export default function DeliverySettingsPage() {
   );
 }
 
-function ToggleRow({ label, description, checked, onChange }: {
-  label: string; description: string; checked: boolean; onChange: (v: boolean) => void;
+function ToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
 }) {
   return (
     <div className="flex items-center justify-between">
@@ -185,9 +205,11 @@ function ToggleRow({ label, description, checked, onChange }: {
           checked ? 'bg-accent' : 'bg-gray-600'
         }`}
       >
-        <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-          checked ? 'translate-x-6' : 'translate-x-0.5'
-        }`} />
+        <span
+          className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+            checked ? 'translate-x-6' : 'translate-x-0.5'
+          }`}
+        />
       </button>
     </div>
   );

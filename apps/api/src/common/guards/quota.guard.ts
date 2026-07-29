@@ -23,10 +23,10 @@ export class QuotaGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const usageType = this.reflector.getAllAndOverride<UsageType>(
-      TRACK_USAGE_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const usageType = this.reflector.getAllAndOverride<UsageType>(TRACK_USAGE_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     // Si el endpoint no tiene @TrackUsage(), no aplica quota
     if (!usageType) return true;

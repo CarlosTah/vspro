@@ -16,10 +16,30 @@ interface Order {
 }
 
 const COLUMNS = [
-  { id: 'payment_verified', label: 'Pendiente', color: 'border-yellow-300 bg-yellow-50', badge: 'bg-yellow-100 text-yellow-800' },
-  { id: 'in_production', label: 'En producción', color: 'border-orange-300 bg-orange-50', badge: 'bg-orange-100 text-orange-800' },
-  { id: 'ready', label: 'Listo', color: 'border-green-300 bg-green-50', badge: 'bg-green-100 text-green-800' },
-  { id: 'shipped', label: 'Enviado', color: 'border-indigo-300 bg-indigo-50', badge: 'bg-indigo-100 text-indigo-800' },
+  {
+    id: 'payment_verified',
+    label: 'Pendiente',
+    color: 'border-yellow-300 bg-yellow-50',
+    badge: 'bg-yellow-100 text-yellow-800',
+  },
+  {
+    id: 'in_production',
+    label: 'En producción',
+    color: 'border-orange-300 bg-orange-50',
+    badge: 'bg-orange-100 text-orange-800',
+  },
+  {
+    id: 'ready',
+    label: 'Listo',
+    color: 'border-green-300 bg-green-50',
+    badge: 'bg-green-100 text-green-800',
+  },
+  {
+    id: 'shipped',
+    label: 'Enviado',
+    color: 'border-indigo-300 bg-indigo-50',
+    badge: 'bg-indigo-100 text-indigo-800',
+  },
 ];
 
 const TRANSITIONS: Record<string, { endpoint: string; label: string }> = {
@@ -48,10 +68,11 @@ export default function ProductionKanbanPage() {
     }
   };
 
-  useEffect(() => { fetchOrders(); }, []);
+  useEffect(() => {
+    fetchOrders();
+  }, []);
 
-  const getColumnOrders = (status: string) =>
-    orders.filter((o) => o.status === status);
+  const getColumnOrders = (status: string) => orders.filter((o) => o.status === status);
 
   const moveOrder = async (orderId: string, fromStatus: string) => {
     const transition = TRANSITIONS[fromStatus];
@@ -107,7 +128,10 @@ export default function ProductionKanbanPage() {
         <h1 className="text-2xl font-bold text-gray-900">Producción</h1>
         <div className="grid grid-cols-4 gap-4">
           {COLUMNS.map((col) => (
-            <div key={col.id} className="rounded-xl border border-gray-200 bg-gray-50 p-4 h-96 animate-pulse" />
+            <div
+              key={col.id}
+              className="rounded-xl border border-gray-200 bg-gray-50 p-4 h-96 animate-pulse"
+            />
           ))}
         </div>
       </div>
@@ -119,7 +143,9 @@ export default function ProductionKanbanPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Producción</h1>
-          <p className="text-sm text-gray-500">Arrastra los pedidos entre columnas o usa los botones</p>
+          <p className="text-sm text-gray-500">
+            Arrastra los pedidos entre columnas o usa los botones
+          </p>
         </div>
         <button
           onClick={fetchOrders}
@@ -178,9 +204,7 @@ export default function ProductionKanbanPage() {
                         disabled={actionLoading === order.id}
                         className="mt-2 w-full rounded-md bg-gray-800 px-2 py-1.5 text-xs font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
                       >
-                        {actionLoading === order.id
-                          ? '...'
-                          : TRANSITIONS[order.status].label}
+                        {actionLoading === order.id ? '...' : TRANSITIONS[order.status].label}
                       </button>
                     )}
                   </div>

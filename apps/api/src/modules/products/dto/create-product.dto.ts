@@ -27,7 +27,7 @@ export class CreateProductDto {
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ example: 25.00 })
+  @ApiProperty({ example: 25.0 })
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   price!: number;

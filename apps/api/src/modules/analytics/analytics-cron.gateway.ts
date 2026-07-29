@@ -40,19 +40,23 @@ export class AnalyticsCronGateway {
 
     for (const tenant of tenants) {
       try {
-        await this.analyticsQueue.add('generate-daily-report', {
-          tenantId: tenant.id,
-          schemaName: tenant.schemaName,
-          slug: tenant.slug,
-          businessName: tenant.businessName,
-          date: new Date().toISOString().split('T')[0],
-          timestamp: new Date().toISOString(),
-        }, {
-          jobId: `analytics-${tenant.slug}-${new Date().toISOString().split('T')[0]}`,
-          attempts: 2,
-          backoff: { type: 'fixed', delay: 30000 },
-          removeOnComplete: 30, // Keep last 30 days
-        });
+        await this.analyticsQueue.add(
+          'generate-daily-report',
+          {
+            tenantId: tenant.id,
+            schemaName: tenant.schemaName,
+            slug: tenant.slug,
+            businessName: tenant.businessName,
+            date: new Date().toISOString().split('T')[0],
+            timestamp: new Date().toISOString(),
+          },
+          {
+            jobId: `analytics-${tenant.slug}-${new Date().toISOString().split('T')[0]}`,
+            attempts: 2,
+            backoff: { type: 'fixed', delay: 30000 },
+            removeOnComplete: 30, // Keep last 30 days
+          },
+        );
         enqueued++;
       } catch (err: any) {
         this.logger.error(`Failed to enqueue analytics for ${tenant.slug}: ${err.message}`);

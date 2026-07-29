@@ -1,9 +1,24 @@
 'use client';
 
 const queue = [
-  { number: 'ORD-2026-00004', items: '3x Tortilla maíz, 2x Tortilla harina', assignedTo: 'Pedro', status: 'in_production' },
-  { number: 'ORD-2026-00003', items: '1x Pan dulce surtido', assignedTo: null, status: 'payment_verified' },
-  { number: 'ORD-2026-00002', items: '5x Tortilla maíz', assignedTo: 'María', status: 'in_production' },
+  {
+    number: 'ORD-2026-00004',
+    items: '3x Tortilla maíz, 2x Tortilla harina',
+    assignedTo: 'Pedro',
+    status: 'in_production',
+  },
+  {
+    number: 'ORD-2026-00003',
+    items: '1x Pan dulce surtido',
+    assignedTo: null,
+    status: 'payment_verified',
+  },
+  {
+    number: 'ORD-2026-00002',
+    items: '5x Tortilla maíz',
+    assignedTo: 'María',
+    status: 'in_production',
+  },
 ];
 
 export function ProductionQueue() {

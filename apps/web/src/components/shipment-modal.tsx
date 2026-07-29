@@ -57,7 +57,9 @@ export function ShipmentModal({ orderId, orderNumber, onClose, onSuccess }: Prop
             <h2 className="text-lg font-semibold text-gray-900">Registrar envío</h2>
             <p className="text-sm text-gray-500">Pedido {orderNumber}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">
+            ✕
+          </button>
         </div>
 
         {error && (
@@ -75,7 +77,9 @@ export function ShipmentModal({ orderId, orderNumber, onClose, onSuccess }: Prop
               className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             >
               {CARRIERS.map((c) => (
-                <option key={c.value} value={c.value}>{c.label}</option>
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
               ))}
             </select>
           </div>
@@ -104,7 +108,9 @@ export function ShipmentModal({ orderId, orderNumber, onClose, onSuccess }: Prop
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Entrega estimada</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Entrega estimada
+              </label>
               <input
                 value={estimatedDelivery}
                 onChange={(e) => setEstimatedDelivery(e.target.value)}
@@ -116,7 +122,8 @@ export function ShipmentModal({ orderId, orderNumber, onClose, onSuccess }: Prop
 
           <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
             <p className="text-xs text-blue-700">
-              📱 Al confirmar, el cliente recibirá automáticamente un mensaje con el número de guía y link de rastreo.
+              📱 Al confirmar, el cliente recibirá automáticamente un mensaje con el número de guía
+              y link de rastreo.
             </p>
           </div>
 

@@ -80,7 +80,7 @@ export class CronSchedulerService {
 
         if (lowStock.length > 0) {
           this.logger.warn(
-            `[${tenant.slug}] ${lowStock.length} products below stock minimum: ${lowStock.map(i => i.sku).join(', ')}`,
+            `[${tenant.slug}] ${lowStock.length} products below stock minimum: ${lowStock.map((i) => i.sku).join(', ')}`,
           );
         }
       } catch (err: any) {

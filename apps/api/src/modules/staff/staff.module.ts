@@ -5,9 +5,7 @@ import { StaffController } from './staff.controller';
 import { AuditLogService } from './audit-log.service';
 
 @Module({
-  imports: [
-    BullModule.registerQueue({ name: 'staff-audit' }),
-  ],
+  imports: [BullModule.registerQueue({ name: 'staff-audit' })],
   controllers: [StaffController],
   providers: [StaffService, AuditLogService],
   exports: [StaffService, AuditLogService],

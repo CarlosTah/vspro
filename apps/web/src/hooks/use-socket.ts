@@ -26,9 +26,7 @@ export function useSocket() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   useEffect(() => {
-    const token = typeof window !== 'undefined'
-      ? localStorage.getItem('vspro_token')
-      : null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('vspro_token') : null;
 
     if (!token) return;
 

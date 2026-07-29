@@ -37,7 +37,8 @@ export class AuditTrailService {
     },
   ): Promise<void> {
     try {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${schemaName}".audit_trail
           (action, module, entity_type, entity_id, user_id, user_name, before_state, after_state, metadata)
         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb)
@@ -66,7 +67,8 @@ export class AuditTrailService {
     entityType: string,
     entityId: string,
   ): Promise<AuditEntry[]> {
-    return this.prisma.$queryRawUnsafe<AuditEntry[]>(`
+    return this.prisma.$queryRawUnsafe<AuditEntry[]>(
+      `
       SELECT id, action, module, entity_type AS "entityType", entity_id AS "entityId",
              user_id AS "userId", user_name AS "userName",
              before_state AS "before", after_state AS "after",
@@ -74,7 +76,10 @@ export class AuditTrailService {
       FROM "${schemaName}".audit_trail
       WHERE entity_type = $1 AND entity_id = $2
       ORDER BY created_at DESC
-    `, entityType, entityId);
+    `,
+      entityType,
+      entityId,
+    );
   }
 
   /**
@@ -90,11 +95,18 @@ export class AuditTrailService {
     const params: any[] = [];
     let idx = 1;
 
-    if (module) { where += ` AND module = $${idx++}`; params.push(module); }
-    if (action) { where += ` AND action = $${idx++}`; params.push(action); }
+    if (module) {
+      where += ` AND module = $${idx++}`;
+      params.push(module);
+    }
+    if (action) {
+      where += ` AND action = $${idx++}`;
+      params.push(action);
+    }
 
     const countRows = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT COUNT(*) AS total FROM "${schemaName}".audit_trail ${where}`, ...params,
+      `SELECT COUNT(*) AS total FROM "${schemaName}".audit_trail ${where}`,
+      ...params,
     );
 
     const data = await this.prisma.$queryRawUnsafe<AuditEntry[]>(
@@ -104,7 +116,9 @@ export class AuditTrailService {
               metadata, created_at AS "createdAt"
        FROM "${schemaName}".audit_trail ${where}
        ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx}`,
-      ...params, limit, offset,
+      ...params,
+      limit,
+      offset,
     );
 
     return { data, total: parseInt(countRows[0]?.total ?? '0') };
@@ -114,13 +128,17 @@ export class AuditTrailService {
    * Get audit entries by user (for user activity log).
    */
   async getByUser(schemaName: string, userId: string, limit = 20): Promise<AuditEntry[]> {
-    return this.prisma.$queryRawUnsafe<AuditEntry[]>(`
+    return this.prisma.$queryRawUnsafe<AuditEntry[]>(
+      `
       SELECT id, action, module, entity_type AS "entityType", entity_id AS "entityId",
              user_id AS "userId", user_name AS "userName",
              metadata, created_at AS "createdAt"
       FROM "${schemaName}".audit_trail
       WHERE user_id = $1
       ORDER BY created_at DESC LIMIT $2
-    `, userId, limit);
+    `,
+      userId,
+      limit,
+    );
   }
 }

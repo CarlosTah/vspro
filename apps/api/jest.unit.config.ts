@@ -5,12 +5,15 @@ const config: Config = {
   testRegex: '.*\\.spec\\.ts$',
   testPathIgnorePatterns: ['integration', 'isolation', 'smoke', 'e2e-full'],
   transform: {
-    '^.+\\.(t|j)s$': ['@swc/jest', {
-      jsc: {
-        parser: { syntax: 'typescript', decorators: true },
-        transform: { legacyDecorator: true, decoratorMetadata: true },
+    '^.+\\.(t|j)s$': [
+      '@swc/jest',
+      {
+        jsc: {
+          parser: { syntax: 'typescript', decorators: true },
+          transform: { legacyDecorator: true, decoratorMetadata: true },
+        },
       },
-    }],
+    ],
   },
   moduleNameMapper: {
     '^@vspro/database(.*)$': '<rootDir>/../../../packages/database/src$1',

@@ -52,10 +52,14 @@ export class AnalyticsNotificationDispatcher {
     }
 
     // 3. Check if notifications enabled
-    const prefs = await this.prisma.$queryRawUnsafe<any[]>(`
+    const prefs = await this.prisma
+      .$queryRawUnsafe<any[]>(
+        `
       SELECT agent_config->'notifications'->'daily_summary' AS enabled
       FROM "${job.schemaName}".ai_config LIMIT 1
-    `).catch(() => []);
+    `,
+      )
+      .catch(() => []);
 
     if (prefs[0]?.enabled === false) {
       this.logger.debug(`[${job.slug}] Daily summary disabled — skipping push`);
@@ -72,24 +76,32 @@ export class AnalyticsNotificationDispatcher {
     const message = this.reportsService.formatAsWhatsAppMessage(report);
 
     // Get channel config for sending
-    const channels = await this.prisma.$queryRawUnsafe<any[]>(`
+    const channels = await this.prisma
+      .$queryRawUnsafe<any[]>(
+        `
       SELECT type FROM "${job.schemaName}".channels WHERE is_active = true AND type = 'whatsapp' LIMIT 1
-    `).catch(() => []);
+    `,
+      )
+      .catch(() => []);
 
     const channelType = channels[0]?.type ?? 'whatsapp';
 
     // Enqueue for delivery
-    await this.queue.add('send-owner-report', {
-      tenantId: job.tenantId,
-      schemaName: job.schemaName,
-      ownerPhone,
-      channelType,
-      message,
-      reportDate: job.date,
-    }, {
-      attempts: 2,
-      backoff: { type: 'fixed', delay: 60000 },
-    });
+    await this.queue.add(
+      'send-owner-report',
+      {
+        tenantId: job.tenantId,
+        schemaName: job.schemaName,
+        ownerPhone,
+        channelType,
+        message,
+        reportDate: job.date,
+      },
+      {
+        attempts: 2,
+        backoff: { type: 'fixed', delay: 60000 },
+      },
+    );
 
     this.logger.log(`[${job.slug}] Daily report sent to owner (${ownerPhone})`);
     return { report, notified: true };

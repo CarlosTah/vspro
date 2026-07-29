@@ -97,7 +97,7 @@ export class KitchenService {
         o.created_at ASC
     `);
 
-    return rows.map(row => this.mapToKitchenOrder(row));
+    return rows.map((row) => this.mapToKitchenOrder(row));
   }
 
   /**
@@ -116,7 +116,7 @@ export class KitchenService {
       ORDER BY o.created_at ASC
     `);
 
-    return rows.map(row => this.mapToKitchenOrder(row));
+    return rows.map((row) => this.mapToKitchenOrder(row));
   }
 
   // ─── Kitchen Actions ──────────────────────────────────────────
@@ -197,7 +197,8 @@ export class KitchenService {
    * Returns structured data that the frontend renders as a thermal ticket.
    */
   async getTicketData(orderId: string, schemaName: string): Promise<PrintTicketData> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT o.order_number AS "orderNumber", o.items, o.notes, o.total,
              o.channel_type AS "channelType", o.shipping_address AS "shippingAddress",
              o.created_at AS "receivedAt",
@@ -205,7 +206,9 @@ export class KitchenService {
       FROM "${schemaName}".orders o
       JOIN "${schemaName}".customers c ON c.id = o.customer_id
       WHERE o.id = $1::uuid
-    `, orderId);
+    `,
+      orderId,
+    );
 
     if (!rows[0]) throw new NotFoundException('Pedido no encontrado');
 

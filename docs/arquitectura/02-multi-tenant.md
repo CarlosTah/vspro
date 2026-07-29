@@ -243,7 +243,7 @@ export class TenantMiddleware implements NestMiddleware {
     const subdomain = host.split('.')[0];
 
     // Estrategia 2: Header (para webhooks de Meta)
-    const tenantSlug = req.headers['x-tenant-slug'] as string || subdomain;
+    const tenantSlug = (req.headers['x-tenant-slug'] as string) || subdomain;
 
     if (!tenantSlug || tenantSlug === 'www' || tenantSlug === 'app') {
       return next(); // rutas públicas / super-admin
@@ -251,7 +251,7 @@ export class TenantMiddleware implements NestMiddleware {
 
     const tenant = await this.prisma.tenant.findUnique({
       where: { slug: tenantSlug },
-      include: { plan: true, subscription: true }
+      include: { plan: true, subscription: true },
     });
 
     if (!tenant) {
@@ -296,7 +296,7 @@ export class TenantProvisioningService {
           status: 'trial',
           trialEndsAt: addDays(new Date(), 14),
           planId: BASIC_PLAN_ID,
-        }
+        },
       });
 
       // 2. Crear schema en PostgreSQL
@@ -327,6 +327,7 @@ export class TenantProvisioningService {
 **Ningún service puede acceder a datos de otro tenant.**
 
 Se garantiza mediante:
+
 1. El middleware cambia `search_path` al schema del tenant en cada request
 2. Todos los queries usan el Prisma client con el schema correcto
 3. Tests automatizados verifican que no hay cross-tenant data leaks

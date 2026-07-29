@@ -37,12 +37,22 @@ export class TenantNotificationsCronService {
           lte: twoDaysFromNow,
         },
       },
-      select: { id: true, slug: true, schemaName: true, businessName: true, ownerEmail: true, trialEndsAt: true },
+      select: {
+        id: true,
+        slug: true,
+        schemaName: true,
+        businessName: true,
+        ownerEmail: true,
+        trialEndsAt: true,
+      },
     });
 
     for (const tenant of expiringTrials) {
-      const daysLeft = Math.ceil((tenant.trialEndsAt!.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
-      const message = `⏰ Hola! Tu prueba gratuita de VSPRO para *${tenant.businessName}* vence en ${daysLeft} día${daysLeft > 1 ? 's' : ''}.\n\n` +
+      const daysLeft = Math.ceil(
+        (tenant.trialEndsAt!.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
+      );
+      const message =
+        `⏰ Hola! Tu prueba gratuita de VSPRO para *${tenant.businessName}* vence en ${daysLeft} día${daysLeft > 1 ? 's' : ''}.\n\n` +
         `Para no perder tu configuración y seguir recibiendo pedidos por WhatsApp, elige un plan:\n` +
         `👉 https://app.vspro.app/settings/billing\n\n` +
         `¿Tienes dudas? Responde aquí y te ayudamos.`;
@@ -70,7 +80,8 @@ export class TenantNotificationsCronService {
     });
 
     for (const tenant of expiredToday) {
-      const message = `🔔 Tu prueba gratuita de VSPRO para *${tenant.businessName}* ha terminado hoy.\n\n` +
+      const message =
+        `🔔 Tu prueba gratuita de VSPRO para *${tenant.businessName}* ha terminado hoy.\n\n` +
         `Tu agente IA dejará de responder mensajes hasta que actives un plan.\n\n` +
         `Activa ahora → https://app.vspro.app/settings/billing\n\n` +
         `Planes desde $990/mes. ¿Necesitas más tiempo? Responde aquí.`;
@@ -97,7 +108,8 @@ export class TenantNotificationsCronService {
       const price = parseFloat(String(tenant.plan?.priceMonthly ?? '0'));
       if (price <= 0) continue;
 
-      const message = `📋 Recordatorio VSPRO: Tu cargo mensual de *$${price.toLocaleString('es-MX')} MXN* (plan ${tenant.plan?.name}) ` +
+      const message =
+        `📋 Recordatorio VSPRO: Tu cargo mensual de *$${price.toLocaleString('es-MX')} MXN* (plan ${tenant.plan?.name}) ` +
         `se procesará en los próximos días.\n\n` +
         `Asegúrate de tener fondos disponibles. Si necesitas cambiar de plan o método de pago:\n` +
         `👉 https://app.vspro.app/settings/billing\n\n` +
@@ -113,14 +125,21 @@ export class TenantNotificationsCronService {
 
   // ─── Helper ───────────────────────────────────────────────────
 
-  private async sendToTenantOwner(tenant: { schemaName: string; ownerEmail: string; businessName: string }, message: string): Promise<void> {
+  private async sendToTenantOwner(
+    tenant: { schemaName: string; ownerEmail: string; businessName: string },
+    message: string,
+  ): Promise<void> {
     try {
       // Try to find owner's phone in their schema
-      const phones = await this.prisma.$queryRawUnsafe<any[]>(`
+      const phones = await this.prisma
+        .$queryRawUnsafe<any[]>(
+          `
         SELECT phone FROM "${tenant.schemaName}".users
         WHERE role = 'admin' AND phone IS NOT NULL
         LIMIT 1
-      `).catch(() => []);
+      `,
+        )
+        .catch(() => []);
 
       if (phones?.[0]?.phone) {
         await this.messaging.sendText(phones[0].phone, message, 'whatsapp', this.VSPRO_SCHEMA);
@@ -128,14 +147,25 @@ export class TenantNotificationsCronService {
       }
 
       // Fallback: look for tenant owner as a customer in VSPRO's own schema
-      const customers = await this.prisma.$queryRawUnsafe<any[]>(`
+      const customers = await this.prisma
+        .$queryRawUnsafe<any[]>(
+          `
         SELECT channel_id FROM "${this.VSPRO_SCHEMA}".customers
         WHERE email = $1 OR name ILIKE $2
         LIMIT 1
-      `, tenant.ownerEmail, `%${tenant.businessName}%`).catch(() => []);
+      `,
+          tenant.ownerEmail,
+          `%${tenant.businessName}%`,
+        )
+        .catch(() => []);
 
       if (customers?.[0]?.channel_id) {
-        await this.messaging.sendText(customers[0].channel_id, message, 'whatsapp', this.VSPRO_SCHEMA);
+        await this.messaging.sendText(
+          customers[0].channel_id,
+          message,
+          'whatsapp',
+          this.VSPRO_SCHEMA,
+        );
       }
     } catch (err: any) {
       this.logger.debug(`Could not notify ${tenant.ownerEmail}: ${err.message}`);

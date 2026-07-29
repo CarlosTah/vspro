@@ -13,13 +13,13 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      TRUST_PROXY: "true"
+      TRUST_PROXY: 'true'
     env_file:
       - ../../.env.production
     ports:
-      - "3001:3001"
+      - '3001:3001'
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3001/health']
       interval: 30s
       timeout: 10s
       start_period: 30s
@@ -58,7 +58,7 @@ services:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: https://api.vspro.mx
     ports:
-      - "3000:3000"
+      - '3000:3000'
     deploy:
       resources:
         limits:

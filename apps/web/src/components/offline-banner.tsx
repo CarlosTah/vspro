@@ -53,13 +53,15 @@ export function OfflineBanner() {
   if (!isOffline && !syncing && pendingCount === 0) return null;
 
   return (
-    <div className={`fixed top-0 left-0 right-0 z-[100] px-4 py-2 text-center text-sm font-medium transition-all ${
-      isOffline
-        ? 'bg-yellow-500 text-yellow-900'
-        : syncing
-        ? 'bg-blue-500 text-white'
-        : 'bg-green-500 text-white'
-    }`}>
+    <div
+      className={`fixed top-0 left-0 right-0 z-[100] px-4 py-2 text-center text-sm font-medium transition-all ${
+        isOffline
+          ? 'bg-yellow-500 text-yellow-900'
+          : syncing
+            ? 'bg-blue-500 text-white'
+            : 'bg-green-500 text-white'
+      }`}
+    >
       {isOffline && (
         <>
           ⚠️ Sin conexión — Modo offline

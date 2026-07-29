@@ -36,9 +36,12 @@ export function ServiceWorkerRegister() {
         });
 
         // Check for updates every 5 minutes
-        const updateInterval = setInterval(() => {
-          registration.update().catch(() => {});
-        }, 5 * 60 * 1000);
+        const updateInterval = setInterval(
+          () => {
+            registration.update().catch(() => {});
+          },
+          5 * 60 * 1000,
+        );
 
         return () => clearInterval(updateInterval);
       })

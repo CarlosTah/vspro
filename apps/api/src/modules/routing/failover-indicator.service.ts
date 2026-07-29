@@ -45,10 +45,13 @@ export class FailoverIndicator {
    */
   getFallback(capability: DegradedCapability): string {
     const fallbacks: Record<DegradedCapability, string> = {
-      ai_degraded: 'Disculpa, nuestro asistente está temporalmente fuera de servicio. Un agente humano te atenderá pronto. 🙏',
-      messaging_degraded: 'Tu mensaje fue recibido pero la entrega está retrasada. Reintentaremos automáticamente.',
+      ai_degraded:
+        'Disculpa, nuestro asistente está temporalmente fuera de servicio. Un agente humano te atenderá pronto. 🙏',
+      messaging_degraded:
+        'Tu mensaje fue recibido pero la entrega está retrasada. Reintentaremos automáticamente.',
       cache_degraded: '', // Silent degradation — no user impact
-      payments_degraded: 'Recibimos tu comprobante. La verificación automática no está disponible en este momento, lo revisaremos manualmente.',
+      payments_degraded:
+        'Recibimos tu comprobante. La verificación automática no está disponible en este momento, lo revisaremos manualmente.',
     };
     return fallbacks[capability];
   }
@@ -71,7 +74,9 @@ export class FailoverIndicator {
     if (since) {
       const duration = Date.now() - since;
       this.degradedSince.delete(capability);
-      this.logger.log(`✅ RECOVERED: ${capability} (was degraded for ${Math.round(duration / 1000)}s)`);
+      this.logger.log(
+        `✅ RECOVERED: ${capability} (was degraded for ${Math.round(duration / 1000)}s)`,
+      );
     }
   }
 
@@ -79,12 +84,18 @@ export class FailoverIndicator {
    * Get overall system status.
    */
   getSystemStatus(): SystemStatus {
-    const capabilities: DegradedCapability[] = ['ai_degraded', 'messaging_degraded', 'cache_degraded', 'payments_degraded'];
-    const degraded = capabilities.filter(c => this.isDegraded(c));
+    const capabilities: DegradedCapability[] = [
+      'ai_degraded',
+      'messaging_degraded',
+      'cache_degraded',
+      'payments_degraded',
+    ];
+    const degraded = capabilities.filter((c) => this.isDegraded(c));
     const circuits = this.circuitBreaker.getStatus();
 
     return {
-      overall: degraded.length === 0 ? 'operational' : degraded.length <= 1 ? 'degraded' : 'major_outage',
+      overall:
+        degraded.length === 0 ? 'operational' : degraded.length <= 1 ? 'degraded' : 'major_outage',
       degradedCapabilities: degraded,
       circuits,
       degradedSince: Object.fromEntries(
@@ -122,7 +133,11 @@ export class FailoverIndicator {
 
 // ─── Types ──────────────────────────────────────────────────────
 
-type DegradedCapability = 'ai_degraded' | 'messaging_degraded' | 'cache_degraded' | 'payments_degraded';
+type DegradedCapability =
+  | 'ai_degraded'
+  | 'messaging_degraded'
+  | 'cache_degraded'
+  | 'payments_degraded';
 
 interface SystemStatus {
   overall: 'operational' | 'degraded' | 'major_outage';

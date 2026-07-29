@@ -13,16 +13,16 @@
 
 ## Módulos implementados
 
-| Módulo | Endpoints | Estado |
-|--------|-----------|--------|
-| `ProductsModule` | 7 endpoints | ✅ |
-| `CustomersModule` | 5 endpoints | ✅ |
-| `OrdersModule` | 12 endpoints | ✅ |
-| `PaymentsModule` | 4 endpoints | ✅ |
-| `ConversationsModule` | 4 endpoints | ✅ |
-| `MessagingService` | Servicio interno | ✅ |
-| `AiEngineService` | Servicio interno | ✅ |
-| `MessageProcessor` | Worker BullMQ | ✅ |
+| Módulo                | Endpoints        | Estado |
+| --------------------- | ---------------- | ------ |
+| `ProductsModule`      | 7 endpoints      | ✅     |
+| `CustomersModule`     | 5 endpoints      | ✅     |
+| `OrdersModule`        | 12 endpoints     | ✅     |
+| `PaymentsModule`      | 4 endpoints      | ✅     |
+| `ConversationsModule` | 4 endpoints      | ✅     |
+| `MessagingService`    | Servicio interno | ✅     |
+| `AiEngineService`     | Servicio interno | ✅     |
+| `MessageProcessor`    | Worker BullMQ    | ✅     |
 
 ---
 
@@ -30,16 +30,16 @@
 
 ### Endpoints
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/products` | Lista todos los productos con stock. `?all=true` incluye inactivos |
-| `GET` | `/products/low-stock` | Productos con stock ≤ mínimo configurado |
-| `GET` | `/products/search?q=` | Búsqueda por nombre, SKU o categoría (ILIKE) |
-| `GET` | `/products/:id` | Detalle de un producto con stock actual |
-| `POST` | `/products` | Crear producto (crea registro de inventario automáticamente) |
-| `PATCH` | `/products/:id` | Actualizar campos del producto (PATCH parcial) |
-| `PATCH` | `/products/:id/stock` | Actualizar stock disponible y mínimo |
-| `DELETE` | `/products/:id` | Soft delete — marca `is_active = false` |
+| Método   | Ruta                  | Descripción                                                        |
+| -------- | --------------------- | ------------------------------------------------------------------ |
+| `GET`    | `/products`           | Lista todos los productos con stock. `?all=true` incluye inactivos |
+| `GET`    | `/products/low-stock` | Productos con stock ≤ mínimo configurado                           |
+| `GET`    | `/products/search?q=` | Búsqueda por nombre, SKU o categoría (ILIKE)                       |
+| `GET`    | `/products/:id`       | Detalle de un producto con stock actual                            |
+| `POST`   | `/products`           | Crear producto (crea registro de inventario automáticamente)       |
+| `PATCH`  | `/products/:id`       | Actualizar campos del producto (PATCH parcial)                     |
+| `PATCH`  | `/products/:id/stock` | Actualizar stock disponible y mínimo                               |
+| `DELETE` | `/products/:id`       | Soft delete — marca `is_active = false`                            |
 
 ### Comportamiento clave
 
@@ -70,13 +70,13 @@
 
 ### Endpoints
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/customers` | Lista todos los clientes |
-| `GET` | `/customers/:id` | Detalle de un cliente |
-| `GET` | `/customers/:id/orders` | Historial de pedidos del cliente |
-| `POST` | `/customers` | Crear cliente manualmente |
-| `PATCH` | `/customers/:id` | Actualizar datos del cliente |
+| Método  | Ruta                    | Descripción                      |
+| ------- | ----------------------- | -------------------------------- |
+| `GET`   | `/customers`            | Lista todos los clientes         |
+| `GET`   | `/customers/:id`        | Detalle de un cliente            |
+| `GET`   | `/customers/:id/orders` | Historial de pedidos del cliente |
+| `POST`  | `/customers`            | Crear cliente manualmente        |
+| `PATCH` | `/customers/:id`        | Actualizar datos del cliente     |
 
 ### Método interno: `findOrCreateByChannel`
 
@@ -97,20 +97,20 @@ Garantiza que cada número de WhatsApp/Messenger/Instagram tenga exactamente un 
 
 ### Endpoints
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/orders` | Lista pedidos. `?status=new` filtra por estado |
-| `GET` | `/orders/:id` | Detalle completo del pedido |
-| `POST` | `/orders` | Crear pedido |
-| `POST` | `/orders/:id/quote` | `new → quoted` |
-| `POST` | `/orders/:id/request-payment` | `quoted → payment_pending` |
-| `POST` | `/orders/:id/verify-payment` | `payment_pending → payment_verified` |
-| `POST` | `/orders/:id/start-production` | `payment_verified → in_production` |
-| `POST` | `/orders/:id/mark-ready` | `in_production → ready` |
-| `POST` | `/orders/:id/ship` | `ready → shipped` |
-| `POST` | `/orders/:id/deliver` | `shipped → delivered` |
-| `POST` | `/orders/:id/cancel` | Cancelar desde cualquier estado activo |
-| `PATCH` | `/orders/:id/shipping-address` | Actualizar dirección de envío |
+| Método  | Ruta                           | Descripción                                    |
+| ------- | ------------------------------ | ---------------------------------------------- |
+| `GET`   | `/orders`                      | Lista pedidos. `?status=new` filtra por estado |
+| `GET`   | `/orders/:id`                  | Detalle completo del pedido                    |
+| `POST`  | `/orders`                      | Crear pedido                                   |
+| `POST`  | `/orders/:id/quote`            | `new → quoted`                                 |
+| `POST`  | `/orders/:id/request-payment`  | `quoted → payment_pending`                     |
+| `POST`  | `/orders/:id/verify-payment`   | `payment_pending → payment_verified`           |
+| `POST`  | `/orders/:id/start-production` | `payment_verified → in_production`             |
+| `POST`  | `/orders/:id/mark-ready`       | `in_production → ready`                        |
+| `POST`  | `/orders/:id/ship`             | `ready → shipped`                              |
+| `POST`  | `/orders/:id/deliver`          | `shipped → delivered`                          |
+| `POST`  | `/orders/:id/cancel`           | Cancelar desde cualquier estado activo         |
+| `PATCH` | `/orders/:id/shipping-address` | Actualizar dirección de envío                  |
 
 ### Máquina de estados
 
@@ -126,10 +126,12 @@ Las transiciones inválidas retornan `HTTP 422` con código `INVALID_STATE_TRANS
 ### Gestión de stock
 
 Al **crear** un pedido:
+
 - Verifica que hay stock suficiente para cada producto
 - Descuenta de `stock_available` y suma a `stock_reserved`
 
 Al **cancelar** un pedido:
+
 - Libera el stock reservado: suma a `stock_available`, resta de `stock_reserved`
 
 ### Numeración automática
@@ -150,12 +152,12 @@ Los pedidos se numeran como `ORD-{AÑO}-{SECUENCIA}` (ej: `ORD-2026-00001`). La 
 
 ### Endpoints
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/payments/order/:orderId` | Historial de pagos de un pedido |
-| `POST` | `/payments/verify-by-image` | Verificación automática por OCR (GPT-4o Vision) |
-| `POST` | `/payments/verify-manual` | Verificación manual por operador |
-| `PATCH` | `/payments/:id/reject` | Rechazar pago pendiente de revisión |
+| Método  | Ruta                        | Descripción                                     |
+| ------- | --------------------------- | ----------------------------------------------- |
+| `GET`   | `/payments/order/:orderId`  | Historial de pagos de un pedido                 |
+| `POST`  | `/payments/verify-by-image` | Verificación automática por OCR (GPT-4o Vision) |
+| `POST`  | `/payments/verify-manual`   | Verificación manual por operador                |
+| `PATCH` | `/payments/:id/reject`      | Rechazar pago pendiente de revisión             |
 
 ### Flujo de verificación por imagen
 
@@ -187,12 +189,12 @@ Cuando `OPENAI_API_KEY` no está configurada o es `sk-test-not-real`, el OCR ret
 ```json
 {
   "method": "transfer",
-  "amount": 350.00,
+  "amount": 350.0,
   "status": "verified",
   "reference": "REF123456",
   "proofImageUrl": "https://s3.../comprobante.jpg",
   "ocrData": {
-    "amount": 350.00,
+    "amount": 350.0,
     "senderBank": "BBVA México",
     "receiverBank": "Banamex",
     "reference": "REF123456",
@@ -210,12 +212,12 @@ Cuando `OPENAI_API_KEY` no está configurada o es `sk-test-not-real`, el OCR ret
 
 ### Endpoints
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/conversations` | Lista conversaciones con último mensaje. `?status=active` |
-| `GET` | `/conversations/:id` | Detalle con datos del cliente |
-| `GET` | `/conversations/:id/messages` | Historial de mensajes. `?limit=50` |
-| `POST` | `/conversations/:id/resolve` | Marcar conversación como resuelta |
+| Método | Ruta                          | Descripción                                               |
+| ------ | ----------------------------- | --------------------------------------------------------- |
+| `GET`  | `/conversations`              | Lista conversaciones con último mensaje. `?status=active` |
+| `GET`  | `/conversations/:id`          | Detalle con datos del cliente                             |
+| `GET`  | `/conversations/:id/messages` | Historial de mensajes. `?limit=50`                        |
+| `POST` | `/conversations/:id/resolve`  | Marcar conversación como resuelta                         |
 
 ### Método interno: `findOrCreate`
 
@@ -238,6 +240,7 @@ parseIncoming(payload: any): IncomingMessage | null
 ```
 
 Detecta el canal por `payload.object`:
+
 - `whatsapp_business_account` → parsea como WhatsApp
 - `page` → parsea como Messenger
 - `instagram` → parsea como Instagram DM
@@ -274,12 +277,12 @@ Motor de IA que procesa mensajes y genera respuestas usando GPT-4o con Function 
 
 ### Herramientas disponibles (Function Calling)
 
-| Herramienta | Cuándo la usa la IA | Qué hace |
-|-------------|---------------------|----------|
-| `check_product_availability` | Cliente pregunta por un producto | Busca en el catálogo y retorna precio y stock |
-| `get_order_status` | Cliente pregunta por su pedido | Busca por número de pedido y retorna estado |
-| `create_order` | Cliente confirma lo que quiere pedir | Crea el pedido en la BD y reserva stock |
-| `request_payment` | Pedido listo para cobrar | Avanza a `payment_pending` y da instrucciones |
+| Herramienta                  | Cuándo la usa la IA                  | Qué hace                                      |
+| ---------------------------- | ------------------------------------ | --------------------------------------------- |
+| `check_product_availability` | Cliente pregunta por un producto     | Busca en el catálogo y retorna precio y stock |
+| `get_order_status`           | Cliente pregunta por su pedido       | Busca por número de pedido y retorna estado   |
+| `create_order`               | Cliente confirma lo que quiere pedir | Crea el pedido en la BD y reserva stock       |
+| `request_payment`            | Pedido listo para cobrar             | Avanza a `payment_pending` y da instrucciones |
 
 ### Flujo de procesamiento
 
@@ -296,6 +299,7 @@ Motor de IA que procesa mensajes y genera respuestas usando GPT-4o con Function 
 ### System prompt dinámico
 
 El prompt se construye con:
+
 - Nombre del asistente y tono (configurados por el tenant)
 - Catálogo de productos con precios y disponibilidad
 - Instrucciones adicionales del tenant
@@ -436,13 +440,13 @@ POST   /webhooks/meta/:tenantSlug   (mensajes entrantes)
 
 ## 11. Bugs encontrados y corregidos
 
-| Bug | Causa | Fix |
-|-----|-------|-----|
-| `column "images" is of type text[] but expression is of type text` | PostgreSQL no acepta string como array | Usar `$1::text[]` con array nativo |
-| `operator does not exist: uuid = text` | PostgreSQL requiere cast explícito para UUIDs | Agregar `::uuid` en todos los `WHERE id = $1` |
-| `column "customer_id" is of type uuid but expression is of type text` | Mismo problema en INSERT | Agregar `$2::uuid` en INSERT de orders |
-| Firma HMAC inválida en webhook | Body re-serializado difiere del original | Usar `req.rawBody` (Buffer) en lugar de `JSON.stringify(payload)` |
-| `validate(payload, req)` en JwtStrategy | Con `passReqToCallback: true`, Passport invierte el orden | Corregir a `validate(req, payload)` |
+| Bug                                                                   | Causa                                                     | Fix                                                               |
+| --------------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------- |
+| `column "images" is of type text[] but expression is of type text`    | PostgreSQL no acepta string como array                    | Usar `$1::text[]` con array nativo                                |
+| `operator does not exist: uuid = text`                                | PostgreSQL requiere cast explícito para UUIDs             | Agregar `::uuid` en todos los `WHERE id = $1`                     |
+| `column "customer_id" is of type uuid but expression is of type text` | Mismo problema en INSERT                                  | Agregar `$2::uuid` en INSERT de orders                            |
+| Firma HMAC inválida en webhook                                        | Body re-serializado difiere del original                  | Usar `req.rawBody` (Buffer) en lugar de `JSON.stringify(payload)` |
+| `validate(payload, req)` en JwtStrategy                               | Con `passReqToCallback: true`, Passport invierte el orden | Corregir a `validate(req, payload)`                               |
 
 ---
 
@@ -484,11 +488,11 @@ POST   /webhooks/meta/:tenantSlug   (mensajes entrantes)
 
 ## 13. Pendiente para próximas sesiones
 
-| Módulo | Descripción | Prioridad |
-|--------|-------------|-----------|
-| `ProductionModule` | Cola de producción, notificación al cliente cuando pedido está listo | Alta |
-| `ShipmentsModule` | Integración con paqueterías, tracking | Alta |
-| `BillingModule` | Stripe, suscripciones, quotas | Alta |
-| Panel admin (Next.js) | Dashboard, gestión de pedidos, conversaciones | Media |
-| Conectar canal WhatsApp real | Configurar `channels` table con token real de Meta | Media |
-| `AccountingModule` | Registro contable automático, CFDI | Media |
+| Módulo                       | Descripción                                                          | Prioridad |
+| ---------------------------- | -------------------------------------------------------------------- | --------- |
+| `ProductionModule`           | Cola de producción, notificación al cliente cuando pedido está listo | Alta      |
+| `ShipmentsModule`            | Integración con paqueterías, tracking                                | Alta      |
+| `BillingModule`              | Stripe, suscripciones, quotas                                        | Alta      |
+| Panel admin (Next.js)        | Dashboard, gestión de pedidos, conversaciones                        | Media     |
+| Conectar canal WhatsApp real | Configurar `channels` table con token real de Meta                   | Media     |
+| `AccountingModule`           | Registro contable automático, CFDI                                   | Media     |

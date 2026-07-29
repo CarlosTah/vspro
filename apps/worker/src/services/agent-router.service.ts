@@ -30,11 +30,16 @@ export class AgentRouterService {
     return { ...result, source: 'heuristic' };
   }
 
-  private classifyHeuristic(message: string, context: any): { agent: AgentType; confidence: number } {
+  private classifyHeuristic(
+    message: string,
+    context: any,
+  ): { agent: AgentType; confidence: number } {
     const lower = (message ?? '').toLowerCase();
     const orderState = context?.orderState;
 
-    if (/precio|caro|descuento|comprar|pedir|ordenar|cuánto cuesta|quiero|me interesa/i.test(lower)) {
+    if (
+      /precio|caro|descuento|comprar|pedir|ordenar|cuánto cuesta|quiero|me interesa/i.test(lower)
+    ) {
       return { agent: 'sales', confidence: 0.85 };
     }
     if (orderState === 'payment_pending' || orderState === 'new') {

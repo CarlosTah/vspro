@@ -39,8 +39,15 @@ export default function SuperAdminPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [newTenant, setNewTenant] = useState({
-    slug: '', businessName: '', email: '', ownerName: '', password: '',
-    industry: 'restaurante', planSlug: 'basic', trialDays: 7, skipPayment: false,
+    slug: '',
+    businessName: '',
+    email: '',
+    ownerName: '',
+    password: '',
+    industry: 'restaurante',
+    planSlug: 'basic',
+    trialDays: 7,
+    skipPayment: false,
   });
 
   // Plans state
@@ -48,8 +55,19 @@ export default function SuperAdminPage() {
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [editingPlan, setEditingPlan] = useState<any>(null);
   const [planForm, setPlanForm] = useState({
-    name: '', slug: '', priceMonthly: 0, priceYearly: 0,
-    features: { maxOrders: 500, maxProducts: 100, maxChannels: 1, maxAgents: 1, aiEnabled: true, reportsEnabled: false, apiAccess: false },
+    name: '',
+    slug: '',
+    priceMonthly: 0,
+    priceYearly: 0,
+    features: {
+      maxOrders: 500,
+      maxProducts: 100,
+      maxChannels: 1,
+      maxAgents: 1,
+      aiEnabled: true,
+      reportsEnabled: false,
+      apiAccess: false,
+    },
   });
   const [planSaving, setPlanSaving] = useState(false);
   const [planError, setPlanError] = useState('');
@@ -60,7 +78,9 @@ export default function SuperAdminPage() {
   // Broadcast state
   const [broadcasts, setBroadcasts] = useState<any[]>([]);
   const [broadcastMsg, setBroadcastMsg] = useState('');
-  const [broadcastFilter, setBroadcastFilter] = useState<'all' | 'active' | 'trial' | 'suspended'>('all');
+  const [broadcastFilter, setBroadcastFilter] = useState<'all' | 'active' | 'trial' | 'suspended'>(
+    'all',
+  );
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastResult, setBroadcastResult] = useState<any>(null);
 
@@ -82,7 +102,14 @@ export default function SuperAdminPage() {
       api.get('/super-admin/broadcasts'),
       api.get('/super-admin/test-number'),
     ])
-      .then(([s, t, p, a, b, tn]) => { setStats(s); setTenants(t); setPlans(p); setAnalytics(a); setBroadcasts(b); setTestNumber(tn); })
+      .then(([s, t, p, a, b, tn]) => {
+        setStats(s);
+        setTenants(t);
+        setPlans(p);
+        setAnalytics(a);
+        setBroadcasts(b);
+        setTestNumber(tn);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   };
@@ -90,12 +117,12 @@ export default function SuperAdminPage() {
   const handleSuspend = async (tenantId: string) => {
     if (!confirm('¿Suspender este tenant?')) return;
     await api.post(`/super-admin/tenants/${tenantId}/suspend`);
-    setTenants(tenants.map((t) => t.id === tenantId ? { ...t, status: 'SUSPENDED' } : t));
+    setTenants(tenants.map((t) => (t.id === tenantId ? { ...t, status: 'SUSPENDED' } : t)));
   };
 
   const handleReactivate = async (tenantId: string) => {
     await api.post(`/super-admin/tenants/${tenantId}/reactivate`);
-    setTenants(tenants.map((t) => t.id === tenantId ? { ...t, status: 'ACTIVE' } : t));
+    setTenants(tenants.map((t) => (t.id === tenantId ? { ...t, status: 'ACTIVE' } : t)));
   };
 
   const handleImpersonate = async (tenantId: string) => {
@@ -116,7 +143,17 @@ export default function SuperAdminPage() {
     try {
       await api.post('/super-admin/tenants', newTenant);
       setShowCreate(false);
-      setNewTenant({ slug: '', businessName: '', email: '', ownerName: '', password: '', industry: 'restaurante', planSlug: 'basic', trialDays: 7, skipPayment: false });
+      setNewTenant({
+        slug: '',
+        businessName: '',
+        email: '',
+        ownerName: '',
+        password: '',
+        industry: 'restaurante',
+        planSlug: 'basic',
+        trialDays: 7,
+        skipPayment: false,
+      });
       loadData();
     } catch (err: any) {
       setCreateError(err.message || 'Error al crear tenant');
@@ -126,12 +163,32 @@ export default function SuperAdminPage() {
   };
 
   const generateSlug = (name: string) => {
-    return name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 50);
+    return name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .slice(0, 50);
   };
 
   const openCreatePlan = () => {
     setEditingPlan(null);
-    setPlanForm({ name: '', slug: '', priceMonthly: 0, priceYearly: 0, features: { maxOrders: 500, maxProducts: 100, maxChannels: 1, maxAgents: 1, aiEnabled: true, reportsEnabled: false, apiAccess: false } });
+    setPlanForm({
+      name: '',
+      slug: '',
+      priceMonthly: 0,
+      priceYearly: 0,
+      features: {
+        maxOrders: 500,
+        maxProducts: 100,
+        maxChannels: 1,
+        maxAgents: 1,
+        aiEnabled: true,
+        reportsEnabled: false,
+        apiAccess: false,
+      },
+    });
     setPlanError('');
     setShowPlanModal(true);
   };
@@ -175,17 +232,25 @@ export default function SuperAdminPage() {
 
   const handleTogglePlan = async (planId: string) => {
     await api.patch(`/super-admin/plans/${planId}/toggle`);
-    setPlans(plans.map(p => p.id === planId ? { ...p, isActive: !p.isActive } : p));
+    setPlans(plans.map((p) => (p.id === planId ? { ...p, isActive: !p.isActive } : p)));
   };
 
   const handleSendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!broadcastMsg.trim()) return;
-    if (!confirm(`¿Enviar mensaje a ${broadcastFilter === 'all' ? 'TODOS' : broadcastFilter} los tenants?`)) return;
+    if (
+      !confirm(
+        `¿Enviar mensaje a ${broadcastFilter === 'all' ? 'TODOS' : broadcastFilter} los tenants?`,
+      )
+    )
+      return;
     setBroadcasting(true);
     setBroadcastResult(null);
     try {
-      const res = await api.post('/super-admin/broadcast', { message: broadcastMsg, filter: broadcastFilter });
+      const res = await api.post('/super-admin/broadcast', {
+        message: broadcastMsg,
+        filter: broadcastFilter,
+      });
       setBroadcastResult(res);
       setBroadcastMsg('');
       const b = await api.get('/super-admin/broadcasts');
@@ -210,27 +275,37 @@ export default function SuperAdminPage() {
     }
   };
 
-  if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-gray-400">Cargando...</div>;
+  if (loading)
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center text-gray-400">
+        Cargando...
+      </div>
+    );
 
   // Calculate revenue metrics
-  const activeTenants = tenants.filter(t => t.status === 'ACTIVE');
-  const trialTenants = tenants.filter(t => t.status === 'TRIAL');
-  const suspendedTenants = tenants.filter(t => t.status === 'SUSPENDED');
+  const activeTenants = tenants.filter((t) => t.status === 'ACTIVE');
+  const trialTenants = tenants.filter((t) => t.status === 'TRIAL');
+  const suspendedTenants = tenants.filter((t) => t.status === 'SUSPENDED');
 
-  const planPrices: Record<string, number> = { 'basic': 990, 'pro': 1490, 'enterprise': 2499 };
+  const planPrices: Record<string, number> = { basic: 990, pro: 1490, enterprise: 2499 };
   const mrr = activeTenants.reduce((sum, t) => sum + (planPrices[t.plan?.slug] ?? 0), 0);
 
   const subscribersByPlan = {
-    basic: activeTenants.filter(t => t.plan?.slug === 'basic').length,
-    pro: activeTenants.filter(t => t.plan?.slug === 'pro').length,
-    enterprise: activeTenants.filter(t => t.plan?.slug === 'enterprise').length,
+    basic: activeTenants.filter((t) => t.plan?.slug === 'basic').length,
+    pro: activeTenants.filter((t) => t.plan?.slug === 'pro').length,
+    enterprise: activeTenants.filter((t) => t.plan?.slug === 'enterprise').length,
   };
 
-  const filteredTenants = filter === 'all' ? tenants
-    : filter === 'active' ? activeTenants
-    : filter === 'trial' ? trialTenants
-    : filter === 'suspended' ? suspendedTenants
-    : tenants;
+  const filteredTenants =
+    filter === 'all'
+      ? tenants
+      : filter === 'active'
+        ? activeTenants
+        : filter === 'trial'
+          ? trialTenants
+          : filter === 'suspended'
+            ? suspendedTenants
+            : tenants;
 
   const statusColors: Record<string, string> = {
     ACTIVE: 'bg-green-900/40 text-green-300',
@@ -255,14 +330,16 @@ export default function SuperAdminPage() {
 
         {/* Tabs */}
         <div className="flex gap-1 rounded-lg bg-gray-800 p-1 w-fit">
-          {([
-            { key: 'overview', label: '📊 Resumen' },
-            { key: 'revenue', label: '💰 Revenue' },
-            { key: 'tenants', label: '🏢 Tenants' },
-            { key: 'plans', label: '📋 Planes' },
-            { key: 'analytics', label: '📈 Analytics' },
-            { key: 'broadcast', label: '📢 Broadcast' },
-          ] as { key: Tab; label: string }[]).map(t => (
+          {(
+            [
+              { key: 'overview', label: '📊 Resumen' },
+              { key: 'revenue', label: '💰 Revenue' },
+              { key: 'tenants', label: '🏢 Tenants' },
+              { key: 'plans', label: '📋 Planes' },
+              { key: 'analytics', label: '📈 Analytics' },
+              { key: 'broadcast', label: '📢 Broadcast' },
+            ] as { key: Tab; label: string }[]
+          ).map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
@@ -279,10 +356,30 @@ export default function SuperAdminPage() {
         {tab === 'overview' && stats && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <StatCard label="MRR" value={`$${mrr.toLocaleString('es-MX')}`} sub="MXN/mes" color="text-green-400" />
-              <StatCard label="Tenants activos" value={activeTenants.length} sub="pagando" color="text-blue-400" />
-              <StatCard label="En trial" value={trialTenants.length} sub="7 días gratis" color="text-yellow-400" />
-              <StatCard label="Total tenants" value={tenants.length} sub="registrados" color="text-purple-400" />
+              <StatCard
+                label="MRR"
+                value={`$${mrr.toLocaleString('es-MX')}`}
+                sub="MXN/mes"
+                color="text-green-400"
+              />
+              <StatCard
+                label="Tenants activos"
+                value={activeTenants.length}
+                sub="pagando"
+                color="text-blue-400"
+              />
+              <StatCard
+                label="En trial"
+                value={trialTenants.length}
+                sub="7 días gratis"
+                color="text-yellow-400"
+              />
+              <StatCard
+                label="Total tenants"
+                value={tenants.length}
+                sub="registrados"
+                color="text-purple-400"
+              />
             </div>
 
             {/* Test Number Switcher */}
@@ -290,14 +387,18 @@ export default function SuperAdminPage() {
               <div className="rounded-xl border border-yellow-700/50 bg-yellow-900/10 p-5">
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h3 className="text-sm font-semibold text-yellow-300">📱 Número de prueba WhatsApp</h3>
+                    <h3 className="text-sm font-semibold text-yellow-300">
+                      📱 Número de prueba WhatsApp
+                    </h3>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {testNumber.currentTenant
                         ? `Asignado a: ${testNumber.currentTenant.businessName} (${testNumber.currentTenant.slug})`
                         : 'Sin asignar'}
                     </p>
                   </div>
-                  <span className="text-xs text-gray-500 font-mono">{testNumber.phoneNumberId}</span>
+                  <span className="text-xs text-gray-500 font-mono">
+                    {testNumber.phoneNumberId}
+                  </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {testNumber.tenants?.map((t: any) => (
@@ -311,7 +412,8 @@ export default function SuperAdminPage() {
                           : 'border border-gray-600 text-gray-300 hover:border-yellow-500 hover:text-yellow-300'
                       } disabled:opacity-50`}
                     >
-                      {testNumber.currentTenant?.slug === t.slug ? '✓ ' : ''}{t.businessName}
+                      {testNumber.currentTenant?.slug === t.slug ? '✓ ' : ''}
+                      {t.businessName}
                     </button>
                   ))}
                 </div>
@@ -328,12 +430,19 @@ export default function SuperAdminPage() {
             <div className="rounded-xl border border-green-800/50 bg-green-900/20 p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-green-400 font-medium">Monthly Recurring Revenue (MRR)</p>
-                  <p className="text-4xl font-bold text-white mt-1">${mrr.toLocaleString('es-MX')} <span className="text-lg text-gray-400">MXN</span></p>
+                  <p className="text-sm text-green-400 font-medium">
+                    Monthly Recurring Revenue (MRR)
+                  </p>
+                  <p className="text-4xl font-bold text-white mt-1">
+                    ${mrr.toLocaleString('es-MX')}{' '}
+                    <span className="text-lg text-gray-400">MXN</span>
+                  </p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-gray-400">ARR proyectado</p>
-                  <p className="text-xl font-bold text-green-400">${(mrr * 12).toLocaleString('es-MX')}</p>
+                  <p className="text-xl font-bold text-green-400">
+                    ${(mrr * 12).toLocaleString('es-MX')}
+                  </p>
                 </div>
               </div>
             </div>
@@ -369,7 +478,7 @@ export default function SuperAdminPage() {
               <div className="px-6 py-4 border-b border-gray-700 flex items-center justify-between">
                 <h3 className="font-semibold text-white">Suscripciones</h3>
                 <div className="flex gap-2">
-                  {['all', 'active', 'trial', 'suspended'].map(f => (
+                  {['all', 'active', 'trial', 'suspended'].map((f) => (
                     <button
                       key={f}
                       onClick={() => setFilter(f)}
@@ -377,7 +486,13 @@ export default function SuperAdminPage() {
                         filter === f ? 'bg-accent text-white' : 'bg-gray-700 text-gray-400'
                       }`}
                     >
-                      {f === 'all' ? 'Todos' : f === 'active' ? 'Activos' : f === 'trial' ? 'Trial' : 'Vencidos'}
+                      {f === 'all'
+                        ? 'Todos'
+                        : f === 'active'
+                          ? 'Activos'
+                          : f === 'trial'
+                            ? 'Trial'
+                            : 'Vencidos'}
                     </button>
                   ))}
                 </div>
@@ -385,16 +500,22 @@ export default function SuperAdminPage() {
               <table className="w-full text-sm">
                 <thead className="border-b border-gray-700">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Negocio</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                      Negocio
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Plan</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Monto</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Estado</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                      Estado
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Desde</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Acciones</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                      Acciones
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700/50">
-                  {filteredTenants.map(t => (
+                  {filteredTenants.map((t) => (
                     <tr key={t.id} className="hover:bg-gray-750">
                       <td className="px-6 py-3">
                         <p className="text-white font-medium">{t.businessName}</p>
@@ -406,20 +527,32 @@ export default function SuperAdminPage() {
                         <span className="text-xs text-gray-500">/mes</span>
                       </td>
                       <td className="px-6 py-3">
-                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[t.status] ?? ''}`}>
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[t.status] ?? ''}`}
+                        >
                           {t.status}
                         </span>
                       </td>
                       <td className="px-6 py-3 text-gray-400 text-xs">
-                        {new Date(t.createdAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {new Date(t.createdAt).toLocaleDateString('es-MX', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
                       </td>
                       <td className="px-6 py-3">
                         {t.status === 'ACTIVE' || t.status === 'TRIAL' ? (
-                          <button onClick={() => handleSuspend(t.id)} className="text-xs text-red-400 hover:text-red-300">
+                          <button
+                            onClick={() => handleSuspend(t.id)}
+                            className="text-xs text-red-400 hover:text-red-300"
+                          >
                             Suspender
                           </button>
                         ) : t.status === 'SUSPENDED' ? (
-                          <button onClick={() => handleReactivate(t.id)} className="text-xs text-green-400 hover:text-green-300">
+                          <button
+                            onClick={() => handleReactivate(t.id)}
+                            className="text-xs text-green-400 hover:text-green-300"
+                          >
                             Reactivar
                           </button>
                         ) : null}
@@ -440,20 +573,31 @@ export default function SuperAdminPage() {
                 {(() => {
                   // Calculate revenue by month of registration
                   const months: Record<string, { tenants: number; revenue: number }> = {};
-                  activeTenants.forEach(t => {
-                    const month = new Date(t.createdAt).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' });
+                  activeTenants.forEach((t) => {
+                    const month = new Date(t.createdAt).toLocaleDateString('es-MX', {
+                      month: 'short',
+                      year: 'numeric',
+                    });
                     if (!months[month]) months[month] = { tenants: 0, revenue: 0 };
                     months[month].tenants++;
                     months[month].revenue += planPrices[t.plan?.slug] ?? 0;
                   });
                   const entries = Object.entries(months);
-                  if (entries.length === 0) return <p className="text-sm text-gray-500">Sin datos aún</p>;
+                  if (entries.length === 0)
+                    return <p className="text-sm text-gray-500">Sin datos aún</p>;
                   return entries.map(([month, data]) => (
-                    <div key={month} className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0">
+                    <div
+                      key={month}
+                      className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0"
+                    >
                       <span className="text-sm text-gray-300 capitalize">{month}</span>
                       <div className="text-right">
-                        <span className="text-sm font-bold text-green-400">${data.revenue.toLocaleString('es-MX')}</span>
-                        <span className="text-xs text-gray-500 ml-2">({data.tenants} clientes)</span>
+                        <span className="text-sm font-bold text-green-400">
+                          ${data.revenue.toLocaleString('es-MX')}
+                        </span>
+                        <span className="text-xs text-gray-500 ml-2">
+                          ({data.tenants} clientes)
+                        </span>
                       </div>
                     </div>
                   ));
@@ -461,7 +605,9 @@ export default function SuperAdminPage() {
               </div>
               <div className="mt-4 pt-4 border-t border-gray-700 flex justify-between">
                 <span className="text-sm text-gray-400">Revenue total recurrente</span>
-                <span className="text-lg font-bold text-green-400">${mrr.toLocaleString('es-MX')}/mes</span>
+                <span className="text-lg font-bold text-green-400">
+                  ${mrr.toLocaleString('es-MX')}/mes
+                </span>
               </div>
             </div>
           </div>
@@ -486,12 +632,16 @@ export default function SuperAdminPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Slug</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Plan</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Estado</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Trial hasta</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Acciones</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                    Trial hasta
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                    Acciones
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700/50">
-                {tenants.map(t => (
+                {tenants.map((t) => (
                   <tr key={t.id} className="hover:bg-gray-750">
                     <td className="px-6 py-3">
                       <p className="text-white font-medium">{t.businessName}</p>
@@ -500,7 +650,9 @@ export default function SuperAdminPage() {
                     <td className="px-6 py-3 text-gray-400 font-mono text-xs">{t.slug}</td>
                     <td className="px-6 py-3 text-gray-300">{t.plan?.name ?? '—'}</td>
                     <td className="px-6 py-3">
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[t.status] ?? ''}`}>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[t.status] ?? ''}`}
+                      >
                         {t.status}
                       </span>
                     </td>
@@ -508,12 +660,32 @@ export default function SuperAdminPage() {
                       {t.trialEndsAt ? new Date(t.trialEndsAt).toLocaleDateString('es-MX') : '—'}
                     </td>
                     <td className="px-6 py-3 space-x-2">
-                      <a href={`/super-admin/tenants/${t.id}`} className="text-xs text-blue-400 hover:text-blue-300">Ver</a>
-                      <button onClick={() => handleImpersonate(t.id)} className="text-xs text-purple-400 hover:text-purple-300">Entrar</button>
+                      <a
+                        href={`/super-admin/tenants/${t.id}`}
+                        className="text-xs text-blue-400 hover:text-blue-300"
+                      >
+                        Ver
+                      </a>
+                      <button
+                        onClick={() => handleImpersonate(t.id)}
+                        className="text-xs text-purple-400 hover:text-purple-300"
+                      >
+                        Entrar
+                      </button>
                       {t.status === 'ACTIVE' || t.status === 'TRIAL' ? (
-                        <button onClick={() => handleSuspend(t.id)} className="text-xs text-red-400 hover:text-red-300">Suspender</button>
+                        <button
+                          onClick={() => handleSuspend(t.id)}
+                          className="text-xs text-red-400 hover:text-red-300"
+                        >
+                          Suspender
+                        </button>
                       ) : t.status === 'SUSPENDED' ? (
-                        <button onClick={() => handleReactivate(t.id)} className="text-xs text-green-400 hover:text-green-300">Reactivar</button>
+                        <button
+                          onClick={() => handleReactivate(t.id)}
+                          className="text-xs text-green-400 hover:text-green-300"
+                        >
+                          Reactivar
+                        </button>
                       ) : null}
                     </td>
                   </tr>
@@ -530,27 +702,38 @@ export default function SuperAdminPage() {
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
                 <p className="text-xs text-gray-400 mb-1">Churn Rate</p>
-                <p className={`text-2xl font-bold ${analytics.churnRate > 10 ? 'text-red-400' : analytics.churnRate > 5 ? 'text-yellow-400' : 'text-green-400'}`}>
+                <p
+                  className={`text-2xl font-bold ${analytics.churnRate > 10 ? 'text-red-400' : analytics.churnRate > 5 ? 'text-yellow-400' : 'text-green-400'}`}
+                >
                   {analytics.churnRate}%
                 </p>
                 <p className="text-xs text-gray-500 mt-1">mensual</p>
               </div>
               <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
                 <p className="text-xs text-gray-400 mb-1">Conversión Trial→Paid</p>
-                <p className={`text-2xl font-bold ${analytics.conversionRate > 30 ? 'text-green-400' : analytics.conversionRate > 15 ? 'text-yellow-400' : 'text-red-400'}`}>
+                <p
+                  className={`text-2xl font-bold ${analytics.conversionRate > 30 ? 'text-green-400' : analytics.conversionRate > 15 ? 'text-yellow-400' : 'text-red-400'}`}
+                >
                   {analytics.conversionRate}%
                 </p>
-                <p className="text-xs text-gray-500 mt-1">{analytics.activeTenants}/{analytics.totalTenants}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {analytics.activeTenants}/{analytics.totalTenants}
+                </p>
               </div>
               <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
                 <p className="text-xs text-gray-400 mb-1">LTV estimado</p>
-                <p className="text-2xl font-bold text-blue-400">${analytics.ltv.toLocaleString('es-MX')}</p>
+                <p className="text-2xl font-bold text-blue-400">
+                  ${analytics.ltv.toLocaleString('es-MX')}
+                </p>
                 <p className="text-xs text-gray-500 mt-1">por cliente</p>
               </div>
               <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
                 <p className="text-xs text-gray-400 mb-1">Crecimiento</p>
-                <p className={`text-2xl font-bold ${analytics.growthRate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {analytics.growthRate > 0 ? '+' : ''}{analytics.growthRate}%
+                <p
+                  className={`text-2xl font-bold ${analytics.growthRate >= 0 ? 'text-green-400' : 'text-red-400'}`}
+                >
+                  {analytics.growthRate > 0 ? '+' : ''}
+                  {analytics.growthRate}%
                 </p>
                 <p className="text-xs text-gray-500 mt-1">vs mes anterior</p>
               </div>
@@ -563,7 +746,9 @@ export default function SuperAdminPage() {
 
             {/* Monthly Signups Chart */}
             <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
-              <h3 className="font-semibold text-white mb-4">Registros mensuales (últimos 6 meses)</h3>
+              <h3 className="font-semibold text-white mb-4">
+                Registros mensuales (últimos 6 meses)
+              </h3>
               <div className="flex items-end gap-3 h-32">
                 {analytics.monthlySignups?.map((m: any) => {
                   const max = Math.max(...analytics.monthlySignups.map((s: any) => s.count), 1);
@@ -592,11 +777,21 @@ export default function SuperAdminPage() {
                   <thead className="border-b border-gray-700">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">#</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Negocio</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Plan</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Pedidos</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Mensajes</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">IA Calls</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                        Negocio
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                        Plan
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                        Pedidos
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                        Mensajes
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                        IA Calls
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700/50">
@@ -630,18 +825,28 @@ export default function SuperAdminPage() {
               <h3 className="font-semibold text-white mb-4">Enviar mensaje masivo por WhatsApp</h3>
               <form onSubmit={handleSendBroadcast} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1">Destinatarios</label>
+                  <label className="block text-xs font-medium text-gray-400 mb-1">
+                    Destinatarios
+                  </label>
                   <div className="flex gap-2">
-                    {(['all', 'active', 'trial', 'suspended'] as const).map(f => (
+                    {(['all', 'active', 'trial', 'suspended'] as const).map((f) => (
                       <button
                         key={f}
                         type="button"
                         onClick={() => setBroadcastFilter(f)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                          broadcastFilter === f ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'
+                          broadcastFilter === f
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-700 text-gray-400 hover:text-white'
                         }`}
                       >
-                        {f === 'all' ? 'Todos' : f === 'active' ? 'Activos' : f === 'trial' ? 'En trial' : 'Suspendidos'}
+                        {f === 'all'
+                          ? 'Todos'
+                          : f === 'active'
+                            ? 'Activos'
+                            : f === 'trial'
+                              ? 'En trial'
+                              : 'Suspendidos'}
                       </button>
                     ))}
                   </div>
@@ -668,8 +873,12 @@ export default function SuperAdminPage() {
               </form>
 
               {broadcastResult && (
-                <div className={`mt-4 rounded-lg px-4 py-3 ${broadcastResult.success ? 'bg-green-900/50 border border-green-700' : 'bg-red-900/50 border border-red-700'}`}>
-                  <p className={`text-sm ${broadcastResult.success ? 'text-green-300' : 'text-red-300'}`}>
+                <div
+                  className={`mt-4 rounded-lg px-4 py-3 ${broadcastResult.success ? 'bg-green-900/50 border border-green-700' : 'bg-red-900/50 border border-red-700'}`}
+                >
+                  <p
+                    className={`text-sm ${broadcastResult.success ? 'text-green-300' : 'text-red-300'}`}
+                  >
                     {broadcastResult.success
                       ? `Enviado a ${broadcastResult.sentCount}/${broadcastResult.recipientsCount} tenants (${broadcastResult.failedCount} fallidos)`
                       : `Error: ${broadcastResult.error}`}
@@ -687,24 +896,45 @@ export default function SuperAdminPage() {
                 <table className="w-full text-sm">
                   <thead className="border-b border-gray-700">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Fecha</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Mensaje</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Filtro</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Enviados</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Fallidos</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                        Fecha
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                        Mensaje
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                        Filtro
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                        Enviados
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                        Fallidos
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700/50">
                     {broadcasts.map((b: any) => (
                       <tr key={b.id}>
                         <td className="px-6 py-3 text-gray-300 text-xs whitespace-nowrap">
-                          {new Date(b.createdAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          {new Date(b.createdAt).toLocaleDateString('es-MX', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                         </td>
-                        <td className="px-6 py-3 text-white text-xs max-w-xs truncate">{b.message}</td>
+                        <td className="px-6 py-3 text-white text-xs max-w-xs truncate">
+                          {b.message}
+                        </td>
                         <td className="px-6 py-3">
-                          <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs text-gray-300">{b.filter}</span>
+                          <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs text-gray-300">
+                            {b.filter}
+                          </span>
                         </td>
-                        <td className="px-6 py-3 text-green-400 font-medium">{b.sentCount}/{b.recipientsCount}</td>
+                        <td className="px-6 py-3 text-green-400 font-medium">
+                          {b.sentCount}/{b.recipientsCount}
+                        </td>
                         <td className="px-6 py-3 text-red-400">{b.failedCount}</td>
                       </tr>
                     ))}
@@ -718,11 +948,22 @@ export default function SuperAdminPage() {
             {/* Auto notifications info */}
             <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
               <h3 className="font-semibold text-white mb-2">Notificaciones automáticas</h3>
-              <p className="text-sm text-gray-400 mb-3">Estos mensajes se envían automáticamente sin intervención:</p>
+              <p className="text-sm text-gray-400 mb-3">
+                Estos mensajes se envían automáticamente sin intervención:
+              </p>
               <ul className="space-y-2 text-sm text-gray-300">
-                <li className="flex items-center gap-2"><span className="text-yellow-400">⏰</span> Trial expira en 2 días — recordatorio diario a las 10:00 AM</li>
-                <li className="flex items-center gap-2"><span className="text-red-400">🔔</span> Trial expirado hoy — notificación el día que vence</li>
-                <li className="flex items-center gap-2"><span className="text-blue-400">💳</span> Cobro próximo — recordatorio el día 28 de cada mes</li>
+                <li className="flex items-center gap-2">
+                  <span className="text-yellow-400">⏰</span> Trial expira en 2 días — recordatorio
+                  diario a las 10:00 AM
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-red-400">🔔</span> Trial expirado hoy — notificación el día
+                  que vence
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-400">💳</span> Cobro próximo — recordatorio el día 28
+                  de cada mes
+                </li>
               </ul>
             </div>
           </div>
@@ -744,41 +985,74 @@ export default function SuperAdminPage() {
               <table className="w-full text-sm">
                 <thead className="border-b border-gray-700">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Nombre</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                      Nombre
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Slug</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Precio/mes</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Precio/año</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Límites</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Estado</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Acciones</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                      Precio/mes
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                      Precio/año
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                      Límites
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                      Estado
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">
+                      Acciones
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700/50">
-                  {plans.map(p => (
+                  {plans.map((p) => (
                     <tr key={p.id} className="hover:bg-gray-750">
                       <td className="px-6 py-3 text-white font-medium">{p.name}</td>
                       <td className="px-6 py-3 text-gray-400 font-mono text-xs">{p.slug}</td>
-                      <td className="px-6 py-3 text-white">${parseFloat(p.priceMonthly).toLocaleString('es-MX')}</td>
-                      <td className="px-6 py-3 text-gray-300">${parseFloat(p.priceYearly).toLocaleString('es-MX')}</td>
+                      <td className="px-6 py-3 text-white">
+                        ${parseFloat(p.priceMonthly).toLocaleString('es-MX')}
+                      </td>
+                      <td className="px-6 py-3 text-gray-300">
+                        ${parseFloat(p.priceYearly).toLocaleString('es-MX')}
+                      </td>
                       <td className="px-6 py-3">
                         <div className="flex flex-wrap gap-1">
-                          {p.features?.maxOrders && <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">{p.features.maxOrders} pedidos</span>}
-                          {p.features?.maxChannels && <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">{p.features.maxChannels} canales</span>}
-                          {p.features?.apiAccess && <span className="text-xs bg-purple-900/50 text-purple-300 px-1.5 py-0.5 rounded">API</span>}
+                          {p.features?.maxOrders && (
+                            <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">
+                              {p.features.maxOrders} pedidos
+                            </span>
+                          )}
+                          {p.features?.maxChannels && (
+                            <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">
+                              {p.features.maxChannels} canales
+                            </span>
+                          )}
+                          {p.features?.apiAccess && (
+                            <span className="text-xs bg-purple-900/50 text-purple-300 px-1.5 py-0.5 rounded">
+                              API
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-3">
                         <button
                           onClick={() => handleTogglePlan(p.id)}
                           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            p.isActive ? 'bg-green-900/40 text-green-300' : 'bg-red-900/40 text-red-300'
+                            p.isActive
+                              ? 'bg-green-900/40 text-green-300'
+                              : 'bg-red-900/40 text-red-300'
                           }`}
                         >
                           {p.isActive ? 'Activo' : 'Inactivo'}
                         </button>
                       </td>
                       <td className="px-6 py-3">
-                        <button onClick={() => openEditPlan(p)} className="text-xs text-blue-400 hover:text-blue-300">
+                        <button
+                          onClick={() => openEditPlan(p)}
+                          className="text-xs text-blue-400 hover:text-blue-300"
+                        >
                           Editar
                         </button>
                       </td>
@@ -798,8 +1072,15 @@ export default function SuperAdminPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
             <div className="w-full max-w-lg rounded-2xl bg-gray-800 border border-gray-700 p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-semibold text-white">{editingPlan ? 'Editar plan' : 'Nuevo plan'}</h2>
-                <button onClick={() => setShowPlanModal(false)} className="text-gray-400 hover:text-white text-xl">&times;</button>
+                <h2 className="text-lg font-semibold text-white">
+                  {editingPlan ? 'Editar plan' : 'Nuevo plan'}
+                </h2>
+                <button
+                  onClick={() => setShowPlanModal(false)}
+                  className="text-gray-400 hover:text-white text-xl"
+                >
+                  &times;
+                </button>
               </div>
 
               {planError && (
@@ -826,7 +1107,12 @@ export default function SuperAdminPage() {
                     <input
                       type="text"
                       value={planForm.slug}
-                      onChange={(e) => setPlanForm({ ...planForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+                      onChange={(e) =>
+                        setPlanForm({
+                          ...planForm,
+                          slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+                        })
+                      }
                       required
                       disabled={!!editingPlan}
                       placeholder="pro"
@@ -837,22 +1123,30 @@ export default function SuperAdminPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1">Precio mensual (MXN)</label>
+                    <label className="block text-xs font-medium text-gray-400 mb-1">
+                      Precio mensual (MXN)
+                    </label>
                     <input
                       type="number"
                       value={planForm.priceMonthly}
-                      onChange={(e) => setPlanForm({ ...planForm, priceMonthly: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) =>
+                        setPlanForm({ ...planForm, priceMonthly: parseFloat(e.target.value) || 0 })
+                      }
                       required
                       min={0}
                       className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1">Precio anual (MXN)</label>
+                    <label className="block text-xs font-medium text-gray-400 mb-1">
+                      Precio anual (MXN)
+                    </label>
                     <input
                       type="number"
                       value={planForm.priceYearly}
-                      onChange={(e) => setPlanForm({ ...planForm, priceYearly: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) =>
+                        setPlanForm({ ...planForm, priceYearly: parseFloat(e.target.value) || 0 })
+                      }
                       required
                       min={0}
                       className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -861,14 +1155,24 @@ export default function SuperAdminPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-2">Límites y features</label>
+                  <label className="block text-xs font-medium text-gray-400 mb-2">
+                    Límites y features
+                  </label>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs text-gray-500">Max pedidos/mes</label>
                       <input
                         type="number"
                         value={planForm.features.maxOrders ?? 0}
-                        onChange={(e) => setPlanForm({ ...planForm, features: { ...planForm.features, maxOrders: parseInt(e.target.value) || 0 } })}
+                        onChange={(e) =>
+                          setPlanForm({
+                            ...planForm,
+                            features: {
+                              ...planForm.features,
+                              maxOrders: parseInt(e.target.value) || 0,
+                            },
+                          })
+                        }
                         className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
@@ -877,7 +1181,15 @@ export default function SuperAdminPage() {
                       <input
                         type="number"
                         value={planForm.features.maxProducts ?? 0}
-                        onChange={(e) => setPlanForm({ ...planForm, features: { ...planForm.features, maxProducts: parseInt(e.target.value) || 0 } })}
+                        onChange={(e) =>
+                          setPlanForm({
+                            ...planForm,
+                            features: {
+                              ...planForm.features,
+                              maxProducts: parseInt(e.target.value) || 0,
+                            },
+                          })
+                        }
                         className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
@@ -886,7 +1198,15 @@ export default function SuperAdminPage() {
                       <input
                         type="number"
                         value={planForm.features.maxChannels ?? 0}
-                        onChange={(e) => setPlanForm({ ...planForm, features: { ...planForm.features, maxChannels: parseInt(e.target.value) || 0 } })}
+                        onChange={(e) =>
+                          setPlanForm({
+                            ...planForm,
+                            features: {
+                              ...planForm.features,
+                              maxChannels: parseInt(e.target.value) || 0,
+                            },
+                          })
+                        }
                         className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
@@ -895,7 +1215,15 @@ export default function SuperAdminPage() {
                       <input
                         type="number"
                         value={planForm.features.maxAgents ?? 0}
-                        onChange={(e) => setPlanForm({ ...planForm, features: { ...planForm.features, maxAgents: parseInt(e.target.value) || 0 } })}
+                        onChange={(e) =>
+                          setPlanForm({
+                            ...planForm,
+                            features: {
+                              ...planForm.features,
+                              maxAgents: parseInt(e.target.value) || 0,
+                            },
+                          })
+                        }
                         className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
@@ -905,7 +1233,12 @@ export default function SuperAdminPage() {
                       <input
                         type="checkbox"
                         checked={planForm.features.aiEnabled ?? false}
-                        onChange={(e) => setPlanForm({ ...planForm, features: { ...planForm.features, aiEnabled: e.target.checked } })}
+                        onChange={(e) =>
+                          setPlanForm({
+                            ...planForm,
+                            features: { ...planForm.features, aiEnabled: e.target.checked },
+                          })
+                        }
                         className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-500"
                       />
                       <span className="text-xs text-gray-300">IA habilitada</span>
@@ -914,7 +1247,12 @@ export default function SuperAdminPage() {
                       <input
                         type="checkbox"
                         checked={planForm.features.reportsEnabled ?? false}
-                        onChange={(e) => setPlanForm({ ...planForm, features: { ...planForm.features, reportsEnabled: e.target.checked } })}
+                        onChange={(e) =>
+                          setPlanForm({
+                            ...planForm,
+                            features: { ...planForm.features, reportsEnabled: e.target.checked },
+                          })
+                        }
                         className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-500"
                       />
                       <span className="text-xs text-gray-300">Reportes avanzados</span>
@@ -923,7 +1261,12 @@ export default function SuperAdminPage() {
                       <input
                         type="checkbox"
                         checked={planForm.features.apiAccess ?? false}
-                        onChange={(e) => setPlanForm({ ...planForm, features: { ...planForm.features, apiAccess: e.target.checked } })}
+                        onChange={(e) =>
+                          setPlanForm({
+                            ...planForm,
+                            features: { ...planForm.features, apiAccess: e.target.checked },
+                          })
+                        }
                         className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-500"
                       />
                       <span className="text-xs text-gray-300">Acceso API</span>
@@ -958,7 +1301,12 @@ export default function SuperAdminPage() {
             <div className="w-full max-w-lg rounded-2xl bg-gray-800 border border-gray-700 p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-lg font-semibold text-white">Nuevo cliente</h2>
-                <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-white text-xl">&times;</button>
+                <button
+                  onClick={() => setShowCreate(false)}
+                  className="text-gray-400 hover:text-white text-xl"
+                >
+                  &times;
+                </button>
               </div>
 
               {createError && (
@@ -970,7 +1318,9 @@ export default function SuperAdminPage() {
               <form onSubmit={handleCreateTenant} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1">Nombre del dueño</label>
+                    <label className="block text-xs font-medium text-gray-400 mb-1">
+                      Nombre del dueño
+                    </label>
                     <input
                       type="text"
                       value={newTenant.ownerName}
@@ -992,7 +1342,9 @@ export default function SuperAdminPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1">Nombre del negocio</label>
+                  <label className="block text-xs font-medium text-gray-400 mb-1">
+                    Nombre del negocio
+                  </label>
                   <input
                     type="text"
                     value={newTenant.businessName}
@@ -1007,17 +1359,26 @@ export default function SuperAdminPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1">Slug (URL)</label>
+                    <label className="block text-xs font-medium text-gray-400 mb-1">
+                      Slug (URL)
+                    </label>
                     <input
                       type="text"
                       value={newTenant.slug}
-                      onChange={(e) => setNewTenant({ ...newTenant, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+                      onChange={(e) =>
+                        setNewTenant({
+                          ...newTenant,
+                          slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+                        })
+                      }
                       required
                       className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1">Contraseña</label>
+                    <label className="block text-xs font-medium text-gray-400 mb-1">
+                      Contraseña
+                    </label>
                     <input
                       type="text"
                       value={newTenant.password}
@@ -1037,8 +1398,10 @@ export default function SuperAdminPage() {
                       onChange={(e) => setNewTenant({ ...newTenant, industry: e.target.value })}
                       className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      {INDUSTRIES.map(i => (
-                        <option key={i.value} value={i.value}>{i.label}</option>
+                      {INDUSTRIES.map((i) => (
+                        <option key={i.value} value={i.value}>
+                          {i.label}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -1058,11 +1421,15 @@ export default function SuperAdminPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1">Días de trial</label>
+                    <label className="block text-xs font-medium text-gray-400 mb-1">
+                      Días de trial
+                    </label>
                     <input
                       type="number"
                       value={newTenant.trialDays}
-                      onChange={(e) => setNewTenant({ ...newTenant, trialDays: parseInt(e.target.value) || 7 })}
+                      onChange={(e) =>
+                        setNewTenant({ ...newTenant, trialDays: parseInt(e.target.value) || 7 })
+                      }
                       min={0}
                       max={90}
                       className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1073,7 +1440,9 @@ export default function SuperAdminPage() {
                       <input
                         type="checkbox"
                         checked={newTenant.skipPayment}
-                        onChange={(e) => setNewTenant({ ...newTenant, skipPayment: e.target.checked })}
+                        onChange={(e) =>
+                          setNewTenant({ ...newTenant, skipPayment: e.target.checked })
+                        }
                         className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-blue-500"
                       />
                       <span className="text-sm text-gray-300">Activar sin pago</span>
@@ -1106,7 +1475,17 @@ export default function SuperAdminPage() {
   );
 }
 
-function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color: string }) {
+function StatCard({
+  label,
+  value,
+  sub,
+  color,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  color: string;
+}) {
   return (
     <div className="rounded-xl border border-gray-700 bg-gray-800 p-5">
       <p className={`text-2xl font-bold ${color}`}>{value}</p>
@@ -1116,14 +1495,32 @@ function StatCard({ label, value, sub, color }: { label: string; value: string |
   );
 }
 
-function PlanCard({ name, price, subscribers, revenue, color, popular }: {
-  name: string; price: string; subscribers: number; revenue: number; color: string; popular?: boolean;
+function PlanCard({
+  name,
+  price,
+  subscribers,
+  revenue,
+  color,
+  popular,
+}: {
+  name: string;
+  price: string;
+  subscribers: number;
+  revenue: number;
+  color: string;
+  popular?: boolean;
 }) {
   return (
-    <div className={`rounded-xl border ${color} bg-gray-800 p-5 ${popular ? 'ring-1 ring-purple-500/50' : ''}`}>
+    <div
+      className={`rounded-xl border ${color} bg-gray-800 p-5 ${popular ? 'ring-1 ring-purple-500/50' : ''}`}
+    >
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-white font-semibold">{name}</h4>
-        {popular && <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded-full">Popular</span>}
+        {popular && (
+          <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded-full">
+            Popular
+          </span>
+        )}
       </div>
       <p className="text-gray-400 text-sm">{price}/mes</p>
       <div className="mt-4 pt-3 border-t border-gray-700 grid grid-cols-2 gap-4">

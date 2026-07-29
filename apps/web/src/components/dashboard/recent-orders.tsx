@@ -1,10 +1,34 @@
 'use client';
 
 const orders = [
-  { number: 'ORD-2026-00005', customer: 'Ana Martinez', status: 'new', total: '$25', time: 'Hace 5 min' },
-  { number: 'ORD-2026-00004', customer: 'María López', status: 'payment_verified', total: '$150', time: 'Hace 20 min' },
-  { number: 'ORD-2026-00003', customer: 'Carlos Ruiz', status: 'in_production', total: '$75', time: 'Hace 1 hora' },
-  { number: 'ORD-2026-00002', customer: 'Laura Sánchez', status: 'ready', total: '$200', time: 'Hace 2 horas' },
+  {
+    number: 'ORD-2026-00005',
+    customer: 'Ana Martinez',
+    status: 'new',
+    total: '$25',
+    time: 'Hace 5 min',
+  },
+  {
+    number: 'ORD-2026-00004',
+    customer: 'María López',
+    status: 'payment_verified',
+    total: '$150',
+    time: 'Hace 20 min',
+  },
+  {
+    number: 'ORD-2026-00003',
+    customer: 'Carlos Ruiz',
+    status: 'in_production',
+    total: '$75',
+    time: 'Hace 1 hora',
+  },
+  {
+    number: 'ORD-2026-00002',
+    customer: 'Laura Sánchez',
+    status: 'ready',
+    total: '$200',
+    time: 'Hace 2 horas',
+  },
 ];
 
 const statusColors: Record<string, string> = {
@@ -45,11 +69,15 @@ export function RecentOrders() {
           <div key={order.number} className="flex items-center justify-between px-5 py-3">
             <div>
               <p className="text-sm font-medium text-gray-900">{order.number}</p>
-              <p className="text-xs text-gray-500">{order.customer} · {order.time}</p>
+              <p className="text-xs text-gray-500">
+                {order.customer} · {order.time}
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-gray-900">{order.total}</span>
-              <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[order.status]}`}>
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[order.status]}`}
+              >
                 {statusLabels[order.status]}
               </span>
             </div>

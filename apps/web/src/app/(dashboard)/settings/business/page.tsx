@@ -51,7 +51,11 @@ export default function BusinessSettingsPage() {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setForm({ ...form, lat: pos.coords.latitude.toString(), lng: pos.coords.longitude.toString() });
+        setForm({
+          ...form,
+          lat: pos.coords.latitude.toString(),
+          lng: pos.coords.longitude.toString(),
+        });
         setLocating(false);
       },
       () => {
@@ -79,49 +83,75 @@ export default function BusinessSettingsPage() {
 
       <div className="rounded-xl border border-card-border bg-card p-6 space-y-5">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1.5">Nombre del negocio</label>
-          <input value={form.businessName} onChange={(e) => setForm({ ...form, businessName: e.target.value })} placeholder="Mi Negocio" className="vspro-input w-full" />
+          <label className="block text-sm font-medium text-gray-300 mb-1.5">
+            Nombre del negocio
+          </label>
+          <input
+            value={form.businessName}
+            onChange={(e) => setForm({ ...form, businessName: e.target.value })}
+            placeholder="Mi Negocio"
+            className="vspro-input w-full"
+          />
         </div>
 
-          {/* Industry */}
-          <div className="space-y-2">
-            <label className="text-sm text-gray-300">Tipo de negocio</label>
-            <select
-              value={form.industry}
-              onChange={(e) => setForm({ ...form, industry: e.target.value })}
-              className="vspro-input"
-            >
-              <option value="">Selecciona...</option>
-              <option value="restaurante">🍽️ Restaurante / Comida</option>
-              <option value="barberia">💈 Barbería / Estética</option>
-              <option value="ropa">👕 Ropa / Ecommerce</option>
-              <option value="clinica">🏥 Clínica / Salud</option>
-              <option value="inmobiliaria">🏠 Inmobiliaria / Rentas</option>
-              <option value="taller">🔧 Taller / Servicios</option>
-              <option value="ecommerce">🛒 Tienda Online</option>
-            </select>
-            <p className="text-xs text-gray-500">Define el flujo del agente IA y las opciones del dashboard</p>
-          </div>
+        {/* Industry */}
+        <div className="space-y-2">
+          <label className="text-sm text-gray-300">Tipo de negocio</label>
+          <select
+            value={form.industry}
+            onChange={(e) => setForm({ ...form, industry: e.target.value })}
+            className="vspro-input"
+          >
+            <option value="">Selecciona...</option>
+            <option value="restaurante">🍽️ Restaurante / Comida</option>
+            <option value="barberia">💈 Barbería / Estética</option>
+            <option value="ropa">👕 Ropa / Ecommerce</option>
+            <option value="clinica">🏥 Clínica / Salud</option>
+            <option value="inmobiliaria">🏠 Inmobiliaria / Rentas</option>
+            <option value="taller">🔧 Taller / Servicios</option>
+            <option value="ecommerce">🛒 Tienda Online</option>
+          </select>
+          <p className="text-xs text-gray-500">
+            Define el flujo del agente IA y las opciones del dashboard
+          </p>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1.5">Teléfono</label>
-            <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+52 984 123 4567" className="vspro-input w-full" />
+            <input
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              placeholder="+52 984 123 4567"
+              className="vspro-input w-full"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
-            <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="contacto@minegocio.com" className="vspro-input w-full" />
+            <input
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              placeholder="contacto@minegocio.com"
+              className="vspro-input w-full"
+            />
           </div>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-1.5">Dirección</label>
-          <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Calle, Colonia, Ciudad" className="vspro-input w-full" />
+          <input
+            value={form.address}
+            onChange={(e) => setForm({ ...form, address: e.target.value })}
+            placeholder="Calle, Colonia, Ciudad"
+            className="vspro-input w-full"
+          />
         </div>
 
         {/* Location picker */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1.5">Ubicación en mapa</label>
+          <label className="block text-sm font-medium text-gray-300 mb-1.5">
+            Ubicación en mapa
+          </label>
           <div className="flex gap-2 mb-2">
             <button
               onClick={handleGetLocation}
@@ -131,7 +161,12 @@ export default function BusinessSettingsPage() {
               {locating ? '📍 Obteniendo...' : '📍 Usar mi ubicación actual'}
             </button>
             {hasLocation && (
-              <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-gray-600 px-3 py-2 text-xs text-gray-300 hover:text-white">
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-gray-600 px-3 py-2 text-xs text-gray-300 hover:text-white"
+              >
                 🗺️ Ver en Google Maps
               </a>
             )}
@@ -164,7 +199,10 @@ export default function BusinessSettingsPage() {
             </div>
           )}
           {!hasLocation && (
-            <p className="text-xs text-gray-500">Haz clic en "Usar mi ubicación" o ingresa las coordenadas manualmente. Los clientes podrán ver tu ubicación cuando pregunten.</p>
+            <p className="text-xs text-gray-500">
+              Haz clic en "Usar mi ubicación" o ingresa las coordenadas manualmente. Los clientes
+              podrán ver tu ubicación cuando pregunten.
+            </p>
           )}
         </div>
 
@@ -173,25 +211,49 @@ export default function BusinessSettingsPage() {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-lg w-6">📸</span>
-              <input value={form.instagram} onChange={(e) => setForm({ ...form, instagram: e.target.value })} placeholder="@minegocio" className="vspro-input flex-1" />
+              <input
+                value={form.instagram}
+                onChange={(e) => setForm({ ...form, instagram: e.target.value })}
+                placeholder="@minegocio"
+                className="vspro-input flex-1"
+              />
             </div>
             <div className="flex items-center gap-2">
               <span className="text-lg w-6">📘</span>
-              <input value={form.facebook} onChange={(e) => setForm({ ...form, facebook: e.target.value })} placeholder="facebook.com/minegocio" className="vspro-input flex-1" />
+              <input
+                value={form.facebook}
+                onChange={(e) => setForm({ ...form, facebook: e.target.value })}
+                placeholder="facebook.com/minegocio"
+                className="vspro-input flex-1"
+              />
             </div>
             <div className="flex items-center gap-2">
               <span className="text-lg w-6">🎵</span>
-              <input value={form.tiktok} onChange={(e) => setForm({ ...form, tiktok: e.target.value })} placeholder="@minegocio" className="vspro-input flex-1" />
+              <input
+                value={form.tiktok}
+                onChange={(e) => setForm({ ...form, tiktok: e.target.value })}
+                placeholder="@minegocio"
+                className="vspro-input flex-1"
+              />
             </div>
             <div className="flex items-center gap-2">
               <span className="text-lg w-6">🌐</span>
-              <input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="www.minegocio.com" className="vspro-input flex-1" />
+              <input
+                value={form.website}
+                onChange={(e) => setForm({ ...form, website: e.target.value })}
+                placeholder="www.minegocio.com"
+                className="vspro-input flex-1"
+              />
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-3 pt-2">
-          <button onClick={handleSave} disabled={saving} className="vspro-btn-primary disabled:opacity-50">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="vspro-btn-primary disabled:opacity-50"
+          >
             {saving ? 'Guardando...' : 'Guardar datos'}
           </button>
           {saved && <span className="text-sm text-green-400">✓ Guardado</span>}

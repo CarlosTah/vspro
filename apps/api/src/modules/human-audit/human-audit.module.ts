@@ -37,11 +37,7 @@ import { AuditTrailService } from './audit-trail.service';
     }),
   ],
   controllers: [HumanAuditController],
-  providers: [
-    HumanAuditService,
-    ApprovalWorkflowService,
-    AuditTrailService,
-  ],
+  providers: [HumanAuditService, ApprovalWorkflowService, AuditTrailService],
   exports: [HumanAuditService, ApprovalWorkflowService, AuditTrailService],
 })
 export class HumanAuditModule {}

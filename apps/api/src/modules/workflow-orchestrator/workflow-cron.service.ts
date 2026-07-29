@@ -129,10 +129,13 @@ export class WorkflowCronService {
 
   private async scanTenantCampaigns(tenant: { id: string; schemaName: string }): Promise<void> {
     // Check if retention_campaigns table exists
-    const tableExists = await this.prisma.$queryRawUnsafe<any[]>(`
+    const tableExists = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT 1 FROM information_schema.tables
       WHERE table_schema = $1 AND table_name = 'retention_campaigns'
-    `, tenant.schemaName);
+    `,
+      tenant.schemaName,
+    );
 
     if (tableExists.length === 0) return;
 
@@ -145,22 +148,26 @@ export class WorkflowCronService {
 
     for (const campaign of dueCampaigns) {
       if (this.isCronDue(campaign.schedule_cron, campaign.last_run)) {
-        await this.workflowQueue.add('workflow-event', {
-          type: 'workflow-event',
-          tenantId: tenant.id,
-          schemaName: tenant.schemaName,
-          event: {
-            id: `cron-${campaign.id}-${Date.now()}`,
-            type: 'campaign.activated',
+        await this.workflowQueue.add(
+          'workflow-event',
+          {
+            type: 'workflow-event',
             tenantId: tenant.id,
             schemaName: tenant.schemaName,
-            payload: { campaignId: campaign.id, campaignName: campaign.name, trigger: 'cron' },
-            metadata: { source: 'retention' },
-            createdAt: new Date().toISOString(),
+            event: {
+              id: `cron-${campaign.id}-${Date.now()}`,
+              type: 'campaign.activated',
+              tenantId: tenant.id,
+              schemaName: tenant.schemaName,
+              payload: { campaignId: campaign.id, campaignName: campaign.name, trigger: 'cron' },
+              metadata: { source: 'retention' },
+              createdAt: new Date().toISOString(),
+            },
           },
-        }, {
-          jobId: `campaign-exec-${campaign.id}-${Date.now()}`,
-        });
+          {
+            jobId: `campaign-exec-${campaign.id}-${Date.now()}`,
+          },
+        );
       }
     }
   }

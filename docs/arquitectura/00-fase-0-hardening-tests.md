@@ -27,7 +27,6 @@ Todo lo externo se mockea.
 // apps/api/src/modules/ai/__tests__/ai-engine.service.spec.ts
 
 describe('AiEngineService', () => {
-
   describe('buildSystemPrompt', () => {
     it('incluye el nombre del asistente configurado por el tenant', () => {
       const config = { assistantName: 'Lupita', tone: 'friendly' } as AiConfig;
@@ -55,21 +54,23 @@ describe('AiEngineService', () => {
   describe('handleToolCalls', () => {
     it('llama a ordersService.create cuando la IA invoca create_order', async () => {
       const mockResponse = buildMockOpenAIResponse({
-        tool_calls: [{
-          function: {
-            name: 'create_order',
-            arguments: JSON.stringify({
-              items: [{ product_id: 'prod-1', quantity: 2 }]
-            })
-          }
-        }]
+        tool_calls: [
+          {
+            function: {
+              name: 'create_order',
+              arguments: JSON.stringify({
+                items: [{ product_id: 'prod-1', quantity: 2 }],
+              }),
+            },
+          },
+        ],
       });
 
       await service.handleToolCalls(mockTenant, mockResponse, mockConversation);
 
       expect(ordersService.create).toHaveBeenCalledWith(
         expect.objectContaining({ items: expect.any(Array) }),
-        mockTenant.schemaName
+        mockTenant.schemaName,
       );
     });
   });
@@ -80,40 +81,35 @@ describe('AiEngineService', () => {
 // apps/api/src/modules/payments/__tests__/payment-verification.service.spec.ts
 
 describe('PaymentVerificationService', () => {
-
   describe('verifyTransferProof', () => {
     it('verifica automáticamente cuando el monto coincide exactamente', async () => {
       mockOpenAI.chat.completions.create.mockResolvedValue(
-        buildOcrResponse({ amount: 350.00, reference: 'REF123' })
+        buildOcrResponse({ amount: 350.0, reference: 'REF123' }),
       );
-      mockOrdersService.findById.mockResolvedValue(
-        buildOrder({ total: 350.00 })
-      );
+      mockOrdersService.findById.mockResolvedValue(buildOrder({ total: 350.0 }));
 
       const result = await service.verifyTransferProof(
         'https://s3.../comprobante.jpg',
         'order-id-1',
-        'tenant_abc123'
+        'tenant_abc123',
       );
 
       expect(result.verified).toBe(true);
       expect(ordersService.updateStatus).toHaveBeenCalledWith(
-        'order-id-1', 'payment_verified', 'tenant_abc123'
+        'order-id-1',
+        'payment_verified',
+        'tenant_abc123',
       );
     });
 
     it('rechaza cuando el monto difiere en más de $1', async () => {
-      mockOpenAI.chat.completions.create.mockResolvedValue(
-        buildOcrResponse({ amount: 300.00 })
-      );
-      mockOrdersService.findById.mockResolvedValue(
-        buildOrder({ total: 350.00 })
-      );
+      mockOpenAI.chat.completions.create.mockResolvedValue(buildOcrResponse({ amount: 300.0 }));
+      mockOrdersService.findById.mockResolvedValue(buildOrder({ total: 350.0 }));
 
       const result = await service.verifyTransferProof(
         'https://s3.../comprobante.jpg',
         'order-id-1',
-        'tenant_abc123'
+        'tenant_abc123',
       );
 
       expect(result.verified).toBe(false);
@@ -121,17 +117,13 @@ describe('PaymentVerificationService', () => {
     });
 
     it('acepta diferencia de hasta $1 por redondeos bancarios', async () => {
-      mockOpenAI.chat.completions.create.mockResolvedValue(
-        buildOcrResponse({ amount: 349.50 })
-      );
-      mockOrdersService.findById.mockResolvedValue(
-        buildOrder({ total: 350.00 })
-      );
+      mockOpenAI.chat.completions.create.mockResolvedValue(buildOcrResponse({ amount: 349.5 }));
+      mockOrdersService.findById.mockResolvedValue(buildOrder({ total: 350.0 }));
 
       const result = await service.verifyTransferProof(
         'https://s3.../comprobante.jpg',
         'order-id-1',
-        'tenant_abc123'
+        'tenant_abc123',
       );
 
       expect(result.verified).toBe(true);
@@ -158,11 +150,11 @@ describe('Tenant Isolation — CRÍTICO', () => {
     // Crear dos tenants reales en la BD de test
     tenantA = await TestHelper.provisionTenant({
       slug: 'tenant-a-test',
-      businessName: 'Empresa A'
+      businessName: 'Empresa A',
     });
     tenantB = await TestHelper.provisionTenant({
       slug: 'tenant-b-test',
-      businessName: 'Empresa B'
+      businessName: 'Empresa B',
     });
 
     // Crear datos en cada tenant
@@ -202,7 +194,7 @@ describe('Tenant Isolation — CRÍTICO', () => {
     const returnedIds = response.body.data.map((o: any) => o.id);
 
     // Ningún pedido de B debe aparecer en la respuesta de A
-    ordersB.forEach(orderB => {
+    ordersB.forEach((orderB) => {
       expect(returnedIds).not.toContain(orderB.id);
     });
   });
@@ -243,12 +235,10 @@ describe('Tenant Isolation — CRÍTICO', () => {
   it('un webhook dirigido a Tenant A no procesa mensajes en Tenant B', async () => {
     const webhookPayload = TestHelper.buildWhatsAppWebhook({
       from: '5215512345678',
-      text: 'Hola, quiero hacer un pedido'
+      text: 'Hola, quiero hacer un pedido',
     });
 
-    await request(app.getHttpServer())
-      .post(`/webhooks/meta/${tenantA.slug}`)
-      .send(webhookPayload);
+    await request(app.getHttpServer()).post(`/webhooks/meta/${tenantA.slug}`).send(webhookPayload);
 
     // Esperar procesamiento asíncrono
     await TestHelper.waitForQueue('messages');
@@ -271,7 +261,7 @@ describe('Tenant Isolation — CRÍTICO', () => {
       .get(`/orders/${orderFromB.id}`)
       .set('Authorization', `Bearer ${tokenA}`)
       .set('Host', `${tenantB.slug}.vspro.app`) // host de B, token de A
-      .set('x-tenant-slug', tenantB.slug);       // header manipulado
+      .set('x-tenant-slug', tenantB.slug); // header manipulado
 
     // El JWT de A no es válido para el schema de B
     expect(response.status).toBe(403);
@@ -336,7 +326,7 @@ describe('Orders Module — Integration', () => {
       .set('Host', `${tenant.slug}.vspro.app`)
       .send({
         customerId: (await TestHelper.getFirstCustomer(tenant)).id,
-        items: [{ productId: product.id, quantity: 2 }]
+        items: [{ productId: product.id, quantity: 2 }],
       });
 
     expect(response.status).toBe(201);
@@ -402,7 +392,6 @@ const TENANT_TOKEN = process.env.SMOKE_TENANT_TOKEN;
 const TENANT_HOST = process.env.SMOKE_TENANT_HOST;
 
 describe('Smoke Tests — Post Deploy', () => {
-
   it('el API responde en /health', async () => {
     const res = await fetch(`${BASE_URL}/health`);
     expect(res.status).toBe(200);
@@ -417,7 +406,7 @@ describe('Smoke Tests — Post Deploy', () => {
       headers: {
         Authorization: `Bearer ${TENANT_TOKEN}`,
         Host: TENANT_HOST,
-      }
+      },
     });
     expect(res.status).toBe(200);
   });
@@ -427,7 +416,7 @@ describe('Smoke Tests — Post Deploy', () => {
       headers: {
         Authorization: `Bearer ${TENANT_TOKEN}`,
         Host: TENANT_HOST,
-      }
+      },
     });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -440,7 +429,7 @@ describe('Smoke Tests — Post Deploy', () => {
     const challenge = 'smoke_test_challenge_12345';
 
     const res = await fetch(
-      `${BASE_URL}/webhooks/meta/${tenantSlug}?hub.mode=subscribe&hub.verify_token=${verifyToken}&hub.challenge=${challenge}`
+      `${BASE_URL}/webhooks/meta/${tenantSlug}?hub.mode=subscribe&hub.verify_token=${verifyToken}&hub.challenge=${challenge}`,
     );
 
     expect(res.status).toBe(200);
@@ -450,7 +439,7 @@ describe('Smoke Tests — Post Deploy', () => {
 
   it('el health check de la cola de mensajes está activo', async () => {
     const res = await fetch(`${BASE_URL}/health/queues`, {
-      headers: { Authorization: `Bearer ${TENANT_TOKEN}` }
+      headers: { Authorization: `Bearer ${TENANT_TOKEN}` },
     });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -468,7 +457,6 @@ describe('Smoke Tests — Post Deploy', () => {
 
 @Controller('health')
 export class HealthController {
-
   @Get()
   @SkipAuth() // endpoint público
   async check(): Promise<HealthStatus> {
@@ -487,8 +475,7 @@ export class HealthController {
       queue: queueOk.status === 'fulfilled' ? 'active' : 'error',
     };
 
-    const allHealthy = Object.values(status)
-      .filter(v => v === 'error').length === 0;
+    const allHealthy = Object.values(status).filter((v) => v === 'error').length === 0;
 
     if (!allHealthy) {
       status.status = 'degraded';
@@ -538,13 +525,13 @@ export class HealthController {
 
 ## Resumen: Qué se prueba y cuándo
 
-| Test | Cuándo corre | Tiempo aprox. | Bloquea merge |
-|------|-------------|---------------|---------------|
-| Lint + typecheck | En cada PR | < 2 min | ✅ Sí |
-| Unit tests | En cada PR | < 3 min | ✅ Sí |
-| Integration tests | En cada PR | < 5 min | ✅ Sí |
-| Tenant isolation | En cada PR | < 4 min | ✅ Sí |
-| Smoke tests staging | Post-deploy staging | < 1 min | ✅ Sí (bloquea prod) |
-| Smoke tests prod | Post-deploy prod | < 1 min | Rollback automático |
+| Test                | Cuándo corre        | Tiempo aprox. | Bloquea merge        |
+| ------------------- | ------------------- | ------------- | -------------------- |
+| Lint + typecheck    | En cada PR          | < 2 min       | ✅ Sí                |
+| Unit tests          | En cada PR          | < 3 min       | ✅ Sí                |
+| Integration tests   | En cada PR          | < 5 min       | ✅ Sí                |
+| Tenant isolation    | En cada PR          | < 4 min       | ✅ Sí                |
+| Smoke tests staging | Post-deploy staging | < 1 min       | ✅ Sí (bloquea prod) |
+| Smoke tests prod    | Post-deploy prod    | < 1 min       | Rollback automático  |
 
 **Tiempo total de pipeline:** ~15 minutos de PR a producción si todo está verde.

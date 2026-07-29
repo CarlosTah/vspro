@@ -3,6 +3,7 @@
 ## ¿Por qué necesitamos templates?
 
 WhatsApp Business API tiene una regla de ventana de 24 horas:
+
 - **Dentro de 24h** del último mensaje del cliente → puedes enviar texto libre
 - **Fuera de 24h** → SOLO puedes enviar **Message Templates** pre-aprobados por Meta
 
@@ -15,20 +16,25 @@ Crear en: Meta Business Manager → WhatsApp → Message Templates
 ---
 
 ### 1. `vspro_notification` (UTILITY)
+
 **Categoría:** Utility
 **Idioma:** Español (México) — es_MX
 **Body:**
+
 ```
 {{1}}
 ```
+
 **Descripción:** Template genérico para cualquier notificación del sistema. La variable {{1}} contiene el mensaje completo.
 
 ---
 
 ### 2. `order_payment_confirmed` (UTILITY)
+
 **Categoría:** Utility
 **Idioma:** es_MX
 **Body:**
+
 ```
 ✅ Pago confirmado para tu pedido *{{1}}*. Ya está en preparación. Te avisamos cuando esté listo. 🙌
 ```
@@ -36,20 +42,25 @@ Crear en: Meta Business Manager → WhatsApp → Message Templates
 ---
 
 ### 3. `order_ready` (UTILITY)
+
 **Categoría:** Utility
 **Idioma:** es_MX
 **Body:**
+
 ```
 🎉 ¡Tu pedido *{{1}}* está listo! {{2}}
 ```
+
 Variables: {{1}}=número de pedido, {{2}}="Pasa a recoger" o "Tu repartidor va en camino"
 
 ---
 
 ### 4. `order_shipped` (UTILITY)
+
 **Categoría:** Utility
 **Idioma:** es_MX
 **Body:**
+
 ```
 🛵 Tu pedido *{{1}}* va en camino. Tu repartidor {{2}} está de camino. Contacto: {{3}}
 ```
@@ -57,9 +68,11 @@ Variables: {{1}}=número de pedido, {{2}}="Pasa a recoger" o "Tu repartidor va e
 ---
 
 ### 5. `driver_new_delivery` (UTILITY)
+
 **Categoría:** Utility
 **Idioma:** es_MX
 **Body:**
+
 ```
 📦 Nuevo pedido para entrega:
 Pedido: *{{1}}*
@@ -73,9 +86,11 @@ Total: ${{4}}
 ---
 
 ### 6. `order_survey` (MARKETING)
+
 **Categoría:** Marketing
 **Idioma:** es_MX
 **Body:**
+
 ```
 ⭐ ¡Hola {{1}}! ¿Cómo estuvo tu pedido *{{2}}*?
 
@@ -90,9 +105,11 @@ Responde con un número del 1 al 5:
 ---
 
 ### 7. `customer_reengagement` (MARKETING)
+
 **Categoría:** Marketing
 **Idioma:** es_MX
 **Body:**
+
 ```
 ¡Hola {{1}}! 👋 Te extrañamos. ¿Qué se te antoja hoy? Escríbenos para hacer tu pedido 🙌
 ```

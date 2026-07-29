@@ -30,10 +30,19 @@ export class ReportScheduleCronService {
   @Cron('0 * * * *')
   async checkAndSendReports(): Promise<void> {
     const now = new Date();
-    const currentHour = now.toLocaleString('en-US', { timeZone: 'America/Mexico_City', hour: '2-digit', minute: '2-digit', hour12: false });
+    const currentHour = now.toLocaleString('en-US', {
+      timeZone: 'America/Mexico_City',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
     const hourStr = currentHour.split(':')[0] + ':00';
-    const dayOfWeek = now.toLocaleString('en-US', { timeZone: 'America/Mexico_City', weekday: 'short' }).toLowerCase();
-    const dayOfMonth = parseInt(now.toLocaleString('en-US', { timeZone: 'America/Mexico_City', day: 'numeric' }));
+    const dayOfWeek = now
+      .toLocaleString('en-US', { timeZone: 'America/Mexico_City', weekday: 'short' })
+      .toLowerCase();
+    const dayOfMonth = parseInt(
+      now.toLocaleString('en-US', { timeZone: 'America/Mexico_City', day: 'numeric' }),
+    );
 
     this.logger.debug(`Report cron check: ${hourStr}, ${dayOfWeek}, day ${dayOfMonth}`);
 
@@ -57,10 +66,15 @@ export class ReportScheduleCronService {
         if (schedule.frequency === 'monthly' && dayOfMonth !== 1) continue;
 
         // Generate and send report
-        this.logger.log(`Sending ${schedule.frequency} report to ${tenant.slug} (${schedule.phone})`);
-        const reportText = await this.generateReport(tenant.schemaName, tenant.businessName, schedule.frequency);
+        this.logger.log(
+          `Sending ${schedule.frequency} report to ${tenant.slug} (${schedule.phone})`,
+        );
+        const reportText = await this.generateReport(
+          tenant.schemaName,
+          tenant.businessName,
+          schedule.frequency,
+        );
         await this.sendWhatsAppReport(tenant.schemaName, schedule.phone, reportText);
-
       } catch (err: any) {
         this.logger.error(`Error sending report to ${tenant.slug}: ${err.message}`);
       }
@@ -79,7 +93,11 @@ export class ReportScheduleCronService {
     }
   }
 
-  private async generateReport(schemaName: string, businessName: string, frequency: string): Promise<string> {
+  private async generateReport(
+    schemaName: string,
+    businessName: string,
+    frequency: string,
+  ): Promise<string> {
     let dateFilter: string;
     let periodLabel: string;
 
@@ -140,13 +158,19 @@ export class ReportScheduleCronService {
     const collected = parseFloat(r.collected) || 0;
     const newCust = parseInt(customers[0]?.total) || 0;
 
-    const now = new Date().toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', day: 'numeric', month: 'long', year: 'numeric' });
+    const now = new Date().toLocaleDateString('es-MX', {
+      timeZone: 'America/Mexico_City',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
 
     let report = `📊 *Resumen ${periodLabel}* — ${businessName}\n📅 ${now}\n\n`;
     report += `💰 Ventas: $${revenue.toLocaleString('es-MX')} MXN (${totalOrders} pedidos)\n`;
     report += `✅ Entregados: ${delivered}\n`;
     if (pending > 0) report += `📋 Pendientes: ${pending}\n`;
-    if (collected > 0 && collected !== revenue) report += `💳 Cobrado: $${collected.toLocaleString('es-MX')}\n`;
+    if (collected > 0 && collected !== revenue)
+      report += `💳 Cobrado: $${collected.toLocaleString('es-MX')}\n`;
     report += `👥 Nuevos clientes: ${newCust}\n`;
 
     if (topProducts.length > 0) {

@@ -12,7 +12,13 @@ interface LoyaltyConfig {
   redemptionRate: number;
   welcomeBonus: number;
   tiers: { name: string; minPoints: number; multiplier: number }[];
-  rewards: { name: string; pointsCost: number; type: string; value: number; productName?: string }[];
+  rewards: {
+    name: string;
+    pointsCost: number;
+    type: string;
+    value: number;
+    productName?: string;
+  }[];
 }
 
 interface LeaderboardEntry {
@@ -36,15 +42,21 @@ export default function LoyaltyPage() {
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-white">Programa de Lealtad</h1>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <CardSkeleton /><CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
         </div>
       </div>
     );
   }
 
   const cfg = config ?? {
-    id: '', isEnabled: false, pointsPerCurrency: 1,
-    redemptionRate: 10, welcomeBonus: 0, tiers: [], rewards: [],
+    id: '',
+    isEnabled: false,
+    pointsPerCurrency: 1,
+    redemptionRate: 10,
+    welcomeBonus: 0,
+    tiers: [],
+    rewards: [],
   };
 
   const handleToggle = async () => {
@@ -86,7 +98,9 @@ export default function LoyaltyPage() {
         <div className="rounded-xl border border-card-border bg-card p-8 text-center">
           <p className="text-4xl mb-3">🏆</p>
           <p className="text-lg text-white font-medium">Programa de lealtad desactivado</p>
-          <p className="text-sm text-gray-400 mt-1">Actívalo para que tus clientes acumulen puntos y obtengan recompensas</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Actívalo para que tus clientes acumulen puntos y obtengan recompensas
+          </p>
         </div>
       )}
 
@@ -147,11 +161,16 @@ export default function LoyaltyPage() {
               </button>
             </div>
             {cfg.rewards.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">No hay recompensas configuradas</p>
+              <p className="text-sm text-gray-500 text-center py-4">
+                No hay recompensas configuradas
+              </p>
             ) : (
               <div className="space-y-2">
                 {cfg.rewards.map((r, i) => (
-                  <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-800/50">
+                  <div
+                    key={i}
+                    className="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-800/50"
+                  >
                     <div>
                       <p className="text-sm text-white font-medium">{r.name}</p>
                       <p className="text-xs text-gray-500">
@@ -182,8 +201,10 @@ export default function LoyaltyPage() {
           {/* Leaderboard */}
           <div className="rounded-xl border border-card-border bg-card p-5">
             <h3 className="text-sm font-semibold text-gray-300 mb-4">Top clientes</h3>
-            {(!leaderboard || leaderboard.length === 0) ? (
-              <p className="text-sm text-gray-500 text-center py-4">Aún no hay clientes con puntos</p>
+            {!leaderboard || leaderboard.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">
+                Aún no hay clientes con puntos
+              </p>
             ) : (
               <div className="space-y-2">
                 <div className="grid grid-cols-5 gap-2 text-xs text-gray-500 font-medium px-2">
@@ -194,14 +215,23 @@ export default function LoyaltyPage() {
                   <span className="text-center">Pedidos</span>
                 </div>
                 {leaderboard.slice(0, 15).map((entry, i) => (
-                  <div key={entry.customerId} className="grid grid-cols-5 gap-2 items-center px-2 py-1.5 rounded-lg hover:bg-gray-800/50">
+                  <div
+                    key={entry.customerId}
+                    className="grid grid-cols-5 gap-2 items-center px-2 py-1.5 rounded-lg hover:bg-gray-800/50"
+                  >
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-gray-500 w-4">{i + 1}</span>
-                      <span className="text-sm text-white truncate">{entry.customerName ?? entry.phone}</span>
+                      <span className="text-sm text-white truncate">
+                        {entry.customerName ?? entry.phone}
+                      </span>
                     </div>
-                    <span className="text-sm text-center text-accent font-bold">{entry.totalPoints}</span>
+                    <span className="text-sm text-center text-accent font-bold">
+                      {entry.totalPoints}
+                    </span>
                     <span className="text-sm text-center text-green-300">{entry.totalEarned}</span>
-                    <span className="text-sm text-center text-yellow-300">{entry.totalRedeemed}</span>
+                    <span className="text-sm text-center text-yellow-300">
+                      {entry.totalRedeemed}
+                    </span>
                     <span className="text-sm text-center text-gray-400">{entry.orderCount}</span>
                   </div>
                 ))}
@@ -226,8 +256,16 @@ export default function LoyaltyPage() {
   );
 }
 
-function ConfigCard({ icon, label, value, onSave }: {
-  icon: string; label: string; value: number; onSave: (v: string) => void;
+function ConfigCard({
+  icon,
+  label,
+  value,
+  onSave,
+}: {
+  icon: string;
+  label: string;
+  value: number;
+  onSave: (v: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(String(value));
@@ -246,7 +284,10 @@ function ConfigCard({ icon, label, value, onSave }: {
             autoFocus
           />
           <button
-            onClick={() => { onSave(val); setEditing(false); }}
+            onClick={() => {
+              onSave(val);
+              setEditing(false);
+            }}
             className="text-xs text-accent"
           >
             ✓
@@ -264,10 +305,7 @@ function ConfigCard({ icon, label, value, onSave }: {
   );
 }
 
-function RewardForm({ onClose, onSave }: {
-  onClose: () => void;
-  onSave: (reward: any) => void;
-}) {
+function RewardForm({ onClose, onSave }: { onClose: () => void; onSave: (reward: any) => void }) {
   const [name, setName] = useState('');
   const [pointsCost, setPointsCost] = useState('');
   const [type, setType] = useState('discount_fixed');
@@ -279,7 +317,9 @@ function RewardForm({ onClose, onSave }: {
       <div className="w-full max-w-md rounded-xl border border-card-border bg-card p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">Nueva Recompensa</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">✕</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-white">
+            ✕
+          </button>
         </div>
 
         <div>
@@ -320,7 +360,11 @@ function RewardForm({ onClose, onSave }: {
 
         <div>
           <label className="text-sm text-gray-400">
-            {type === 'discount_fixed' ? 'Monto ($)' : type === 'discount_percent' ? 'Porcentaje (%)' : 'Cantidad'}
+            {type === 'discount_fixed'
+              ? 'Monto ($)'
+              : type === 'discount_percent'
+                ? 'Porcentaje (%)'
+                : 'Cantidad'}
           </label>
           <input
             type="number"
@@ -345,7 +389,10 @@ function RewardForm({ onClose, onSave }: {
         )}
 
         <div className="flex gap-3 pt-2">
-          <button onClick={onClose} className="flex-1 rounded-lg border border-gray-700 px-4 py-2 text-sm text-gray-400">
+          <button
+            onClick={onClose}
+            className="flex-1 rounded-lg border border-gray-700 px-4 py-2 text-sm text-gray-400"
+          >
             Cancelar
           </button>
           <button

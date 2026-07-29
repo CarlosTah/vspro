@@ -54,9 +54,20 @@ REGLAS ESTRICTAS:
 - NO incluyas información meta como "Contexto:" o "Sistema:".`,
           },
           // Few-shot examples for consistent tone
-          { role: 'user', content: 'CONTEXTO: El cliente pregunta si tenemos tacos. SÍ tenemos "Taco al Pastor" a $20. Responde confirmando y pregunta cuántos quiere.' },
-          { role: 'assistant', content: '¡Sí tenemos! 🌮 Taco al Pastor a $20. ¿Cuántos te pongo?' },
-          { role: 'user', content: 'CONTEXTO: El cliente dijo algo que no entendí. Pregunta qué le gustaría pedir.' },
+          {
+            role: 'user',
+            content:
+              'CONTEXTO: El cliente pregunta si tenemos tacos. SÍ tenemos "Taco al Pastor" a $20. Responde confirmando y pregunta cuántos quiere.',
+          },
+          {
+            role: 'assistant',
+            content: '¡Sí tenemos! 🌮 Taco al Pastor a $20. ¿Cuántos te pongo?',
+          },
+          {
+            role: 'user',
+            content:
+              'CONTEXTO: El cliente dijo algo que no entendí. Pregunta qué le gustaría pedir.',
+          },
           { role: 'assistant', content: '¿Qué se te antoja? Si quieres, te mando el menú 📋' },
           {
             role: 'user',

@@ -30,7 +30,9 @@ export class AuditLogProcessor {
     const suspicious = await this.detectSuspiciousActivity(schemaName, actorId, action);
 
     if (suspicious) {
-      this.logger.warn(`[${schemaName}] SUSPICIOUS: ${action} by ${actorId} — ${suspicious.reason}`);
+      this.logger.warn(
+        `[${schemaName}] SUSPICIOUS: ${action} by ${actorId} — ${suspicious.reason}`,
+      );
       // In production: alert super-admin or lock account
     }
   }
@@ -41,10 +43,15 @@ export class AuditLogProcessor {
     action: string,
   ): Promise<{ reason: string } | null> {
     // Check for rapid successive actions (> 10 in last 5 minutes)
-    const recentActions = await this.prisma.$queryRawUnsafe<any[]>(`
+    const recentActions = await this.prisma
+      .$queryRawUnsafe<any[]>(
+        `
       SELECT COUNT(*) AS c FROM "${schemaName}".audit_log
       WHERE actor_id = $1::uuid AND created_at > NOW() - INTERVAL '5 minutes'
-    `, actorId).catch(() => [{ c: '0' }]);
+    `,
+        actorId,
+      )
+      .catch(() => [{ c: '0' }]);
 
     const count = parseInt(recentActions[0]?.c ?? '0');
     if (count > 10) {
@@ -53,12 +60,17 @@ export class AuditLogProcessor {
 
     // Check for role escalation attempts
     if (action === 'staff_updated') {
-      const roleChanges = await this.prisma.$queryRawUnsafe<any[]>(`
+      const roleChanges = await this.prisma
+        .$queryRawUnsafe<any[]>(
+          `
         SELECT COUNT(*) AS c FROM "${schemaName}".audit_log
         WHERE actor_id = $1::uuid AND action = 'staff_updated'
           AND details->>'role' IS NOT NULL
           AND created_at > NOW() - INTERVAL '1 hour'
-      `, actorId).catch(() => [{ c: '0' }]);
+      `,
+          actorId,
+        )
+        .catch(() => [{ c: '0' }]);
 
       if (parseInt(roleChanges[0]?.c ?? '0') > 3) {
         return { reason: 'Multiple role changes in 1 hour' };

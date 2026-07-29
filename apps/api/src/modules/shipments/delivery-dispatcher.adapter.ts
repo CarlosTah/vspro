@@ -54,7 +54,8 @@ export class DeliveryDispatcherAdapter {
     schemaName: string,
   ): Promise<DispatchResult> {
     // Get order + customer + shipment details
-    const orders = await this.prisma.$queryRawUnsafe<any[]>(`
+    const orders = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT o.order_number, o.shipping_address, o.total,
              c.name AS customer_name, c.phone AS customer_phone,
              s.tracking_number, s.carrier
@@ -62,7 +63,9 @@ export class DeliveryDispatcherAdapter {
       JOIN "${schemaName}".customers c ON c.id = o.customer_id
       LEFT JOIN "${schemaName}".shipments s ON s.order_id = o.id
       WHERE o.id = $1::uuid
-    `, orderId);
+    `,
+      orderId,
+    );
 
     if (!orders[0]) {
       return { success: false, error: 'Order not found' };
@@ -95,13 +98,18 @@ export class DeliveryDispatcherAdapter {
     });
 
     // Log the dispatch
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".shipments
       SET status = 'out_for_delivery'
       WHERE order_id = $1::uuid
-    `, orderId);
+    `,
+      orderId,
+    );
 
-    this.logger.log(`[${schemaName}] Delivery dispatched: ${order.order_number} → ${driverName} (${driverPhone})`);
+    this.logger.log(
+      `[${schemaName}] Delivery dispatched: ${order.order_number} → ${driverName} (${driverPhone})`,
+    );
 
     return {
       success: true,
@@ -131,7 +139,8 @@ export class DeliveryDispatcherAdapter {
   // ─── Message Builders ─────────────────────────────────────────
 
   private buildDriverMessage(params: DriverAssignment): string {
-    return `🚚 *Nueva entrega asignada*\n\n` +
+    return (
+      `🚚 *Nueva entrega asignada*\n\n` +
       `📋 Pedido: ${params.orderNumber}\n` +
       `👤 Cliente: ${params.customerName}\n` +
       `📍 Dirección: ${params.deliveryAddress}\n` +
@@ -139,16 +148,19 @@ export class DeliveryDispatcherAdapter {
       `📞 Tel cliente: ${params.customerPhone}\n` +
       (params.trackingNumber ? `🔢 Guía: ${params.trackingNumber}\n` : '') +
       (params.notes ? `📝 Notas: ${params.notes}\n` : '') +
-      `\n¡Confirma cuando recojas el paquete!`;
+      `\n¡Confirma cuando recojas el paquete!`
+    );
   }
 
   private buildCustomerMessage(params: CustomerTracking): string {
-    return `📦 *Tu pedido está en camino*\n\n` +
+    return (
+      `📦 *Tu pedido está en camino*\n\n` +
       `Hola ${params.customerName}, tu pedido ${params.orderNumber} ` +
       `ya salió con nuestro repartidor ${params.driverName}.\n\n` +
       `⏱️ Tiempo estimado: ${params.estimatedTime}\n` +
       `📞 Contacto repartidor: ${params.driverPhone}\n\n` +
-      `¡Te avisamos cuando llegue!`;
+      `¡Te avisamos cuando llegue!`
+    );
   }
 }
 

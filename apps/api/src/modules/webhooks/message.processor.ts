@@ -40,7 +40,7 @@ export class MessageProcessor {
         include: { plan: true },
       });
 
-      if (!tenant || tenant.status !== 'ACTIVE' && tenant.status !== 'TRIAL') {
+      if (!tenant || (tenant.status !== 'ACTIVE' && tenant.status !== 'TRIAL')) {
         this.logger.warn(`Tenant inactivo o no encontrado: ${tenantSlug}`);
         return;
       }
@@ -67,7 +67,9 @@ export class MessageProcessor {
       // Only applies when messaging the VSPRO platform number (tenantSlug === 'vspro')
       const ownerTenant = await this.detectTenantOwner(message.senderId, tenantSlug);
       if (ownerTenant && ownerTenant.slug !== tenantSlug) {
-        this.logger.log(`Owner detected: ${message.senderId} → tenant ${ownerTenant.slug} (${ownerTenant.businessName})`);
+        this.logger.log(
+          `Owner detected: ${message.senderId} → tenant ${ownerTenant.slug} (${ownerTenant.businessName})`,
+        );
         // Route this message to the owner's own tenant schema
         await this.processAsOwner(ownerTenant, tenant, message);
         return;
@@ -102,12 +104,17 @@ export class MessageProcessor {
 
       // 5.5. SURVEY RESPONSE: If client sends 1-5 and has a recently delivered order
       if (message.text && /^[1-5]$/.test(message.text.trim())) {
-        const recentDelivered = await this.prisma.$queryRawUnsafe<any[]>(`
+        const recentDelivered = await this.prisma
+          .$queryRawUnsafe<any[]>(
+            `
           SELECT id, order_number AS "orderNumber" FROM "${schema}".orders
           WHERE customer_id = $1::uuid AND status = 'delivered'
             AND updated_at > NOW() - INTERVAL '30 minutes'
           ORDER BY updated_at DESC LIMIT 1
-        `, customer.id).catch(() => []);
+        `,
+            customer.id,
+          )
+          .catch(() => []);
 
         if (recentDelivered.length > 0) {
           const rating = parseInt(message.text.trim());
@@ -115,18 +122,38 @@ export class MessageProcessor {
           await this.prisma.$executeRawUnsafe(`
             ALTER TABLE "${schema}".orders ADD COLUMN IF NOT EXISTS customer_rating INTEGER
           `);
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schema}".orders SET customer_rating = $1 WHERE id = $2::uuid
-          `, rating, recentDelivered[0].id);
+          `,
+            rating,
+            recentDelivered[0].id,
+          );
 
           // Send thank you
-          const thankYou = rating >= 4
-            ? `¡Gracias por tu calificación! ⭐${rating} Nos alegra que te haya gustado. ¡Te esperamos pronto! 🙌`
-            : `Gracias por tu opinión. Lamentamos que no fue perfecto. Trabajaremos para mejorar. Si tienes algún comentario adicional, escríbenos.`;
+          const thankYou =
+            rating >= 4
+              ? `¡Gracias por tu calificación! ⭐${rating} Nos alegra que te haya gustado. ¡Te esperamos pronto! 🙌`
+              : `Gracias por tu opinión. Lamentamos que no fue perfecto. Trabajaremos para mejorar. Si tienes algún comentario adicional, escríbenos.`;
 
-          await this.messagingService.sendText(message.channelType, message.senderId, thankYou, schema);
-          await this.conversationsService.saveMessage(conversation.id, 'outbound', 'text', thankYou, null, null, schema);
-          this.logger.log(`[${schema}] Survey rating ${rating}/5 for ${recentDelivered[0].orderNumber}`);
+          await this.messagingService.sendText(
+            message.channelType,
+            message.senderId,
+            thankYou,
+            schema,
+          );
+          await this.conversationsService.saveMessage(
+            conversation.id,
+            'outbound',
+            'text',
+            thankYou,
+            null,
+            null,
+            schema,
+          );
+          this.logger.log(
+            `[${schema}] Survey rating ${rating}/5 for ${recentDelivered[0].orderNumber}`,
+          );
           return;
         }
       }
@@ -135,7 +162,9 @@ export class MessageProcessor {
       if (message.type === 'image' && message.mediaUrl) {
         const pendingOrder = await this.findPendingPaymentOrder(customer.id, schema);
         if (pendingOrder) {
-          this.logger.log(`Imagen recibida con pedido pendiente ${pendingOrder.orderNumber} — procesando como comprobante`);
+          this.logger.log(
+            `Imagen recibida con pedido pendiente ${pendingOrder.orderNumber} — procesando como comprobante`,
+          );
           const paymentResult = await this.paymentsService.verifyByImage(
             { orderId: pendingOrder.id, proofImageUrl: message.mediaUrl },
             schema,
@@ -150,7 +179,13 @@ export class MessageProcessor {
           );
 
           await this.conversationsService.saveMessage(
-            conversation.id, 'outbound', 'text', paymentResult.message, null, null, schema,
+            conversation.id,
+            'outbound',
+            'text',
+            paymentResult.message,
+            null,
+            null,
+            schema,
           );
 
           // Incrementar quotas
@@ -172,7 +207,7 @@ export class MessageProcessor {
           if (apiKey) {
             // Download audio from Meta
             const channelRows = await this.prisma.$queryRawUnsafe<any[]>(
-              `SELECT access_token FROM "${schema}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`
+              `SELECT access_token FROM "${schema}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`,
             );
             const accessToken = channelRows[0]?.access_token;
 
@@ -219,7 +254,12 @@ export class MessageProcessor {
       // Inject senderPhone into context so register_business can link the owner
       const enrichedConversation = {
         ...conversation,
-        context: { ...conversation.context, customerId: customer.id, senderPhone: message.senderId, customerName: customer.name ?? null },
+        context: {
+          ...conversation.context,
+          customerId: customer.id,
+          senderPhone: message.senderId,
+          customerName: customer.name ?? null,
+        },
       };
       const aiResponse = await this.aiEngine.processMessage(
         tenant,
@@ -264,10 +304,7 @@ export class MessageProcessor {
 
       this.logger.log(`Mensaje procesado exitosamente para ${tenantSlug}`);
     } catch (error) {
-      this.logger.error(
-        `Error procesando mensaje para ${tenantSlug}:`,
-        error,
-      );
+      this.logger.error(`Error procesando mensaje para ${tenantSlug}:`, error);
       throw error; // BullMQ reintentará según la configuración
     }
   }
@@ -280,14 +317,17 @@ export class MessageProcessor {
     customerId: string,
     schemaName: string,
   ): Promise<{ id: string; orderNumber: string } | null> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT id, order_number AS "orderNumber"
       FROM "${schemaName}".orders
       WHERE customer_id = $1::uuid
         AND status = 'payment_pending'
       ORDER BY created_at DESC
       LIMIT 1
-    `, customerId);
+    `,
+      customerId,
+    );
 
     return rows[0] ?? null;
   }
@@ -298,7 +338,10 @@ export class MessageProcessor {
    * If they respond with NO → reject and trigger reassignment.
    * Returns true if the message was handled as a driver response.
    */
-  private async handleDriverResponse(schemaName: string, message: IncomingMessage): Promise<boolean> {
+  private async handleDriverResponse(
+    schemaName: string,
+    message: IncomingMessage,
+  ): Promise<boolean> {
     const text = (message.text ?? '').trim().toLowerCase();
     if (!text) return false;
 
@@ -309,81 +352,134 @@ export class MessageProcessor {
 
     try {
       // Check if this phone belongs to a driver in this tenant
-      const drivers = await this.prisma.$queryRawUnsafe<any[]>(`
+      const drivers = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT d.id, d.name FROM "${schemaName}".delivery_drivers d
         WHERE d.phone = $1 OR d.phone = $2 OR d.phone = $3
         LIMIT 1
-      `, message.senderId, normalizedPhone, `+${normalizedPhone}`);
+      `,
+        message.senderId,
+        normalizedPhone,
+        `+${normalizedPhone}`,
+      );
 
       if (drivers.length === 0) return false;
 
       const driver = drivers[0];
 
       // Check for active 'offered' assignment for this driver
-      const assignments = await this.prisma.$queryRawUnsafe<any[]>(`
+      const assignments = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT da.id, da.order_id AS "orderId", da.status,
                o.order_number AS "orderNumber"
         FROM "${schemaName}".delivery_assignments da
         JOIN "${schemaName}".orders o ON o.id = da.order_id
         WHERE da.driver_id = $1::uuid AND da.status = 'offered'
         ORDER BY da.offered_at DESC LIMIT 1
-      `, driver.id);
+      `,
+        driver.id,
+      );
 
       if (assignments.length === 0) {
         // No 'offered' assignment — but check if driver is saying RECOGIDO or ENTREGADO
         // for an already accepted/picked_up assignment
-        const isPickupCmd = ['recogido', 'lo tengo', 'listo lo llevo', 'ya lo tengo', 'recogi'].includes(text);
-        const isDeliveredCmd = ['entregado', 'entregue', 'listo entregado', 'ya lo entregue', 'entregué'].includes(text);
+        const isPickupCmd = [
+          'recogido',
+          'lo tengo',
+          'listo lo llevo',
+          'ya lo tengo',
+          'recogi',
+        ].includes(text);
+        const isDeliveredCmd = [
+          'entregado',
+          'entregue',
+          'listo entregado',
+          'ya lo entregue',
+          'entregué',
+        ].includes(text);
         if (!isPickupCmd && !isDeliveredCmd) return false;
         // Fall through to pickup/delivery checks below
       }
 
       const assignment = assignments[0];
-      const isAccept = ['si', 'sí', 'yes', 'ok', 'va', 'listo', 'voy', 'acepto', 'claro', 'dale'].includes(text);
+      const isAccept = [
+        'si',
+        'sí',
+        'yes',
+        'ok',
+        'va',
+        'listo',
+        'voy',
+        'acepto',
+        'claro',
+        'dale',
+      ].includes(text);
       const isReject = ['no', 'nop', 'nel', 'no puedo', 'ocupado', 'paso'].includes(text);
 
       if (isAccept) {
         // Accept the assignment
-        await this.prisma.$executeRawUnsafe(`
+        await this.prisma.$executeRawUnsafe(
+          `
           UPDATE "${schemaName}".delivery_assignments
           SET status = 'accepted', accepted_at = NOW()
           WHERE id = $1::uuid
-        `, assignment.id);
+        `,
+          assignment.id,
+        );
 
-        this.logger.log(`[${schemaName}] Driver ${driver.name} accepted order ${assignment.orderNumber}`);
+        this.logger.log(
+          `[${schemaName}] Driver ${driver.name} accepted order ${assignment.orderNumber}`,
+        );
 
         // Save inbound message
         await this.saveDriverMessage(schemaName, assignment.id, driver.id, 'inbound', text);
 
         // Send confirmation to driver
         const reply = `✅ ¡Aceptado! Pedido #${assignment.orderNumber}. Ve a recogerlo y cuando lo tengas responde "RECOGIDO".`;
-        await this.messagingService.sendText(message.channelType, message.senderId, reply, schemaName);
+        await this.messagingService.sendText(
+          message.channelType,
+          message.senderId,
+          reply,
+          schemaName,
+        );
         await this.saveDriverMessage(schemaName, assignment.id, driver.id, 'outbound', reply);
         return true;
-
       } else if (isReject) {
         // Reject the assignment
-        await this.prisma.$executeRawUnsafe(`
+        await this.prisma.$executeRawUnsafe(
+          `
           UPDATE "${schemaName}".delivery_assignments
           SET status = 'rejected'
           WHERE id = $1::uuid
-        `, assignment.id);
+        `,
+          assignment.id,
+        );
 
-        this.logger.log(`[${schemaName}] Driver ${driver.name} rejected order ${assignment.orderNumber}`);
+        this.logger.log(
+          `[${schemaName}] Driver ${driver.name} rejected order ${assignment.orderNumber}`,
+        );
 
         await this.saveDriverMessage(schemaName, assignment.id, driver.id, 'inbound', text);
 
         const reply = `👍 Entendido. Se asignará a otro repartidor.`;
-        await this.messagingService.sendText(message.channelType, message.senderId, reply, schemaName);
+        await this.messagingService.sendText(
+          message.channelType,
+          message.senderId,
+          reply,
+          schemaName,
+        );
         await this.saveDriverMessage(schemaName, assignment.id, driver.id, 'outbound', reply);
         return true;
       }
 
       // Check for "RECOGIDO" / "lo tengo" — driver picked up
-      const isPickup = ['recogido', 'lo tengo', 'listo lo llevo', 'ya lo tengo', 'recogi'].includes(text);
+      const isPickup = ['recogido', 'lo tengo', 'listo lo llevo', 'ya lo tengo', 'recogi'].includes(
+        text,
+      );
       if (isPickup) {
         // Find accepted assignment
-        const acceptedAssignments = await this.prisma.$queryRawUnsafe<any[]>(`
+        const acceptedAssignments = await this.prisma.$queryRawUnsafe<any[]>(
+          `
           SELECT da.id, da.order_id AS "orderId", o.order_number AS "orderNumber",
                  c.channel_id AS "customerChannelId", c.name AS "customerName"
           FROM "${schemaName}".delivery_assignments da
@@ -391,29 +487,44 @@ export class MessageProcessor {
           JOIN "${schemaName}".customers c ON c.id = o.customer_id
           WHERE da.driver_id = $1::uuid AND da.status = 'accepted'
           ORDER BY da.accepted_at DESC LIMIT 1
-        `, driver.id);
+        `,
+          driver.id,
+        );
 
         if (acceptedAssignments.length > 0) {
           const a = acceptedAssignments[0];
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".delivery_assignments SET status = 'picked_up', picked_up_at = NOW() WHERE id = $1::uuid
-          `, a.id);
-          await this.prisma.$executeRawUnsafe(`
+          `,
+            a.id,
+          );
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".orders SET status = 'shipped', updated_at = NOW() WHERE id = $1::uuid
-          `, a.orderId);
+          `,
+            a.orderId,
+          );
 
           this.logger.log(`[${schemaName}] Driver ${driver.name} picked up order ${a.orderNumber}`);
 
           await this.saveDriverMessage(schemaName, a.id, driver.id, 'inbound', text);
           const reply = `📦 Perfecto. Pedido #${a.orderNumber} en camino. Cuando lo entregues responde "ENTREGADO".`;
-          await this.messagingService.sendText(message.channelType, message.senderId, reply, schemaName);
+          await this.messagingService.sendText(
+            message.channelType,
+            message.senderId,
+            reply,
+            schemaName,
+          );
           await this.saveDriverMessage(schemaName, a.id, driver.id, 'outbound', reply);
 
           // NOTIFY CUSTOMER that order is on its way
           if (a.customerChannelId) {
             const customerName = a.customerName?.split(' ')[0] ?? '';
             const customerMsg = `🛵 *¡Tu pedido va en camino!*\n\n${customerName ? `${customerName}, ` : ''}tu pedido *#${a.orderNumber}* ya salió con el repartidor ${driver.name}. ¡Llega pronto! 🙌`;
-            await this.messagingService.sendText('whatsapp', a.customerChannelId, customerMsg, schemaName).catch(() => {});
+            await this.messagingService
+              .sendText('whatsapp', a.customerChannelId, customerMsg, schemaName)
+              .catch(() => {});
           }
 
           return true;
@@ -421,9 +532,16 @@ export class MessageProcessor {
       }
 
       // Check for "ENTREGADO" — driver delivered
-      const isDelivered = ['entregado', 'entregue', 'listo entregado', 'ya lo entregue', 'entregué'].includes(text);
+      const isDelivered = [
+        'entregado',
+        'entregue',
+        'listo entregado',
+        'ya lo entregue',
+        'entregué',
+      ].includes(text);
       if (isDelivered) {
-        const pickedUpAssignments = await this.prisma.$queryRawUnsafe<any[]>(`
+        const pickedUpAssignments = await this.prisma.$queryRawUnsafe<any[]>(
+          `
           SELECT da.id, da.order_id AS "orderId", o.order_number AS "orderNumber",
                  c.channel_id AS "customerChannelId", c.name AS "customerName"
           FROM "${schemaName}".delivery_assignments da
@@ -431,29 +549,44 @@ export class MessageProcessor {
           JOIN "${schemaName}".customers c ON c.id = o.customer_id
           WHERE da.driver_id = $1::uuid AND da.status = 'picked_up'
           ORDER BY da.picked_up_at DESC LIMIT 1
-        `, driver.id);
+        `,
+          driver.id,
+        );
 
         if (pickedUpAssignments.length > 0) {
           const a = pickedUpAssignments[0];
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".delivery_assignments SET status = 'delivered', delivered_at = NOW() WHERE id = $1::uuid
-          `, a.id);
-          await this.prisma.$executeRawUnsafe(`
+          `,
+            a.id,
+          );
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".orders SET status = 'delivered', updated_at = NOW() WHERE id = $1::uuid
-          `, a.orderId);
+          `,
+            a.orderId,
+          );
 
           this.logger.log(`[${schemaName}] Driver ${driver.name} delivered order ${a.orderNumber}`);
 
           await this.saveDriverMessage(schemaName, a.id, driver.id, 'inbound', text);
           const reply = `✅ ¡Entrega confirmada! Pedido #${a.orderNumber} completado. ¡Gracias! 🙌`;
-          await this.messagingService.sendText(message.channelType, message.senderId, reply, schemaName);
+          await this.messagingService.sendText(
+            message.channelType,
+            message.senderId,
+            reply,
+            schemaName,
+          );
           await this.saveDriverMessage(schemaName, a.id, driver.id, 'outbound', reply);
 
           // NOTIFY CUSTOMER that their order was delivered
           if (a.customerChannelId) {
             const customerName = a.customerName?.split(' ')[0] ?? '';
             const customerMsg = `🎉 *¡Pedido entregado!*\n\n${customerName ? `${customerName}, ` : ''}tu pedido *#${a.orderNumber}* ha sido entregado. ¡Que lo disfrutes! 😋\n\n¿Todo bien? Cuéntanos cómo estuvo. ⭐`;
-            await this.messagingService.sendText('whatsapp', a.customerChannelId, customerMsg, schemaName).catch(() => {});
+            await this.messagingService
+              .sendText('whatsapp', a.customerChannelId, customerMsg, schemaName)
+              .catch(() => {});
           }
 
           return true;
@@ -469,7 +602,13 @@ export class MessageProcessor {
   /**
    * Save a message in the delivery_messages table for history tracking.
    */
-  private async saveDriverMessage(schemaName: string, assignmentId: string, driverId: string, direction: string, content: string): Promise<void> {
+  private async saveDriverMessage(
+    schemaName: string,
+    assignmentId: string,
+    driverId: string,
+    direction: string,
+    content: string,
+  ): Promise<void> {
     try {
       await this.prisma.$executeRawUnsafe(`
         CREATE TABLE IF NOT EXISTS "${schemaName}".delivery_messages (
@@ -479,10 +618,16 @@ export class MessageProcessor {
           content TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
       `);
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${schemaName}".delivery_messages (assignment_id, driver_id, direction, content)
         VALUES ($1::uuid, $2::uuid, $3, $4)
-      `, assignmentId, driverId, direction, content);
+      `,
+        assignmentId,
+        driverId,
+        direction,
+        content,
+      );
     } catch {}
   }
 
@@ -493,7 +638,13 @@ export class MessageProcessor {
   private async detectTenantOwner(
     senderPhone: string,
     currentTenantSlug: string,
-  ): Promise<{ id: string; slug: string; schemaName: string; businessName: string; status: string } | null> {
+  ): Promise<{
+    id: string;
+    slug: string;
+    schemaName: string;
+    businessName: string;
+    status: string;
+  } | null> {
     // Only do owner detection when messaging the VSPRO platform
     if (currentTenantSlug !== 'vspro') return null;
 
@@ -509,19 +660,27 @@ export class MessageProcessor {
     for (const t of tenants) {
       try {
         // Check if phone column exists first
-        const colCheck = await this.prisma.$queryRawUnsafe<any[]>(`
+        const colCheck = await this.prisma.$queryRawUnsafe<any[]>(
+          `
           SELECT 1 FROM information_schema.columns
           WHERE table_schema = $1 AND table_name = 'users' AND column_name = 'phone'
-        `, t.schemaName);
+        `,
+          t.schemaName,
+        );
 
         if (colCheck.length === 0) continue;
 
-        const users = await this.prisma.$queryRawUnsafe<any[]>(`
+        const users = await this.prisma.$queryRawUnsafe<any[]>(
+          `
           SELECT phone FROM "${t.schemaName}".users
           WHERE role = 'admin' AND phone IS NOT NULL
             AND (phone = $1 OR phone = $2 OR phone = $3)
           LIMIT 1
-        `, senderPhone, normalizedPhone, `+${normalizedPhone}`);
+        `,
+          senderPhone,
+          normalizedPhone,
+          `+${normalizedPhone}`,
+        );
 
         if (users.length > 0) return t;
       } catch {
@@ -537,7 +696,13 @@ export class MessageProcessor {
    * with admin context so Max can add products, configure things, etc.
    */
   private async processAsOwner(
-    ownerTenant: { id: string; slug: string; schemaName: string; businessName: string; status: string },
+    ownerTenant: {
+      id: string;
+      slug: string;
+      schemaName: string;
+      businessName: string;
+      status: string;
+    },
     platformTenant: any,
     message: IncomingMessage,
   ): Promise<void> {
@@ -561,8 +726,13 @@ export class MessageProcessor {
 
     // Save inbound message
     await this.conversationsService.saveMessage(
-      conversation.id, 'inbound', message.type, message.text ?? null,
-      message.mediaUrl ?? null, message.messageId, schema,
+      conversation.id,
+      'inbound',
+      message.type,
+      message.text ?? null,
+      message.mediaUrl ?? null,
+      message.messageId,
+      schema,
     );
 
     // Process with AI using THEIR schema (so add_product, etc. works on their data)
@@ -574,7 +744,10 @@ export class MessageProcessor {
 
     const aiResponse = await this.aiEngine.processMessage(
       fullTenant,
-      { ...conversation, context: { ...conversation.context, isOwner: true, customerId: customer.id } },
+      {
+        ...conversation,
+        context: { ...conversation.context, isOwner: true, customerId: customer.id },
+      },
       message,
       schema,
     );
@@ -589,13 +762,23 @@ export class MessageProcessor {
       );
 
       await this.conversationsService.saveMessage(
-        conversation.id, 'outbound', 'text', aiResponse.text, null, null, schema,
+        conversation.id,
+        'outbound',
+        'text',
+        aiResponse.text,
+        null,
+        null,
+        schema,
       );
     }
 
     // Update context
     if (aiResponse.updatedContext) {
-      await this.conversationsService.updateContext(conversation.id, aiResponse.updatedContext, schema);
+      await this.conversationsService.updateContext(
+        conversation.id,
+        aiResponse.updatedContext,
+        schema,
+      );
     }
 
     this.logger.log(`Owner message processed: ${message.senderId} → ${ownerTenant.slug}`);

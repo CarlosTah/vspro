@@ -54,7 +54,11 @@ export class SentryIntegrationService implements OnModuleInit {
   /**
    * Capture a message (non-exception event).
    */
-  captureMessage(message: string, level: 'info' | 'warning' | 'error', context?: ErrorContext): void {
+  captureMessage(
+    message: string,
+    level: 'info' | 'warning' | 'error',
+    context?: ErrorContext,
+  ): void {
     if (this.initialized) {
       // Sentry.captureMessage(message, { level, tags: context });
     }

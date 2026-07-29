@@ -317,7 +317,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: deploy-staging
     if: github.ref == 'refs/heads/main'
-    environment: production   # requiere aprobación manual en GitHub
+    environment: production # requiere aprobación manual en GitHub
 
     steps:
       - uses: actions/checkout@v4
@@ -397,3 +397,4 @@ jobs:
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+```

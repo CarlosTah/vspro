@@ -14,12 +14,29 @@ const prisma = new PrismaClient();
 const VIKIDS_TOOLS = [
   {
     name: 'search_clothing',
-    description: 'Busca ropa infantil de niña por categoría, talla, color o nombre. Retorna productos disponibles con precios y variantes.',
+    description:
+      'Busca ropa infantil de niña por categoría, talla, color o nombre. Retorna productos disponibles con precios y variantes.',
     parameters: [
-      { name: 'query', type: 'string', description: 'Texto de búsqueda (nombre, categoría, color)', required: true },
-      { name: 'talla', type: 'string', description: 'Talla específica (2, 4, 6, 8, 10, 22, 24, 26, Única)', required: false },
+      {
+        name: 'query',
+        type: 'string',
+        description: 'Texto de búsqueda (nombre, categoría, color)',
+        required: true,
+      },
+      {
+        name: 'talla',
+        type: 'string',
+        description: 'Talla específica (2, 4, 6, 8, 10, 22, 24, 26, Única)',
+        required: false,
+      },
       { name: 'color', type: 'string', description: 'Color preferido', required: false },
-      { name: 'category', type: 'string', description: 'Categoría: Vestidos, Conjuntos, Pantalones, Playeras, Chamarras, Faldas, Pijamas, Calzado, Accesorios', required: false },
+      {
+        name: 'category',
+        type: 'string',
+        description:
+          'Categoría: Vestidos, Conjuntos, Pantalones, Playeras, Chamarras, Faldas, Pijamas, Calzado, Accesorios',
+        required: false,
+      },
     ],
     handler: 'products',
     method: 'search',
@@ -27,7 +44,8 @@ const VIKIDS_TOOLS = [
   },
   {
     name: 'check_variant_stock',
-    description: 'Verifica el stock disponible de una variante específica (talla + color) de un producto.',
+    description:
+      'Verifica el stock disponible de una variante específica (talla + color) de un producto.',
     parameters: [
       { name: 'productName', type: 'string', description: 'Nombre del producto', required: true },
       { name: 'talla', type: 'string', description: 'Talla deseada', required: true },
@@ -39,11 +57,22 @@ const VIKIDS_TOOLS = [
   },
   {
     name: 'suggest_outfit',
-    description: 'Sugiere un outfit completo (combinación de prendas) basado en la ocasión y talla de la niña.',
+    description:
+      'Sugiere un outfit completo (combinación de prendas) basado en la ocasión y talla de la niña.',
     parameters: [
-      { name: 'occasion', type: 'string', description: 'Ocasión: fiesta, casual, escuela, playa, invierno', required: true },
+      {
+        name: 'occasion',
+        type: 'string',
+        description: 'Ocasión: fiesta, casual, escuela, playa, invierno',
+        required: true,
+      },
       { name: 'talla', type: 'string', description: 'Talla de la niña', required: true },
-      { name: 'budget', type: 'number', description: 'Presupuesto máximo en MXN (opcional)', required: false },
+      {
+        name: 'budget',
+        type: 'number',
+        description: 'Presupuesto máximo en MXN (opcional)',
+        required: false,
+      },
     ],
     handler: 'products',
     method: 'suggestOutfit',
@@ -51,11 +80,22 @@ const VIKIDS_TOOLS = [
   },
   {
     name: 'calculate_shipping_vikids',
-    description: 'Calcula el costo y tiempo de envío para un pedido de ropa. Envío gratis en compras mayores a $800 MXN.',
+    description:
+      'Calcula el costo y tiempo de envío para un pedido de ropa. Envío gratis en compras mayores a $800 MXN.',
     parameters: [
       { name: 'zipCode', type: 'string', description: 'Código postal de destino', required: true },
-      { name: 'orderTotal', type: 'number', description: 'Total del pedido en MXN', required: true },
-      { name: 'serviceType', type: 'string', description: 'Tipo: standard, express, same_day', required: false },
+      {
+        name: 'orderTotal',
+        type: 'number',
+        description: 'Total del pedido en MXN',
+        required: true,
+      },
+      {
+        name: 'serviceType',
+        type: 'string',
+        description: 'Tipo: standard, express, same_day',
+        required: false,
+      },
     ],
     handler: 'logistics',
     method: 'calculateShipping',
@@ -65,7 +105,12 @@ const VIKIDS_TOOLS = [
     name: 'track_vikids_order',
     description: 'Rastrea el estado de un envío de Vikids por número de pedido.',
     parameters: [
-      { name: 'orderNumber', type: 'string', description: 'Número de pedido (ej: VK-2026-00001)', required: true },
+      {
+        name: 'orderNumber',
+        type: 'string',
+        description: 'Número de pedido (ej: VK-2026-00001)',
+        required: true,
+      },
     ],
     handler: 'logistics',
     method: 'trackOrder',
@@ -73,10 +118,21 @@ const VIKIDS_TOOLS = [
   },
   {
     name: 'create_clothing_order',
-    description: 'Crea un pedido de ropa cuando la clienta confirma los artículos. Incluye variante (talla/color).',
+    description:
+      'Crea un pedido de ropa cuando la clienta confirma los artículos. Incluye variante (talla/color).',
     parameters: [
-      { name: 'items', type: 'array', description: 'Lista de artículos: [{productName, talla, color, quantity}]', required: true },
-      { name: 'notes', type: 'string', description: 'Notas especiales (regalo, empaque especial, etc.)', required: false },
+      {
+        name: 'items',
+        type: 'array',
+        description: 'Lista de artículos: [{productName, talla, color, quantity}]',
+        required: true,
+      },
+      {
+        name: 'notes',
+        type: 'string',
+        description: 'Notas especiales (regalo, empaque especial, etc.)',
+        required: false,
+      },
     ],
     handler: 'orders',
     method: 'create',
@@ -86,8 +142,18 @@ const VIKIDS_TOOLS = [
     name: 'check_return_policy',
     description: 'Informa sobre la política de devoluciones y cambios de talla de Vikids.',
     parameters: [
-      { name: 'reason', type: 'string', description: 'Razón: cambio_talla, defecto, no_gusto', required: true },
-      { name: 'daysSincePurchase', type: 'number', description: 'Días desde la compra', required: false },
+      {
+        name: 'reason',
+        type: 'string',
+        description: 'Razón: cambio_talla, defecto, no_gusto',
+        required: true,
+      },
+      {
+        name: 'daysSincePurchase',
+        type: 'number',
+        description: 'Días desde la compra',
+        required: false,
+      },
     ],
     handler: 'logistics',
     method: 'checkReturnPolicy',
@@ -101,9 +167,12 @@ async function main() {
   const schemaName = 'tenant_vikids';
 
   // Verificar que el schema existe
-  const exists = await prisma.$queryRawUnsafe<any[]>(`
+  const exists = await prisma.$queryRawUnsafe<any[]>(
+    `
     SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1
-  `, schemaName);
+  `,
+    schemaName,
+  );
 
   if (!exists[0]) {
     console.error('❌ Schema tenant_vikids no existe. Ejecuta seed-vikids.ts primero.');
@@ -117,11 +186,14 @@ async function main() {
   `);
 
   // Guardar herramientas
-  await prisma.$executeRawUnsafe(`
+  await prisma.$executeRawUnsafe(
+    `
     UPDATE "${schemaName}".ai_config
     SET custom_tools = $1::jsonb
     WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
-  `, JSON.stringify(VIKIDS_TOOLS));
+  `,
+    JSON.stringify(VIKIDS_TOOLS),
+  );
 
   console.log(`✅ ${VIKIDS_TOOLS.length} herramientas registradas para vikids:`);
   for (const tool of VIKIDS_TOOLS) {
@@ -131,5 +203,8 @@ async function main() {
 }
 
 main()
-  .catch((e) => { console.error('❌ Error:', e); process.exit(1); })
+  .catch((e) => {
+    console.error('❌ Error:', e);
+    process.exit(1);
+  })
   .finally(() => prisma.$disconnect());

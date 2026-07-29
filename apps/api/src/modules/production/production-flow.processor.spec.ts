@@ -23,7 +23,12 @@ describe('ProductionFlowProcessor', () => {
     orderNumber: 'ORD-2026-00001',
     priority: 'normal',
     items: [
-      { productId: 'prod-1', productName: 'Vestido Mariposas', quantity: 2, variantName: 'Talla 6 - Rosa' },
+      {
+        productId: 'prod-1',
+        productName: 'Vestido Mariposas',
+        quantity: 2,
+        variantName: 'Talla 6 - Rosa',
+      },
       { productId: 'prod-2', productName: 'Chamarra Estrellas', quantity: 1 },
     ],
   };
@@ -61,7 +66,10 @@ describe('ProductionFlowProcessor', () => {
     });
 
     it('rejects if tenant schema mismatch', async () => {
-      mockPrisma.tenant.findUnique.mockResolvedValue({ schemaName: 'tenant_other', status: 'ACTIVE' });
+      mockPrisma.tenant.findUnique.mockResolvedValue({
+        schemaName: 'tenant_other',
+        status: 'ACTIVE',
+      });
 
       await processor.handleInjectOrder({ data: baseEvent } as any);
 
@@ -70,7 +78,10 @@ describe('ProductionFlowProcessor', () => {
     });
 
     it('rejects if tenant is suspended', async () => {
-      mockPrisma.tenant.findUnique.mockResolvedValue({ schemaName: 'tenant_test', status: 'SUSPENDED' });
+      mockPrisma.tenant.findUnique.mockResolvedValue({
+        schemaName: 'tenant_test',
+        status: 'SUSPENDED',
+      });
 
       await processor.handleInjectOrder({ data: baseEvent } as any);
 

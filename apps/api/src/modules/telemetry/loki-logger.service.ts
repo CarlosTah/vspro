@@ -56,7 +56,9 @@ export class LokiLoggerService implements OnModuleInit {
    */
   error(message: string, error?: Error, context?: TelemetryContext): void {
     this.emit('error', message, context, {
-      error: error ? { name: error.name, message: error.message, stack: error.stack?.split('\n').slice(0, 5) } : undefined,
+      error: error
+        ? { name: error.name, message: error.message, stack: error.stack?.split('\n').slice(0, 5) }
+        : undefined,
     });
   }
 
@@ -72,7 +74,13 @@ export class LokiLoggerService implements OnModuleInit {
   /**
    * Log a BullMQ job event.
    */
-  logJob(event: 'started' | 'completed' | 'failed', queue: string, jobId: string, context?: TelemetryContext, meta?: Record<string, any>): void {
+  logJob(
+    event: 'started' | 'completed' | 'failed',
+    queue: string,
+    jobId: string,
+    context?: TelemetryContext,
+    meta?: Record<string, any>,
+  ): void {
     const level = event === 'failed' ? 'error' : 'info';
     this.emit(level, `Job ${event}: ${queue}/${jobId}`, { ...context, queue, jobId }, meta);
   }
@@ -82,12 +90,19 @@ export class LokiLoggerService implements OnModuleInit {
    */
   logDuration(operation: string, durationMs: number, context?: TelemetryContext): void {
     const level = durationMs > 5000 ? 'warn' : 'info';
-    this.emit(level, `${operation} completed in ${durationMs}ms`, context, { duration: durationMs });
+    this.emit(level, `${operation} completed in ${durationMs}ms`, context, {
+      duration: durationMs,
+    });
   }
 
   // ─── Core Emit ────────────────────────────────────────────────
 
-  private emit(level: string, message: string, context?: TelemetryContext, metadata?: Record<string, any>): void {
+  private emit(
+    level: string,
+    message: string,
+    context?: TelemetryContext,
+    metadata?: Record<string, any>,
+  ): void {
     const entry = {
       timestamp: new Date().toISOString(),
       level,
@@ -115,10 +130,17 @@ export class LokiLoggerService implements OnModuleInit {
       const prefix = context?.tenantSlug ? `[${context.tenantSlug}]` : '';
       const queuePrefix = context?.queue ? `[${context.queue}]` : '';
       switch (level) {
-        case 'error': this.logger.error(`${prefix}${queuePrefix} ${message}`); break;
-        case 'warn': this.logger.warn(`${prefix}${queuePrefix} ${message}`); break;
-        case 'debug': this.logger.debug(`${prefix}${queuePrefix} ${message}`); break;
-        default: this.logger.log(`${prefix}${queuePrefix} ${message}`);
+        case 'error':
+          this.logger.error(`${prefix}${queuePrefix} ${message}`);
+          break;
+        case 'warn':
+          this.logger.warn(`${prefix}${queuePrefix} ${message}`);
+          break;
+        case 'debug':
+          this.logger.debug(`${prefix}${queuePrefix} ${message}`);
+          break;
+        default:
+          this.logger.log(`${prefix}${queuePrefix} ${message}`);
       }
     }
   }

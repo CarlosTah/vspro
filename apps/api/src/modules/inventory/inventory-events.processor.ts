@@ -44,21 +44,28 @@ export class InventoryEventsProcessor {
 
     // Transactional: move stock from reserved to committed (decrease reserved)
     for (const item of items) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".inventory
         SET stock_reserved = GREATEST(stock_reserved - $1, 0),
             updated_at = NOW()
         WHERE product_id = $2::uuid
           AND stock_reserved >= $1
-      `, item.quantity, item.productId);
+      `,
+        item.quantity,
+        item.productId,
+      );
     }
 
     // Update order status
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".orders
       SET status = 'paid', updated_at = NOW()
       WHERE id = $1::uuid AND status = 'payment_pending'
-    `, orderId);
+    `,
+      orderId,
+    );
 
     this.logger.log(`[${schemaName}] Stock committed for order ${orderId} (${items.length} items)`);
   }
@@ -78,22 +85,31 @@ export class InventoryEventsProcessor {
 
     // Transactional: release reserved stock back to available
     for (const item of items) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".inventory
         SET stock_available = stock_available + $1,
             stock_reserved = GREATEST(stock_reserved - $1, 0),
             updated_at = NOW()
         WHERE product_id = $2::uuid
-      `, item.quantity, item.productId);
+      `,
+        item.quantity,
+        item.productId,
+      );
     }
 
     // Update order status
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".orders
       SET status = 'cancelled', updated_at = NOW()
       WHERE id = $1::uuid AND status != 'cancelled'
-    `, orderId);
+    `,
+      orderId,
+    );
 
-    this.logger.log(`[${schemaName}] Stock released for cancelled order ${orderId} (${items.length} items)`);
+    this.logger.log(
+      `[${schemaName}] Stock released for cancelled order ${orderId} (${items.length} items)`,
+    );
   }
 }

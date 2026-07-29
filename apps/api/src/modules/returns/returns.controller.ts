@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Param, Body, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ReturnsService, CreateReturnDto, ReturnStatus } from './returns.service';
@@ -39,13 +48,21 @@ export class ReturnsController {
 
   @Post(':id/reject')
   @Roles('admin', 'manager')
-  reject(@Param('id', ParseUUIDPipe) id: string, @Body() body: { reason: string }, @TenantSchema() schema: string) {
+  reject(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { reason: string },
+    @TenantSchema() schema: string,
+  ) {
     return this.returns.reject(id, body.reason, schema);
   }
 
   @Post(':id/shipped-back')
   @Roles('admin', 'manager', 'operator')
-  shippedBack(@Param('id', ParseUUIDPipe) id: string, @Body() body: { trackingNumber: string }, @TenantSchema() schema: string) {
+  shippedBack(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { trackingNumber: string },
+    @TenantSchema() schema: string,
+  ) {
     return this.returns.markShippedBack(id, body.trackingNumber, schema);
   }
 

@@ -26,7 +26,8 @@ export class OrdersService {
     const where = status ? `WHERE o.status = $1` : '';
     const params = status ? [status] : [];
 
-    return this.prisma.$queryRawUnsafe<any[]>(`
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         o.id, o.order_number AS "orderNumber",
         o.status, o.total, o.subtotal, o.shipping_cost AS "shippingCost",
@@ -38,11 +39,14 @@ export class OrdersService {
       JOIN "${schemaName}".customers c ON c.id = o.customer_id
       ${where}
       ORDER BY o.created_at DESC
-    `, ...params);
+    `,
+      ...params,
+    );
   }
 
   async findById(id: string, schemaName: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         o.id, o.order_number AS "orderNumber",
         o.status, o.items, o.total, o.subtotal,
@@ -55,19 +59,24 @@ export class OrdersService {
       FROM "${schemaName}".orders o
       JOIN "${schemaName}".customers c ON c.id = o.customer_id
       WHERE o.id = $1::uuid
-    `, id);
+    `,
+      id,
+    );
 
     if (!rows[0]) throw new NotFoundException(`Pedido ${id} no encontrado`);
     return rows[0];
   }
 
   async findByOrderNumber(orderNumber: string, schemaName: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT o.*, c.name AS "customerName"
       FROM "${schemaName}".orders o
       JOIN "${schemaName}".customers c ON c.id = o.customer_id
       WHERE o.order_number = $1
-    `, orderNumber);
+    `,
+      orderNumber,
+    );
 
     if (!rows[0]) throw new NotFoundException(`Pedido ${orderNumber} no encontrado`);
     return rows[0];
@@ -79,11 +88,14 @@ export class OrdersService {
     // 1. Handle customer — create walk-in customer if no customerId
     let customerId = dto.customerId;
     if (!customerId) {
-      const walkIn = await this.prisma.$queryRawUnsafe<any[]>(`
+      const walkIn = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         INSERT INTO "${schemaName}".customers (name, channel_type, channel_id)
         VALUES ('Mostrador', $1, 'manual-' || gen_random_uuid()::text)
         RETURNING id
-      `, dto.channelType ?? 'manual');
+      `,
+        dto.channelType ?? 'manual',
+      );
       customerId = walkIn[0]?.id;
     } else {
       // Verify customer exists
@@ -105,12 +117,13 @@ export class OrdersService {
 
     // 3.5 Ensure delivery_type column exists
     await this.prisma.$executeRawUnsafe(
-      `ALTER TABLE "${schemaName}".orders ADD COLUMN IF NOT EXISTS delivery_type VARCHAR(20) DEFAULT 'pickup'`
+      `ALTER TABLE "${schemaName}".orders ADD COLUMN IF NOT EXISTS delivery_type VARCHAR(20) DEFAULT 'pickup'`,
     );
 
     // 4. Crear el pedido
     const initialStatus = dto.status ?? 'new';
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       INSERT INTO "${schemaName}".orders
         (order_number, customer_id, channel_type, status, items,
          subtotal, shipping_cost, total, notes, shipping_address, delivery_type)
@@ -154,7 +167,8 @@ export class OrdersService {
     schemaName: string,
   ): Promise<void> {
     try {
-      const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      const rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT o.order_number AS "orderNumber", o.channel_type AS "channelType",
                o.status, o.delivery_type AS "deliveryType", o.shipping_address AS "shippingAddress",
                c.name AS "customerName", c.channel_id AS "channelId",
@@ -162,7 +176,9 @@ export class OrdersService {
         FROM "${schemaName}".orders o
         JOIN "${schemaName}".customers c ON c.id = o.customer_id
         WHERE o.id = $1::uuid
-      `, orderId);
+      `,
+        orderId,
+      );
 
       const order = rows[0];
       if (!order || !order.channelId) return;
@@ -176,16 +192,21 @@ export class OrdersService {
       const channelType = order.customerChannelType ?? 'whatsapp';
       const name = order.customerName?.split(' ')[0] ?? '';
 
-      const itemsList = items.map((i: any) => `  • ${i.productName} x${i.quantity} — $${i.subtotal}`).join('\n');
+      const itemsList = items
+        .map((i: any) => `  • ${i.productName} x${i.quantity} — $${i.subtotal}`)
+        .join('\n');
 
       if (isPaidAtCreation) {
         // Cash/card — simple confirmation, no payment request
         const isDelivery = order.deliveryType === 'delivery';
-        const msg = `✅ *Pedido confirmado #${order.orderNumber}*\n\n` +
+        const msg =
+          `✅ *Pedido confirmado #${order.orderNumber}*\n\n` +
           `Hola${name ? ` ${name}` : ''}, tu pedido ya está pagado y en preparación:\n\n` +
           `${itemsList}\n\n` +
           `💰 Total: $${total.toLocaleString('es-MX')} MXN\n` +
-          (isDelivery ? `🛵 Te lo enviamos a domicilio. Te avisamos cuando salga.\n\n📌 Envíanos tu ubicación (📍) para que el repartidor te encuentre.\n` : `🏪 Recoger en local. Te avisamos cuando esté listo.\n`) +
+          (isDelivery
+            ? `🛵 Te lo enviamos a domicilio. Te avisamos cuando salga.\n\n📌 Envíanos tu ubicación (📍) para que el repartidor te encuentre.\n`
+            : `🏪 Recoger en local. Te avisamos cuando esté listo.\n`) +
           `\n¡Gracias! 🙏`;
 
         await this.messagingFactory.sendText(order.channelId, msg, channelType, schemaName);
@@ -201,7 +222,8 @@ export class OrdersService {
         `);
         const pi = configRows[0]?.paymentInfo;
         if (pi && pi.bank) {
-          paymentInfo = `\n🏦 *Datos para transferencia:*\n` +
+          paymentInfo =
+            `\n🏦 *Datos para transferencia:*\n` +
             `  Banco: ${pi.bank}\n` +
             `  CLABE: ${pi.clabe}\n` +
             `  Beneficiario: ${pi.beneficiary}\n`;
@@ -209,24 +231,31 @@ export class OrdersService {
       } catch {}
 
       const message = this.buildOrderNotificationMessage(
-        order.orderNumber, name, itemsList, total, paymentInfo,
-        order.channelType, order.deliveryType, order.shippingAddress,
+        order.orderNumber,
+        name,
+        itemsList,
+        total,
+        paymentInfo,
+        order.channelType,
+        order.deliveryType,
+        order.shippingAddress,
       );
 
-      await this.messagingFactory.sendText(
-        order.channelId,
-        message,
-        channelType,
-        schemaName,
-      );
+      await this.messagingFactory.sendText(order.channelId, message, channelType, schemaName);
     } catch {
       // Non-blocking
     }
   }
 
   private buildOrderNotificationMessage(
-    orderNumber: string, name: string, itemsList: string, total: number,
-    paymentInfo: string, channelType: string, deliveryType: string, shippingAddress: any,
+    orderNumber: string,
+    name: string,
+    itemsList: string,
+    total: number,
+    paymentInfo: string,
+    channelType: string,
+    deliveryType: string,
+    shippingAddress: any,
   ): string {
     const isDelivery = deliveryType === 'delivery';
     const isPaid = channelType === 'manual'; // If manual with cash/card, status is already payment_verified
@@ -238,9 +267,10 @@ export class OrdersService {
 
     // Delivery info
     if (isDelivery) {
-      const addr = typeof shippingAddress === 'object'
-        ? `${shippingAddress?.street ?? ''} ${shippingAddress?.colony ?? ''}`.trim()
-        : (shippingAddress ?? '');
+      const addr =
+        typeof shippingAddress === 'object'
+          ? `${shippingAddress?.street ?? ''} ${shippingAddress?.colony ?? ''}`.trim()
+          : (shippingAddress ?? '');
       msg += `🛵 *Envío a domicilio*\n`;
       if (addr) msg += `📍 ${addr}\n`;
       msg += `\n📌 Si puedes, envíanos tu ubicación por WhatsApp (📍) para que el repartidor te encuentre más fácil.\n\n`;
@@ -262,12 +292,7 @@ export class OrdersService {
 
   // ─── Transiciones de estado ───────────────────────────────────
 
-  async transition(
-    id: string,
-    newStatus: OrderStatus,
-    schemaName: string,
-    userId?: string,
-  ) {
+  async transition(id: string, newStatus: OrderStatus, schemaName: string, userId?: string) {
     const order = await this.findById(id, schemaName);
     const currentStatus = order.status as OrderStatus;
 
@@ -280,19 +305,22 @@ export class OrdersService {
       });
     }
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".orders
       SET status = $1,
           assigned_to = COALESCE($2, assigned_to),
           updated_at = NOW()
       WHERE id = $3::uuid
-    `, newStatus, userId ?? null, id);
+    `,
+      newStatus,
+      userId ?? null,
+      id,
+    );
 
     // Si se cancela, liberar stock reservado
     if (newStatus === 'cancelled') {
-      const items = typeof order.items === 'string'
-        ? JSON.parse(order.items)
-        : order.items;
+      const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
       await this.releaseStock(items, schemaName);
     }
 
@@ -301,11 +329,16 @@ export class OrdersService {
 
     // Close delivery assignment when order is delivered/shipped
     if (newStatus === 'delivered' || newStatus === 'shipped') {
-      this.prisma.$executeRawUnsafe(`
+      this.prisma
+        .$executeRawUnsafe(
+          `
         UPDATE "${schemaName}".delivery_assignments
         SET status = '${newStatus === 'delivered' ? 'delivered' : 'picked_up'}'
         WHERE order_id = $1::uuid AND status IN ('accepted', 'picked_up', 'offered')
-      `, id).catch(() => {});
+      `,
+          id,
+        )
+        .catch(() => {});
     }
 
     // AUTO-TRANSITION: payment_verified → in_production (automático)
@@ -313,7 +346,9 @@ export class OrdersService {
       // Earn loyalty points (non-blocking)
       const orderTotal = parseFloat(order.total ?? '0');
       if (orderTotal > 0 && order.customerId) {
-        this.loyaltyService.earnPoints(order.customerId, id, orderTotal, schemaName).catch(() => {});
+        this.loyaltyService
+          .earnPoints(order.customerId, id, orderTotal, schemaName)
+          .catch(() => {});
       }
 
       // Small delay to let the payment notification send first, then auto-move to production
@@ -327,36 +362,36 @@ export class OrdersService {
     return this.findById(id, schemaName);
   }
 
-  async updateShippingAddress(
-    id: string,
-    address: Record<string, any>,
-    schemaName: string,
-  ) {
+  async updateShippingAddress(id: string, address: Record<string, any>, schemaName: string) {
     await this.findById(id, schemaName);
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schemaName}".orders
       SET shipping_address = $1::jsonb, updated_at = NOW()
       WHERE id = $2::uuid
-    `, JSON.stringify(address), id);
+    `,
+      JSON.stringify(address),
+      id,
+    );
     return this.findById(id, schemaName);
   }
 
   // ─── Helpers privados ─────────────────────────────────────────
 
-  private async resolveItems(
-    items: { productId: string; quantity: number }[],
-    schemaName: string,
-  ) {
+  private async resolveItems(items: { productId: string; quantity: number }[], schemaName: string) {
     const resolved = [];
 
     for (const item of items) {
-      const products = await this.prisma.$queryRawUnsafe<any[]>(`
+      const products = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT p.id, p.name, p.price, p.sku, p.is_active AS "isActive",
                COALESCE(i.stock_available, 0) AS "stockAvailable"
         FROM "${schemaName}".products p
         LEFT JOIN "${schemaName}".inventory i ON i.product_id = p.id
         WHERE p.id = $1::uuid
-      `, item.productId);
+      `,
+        item.productId,
+      );
 
       if (!products[0]) {
         throw new NotFoundException(`Producto no encontrado`);
@@ -365,25 +400,34 @@ export class OrdersService {
       const product = products[0];
 
       if (!product.isActive) {
-        throw new BadRequestException(`El producto "${product.name}" está inactivo. Actívalo en la sección de productos o genera stock.`);
+        throw new BadRequestException(
+          `El producto "${product.name}" está inactivo. Actívalo en la sección de productos o genera stock.`,
+        );
       }
 
       // Auto-create or replenish inventory if missing/depleted
       if (product.stockAvailable === 0 || product.stockAvailable < item.quantity) {
         const hasInventory = await this.prisma.$queryRawUnsafe<any[]>(
-          `SELECT 1 FROM "${schemaName}".inventory WHERE product_id = $1::uuid`, item.productId,
+          `SELECT 1 FROM "${schemaName}".inventory WHERE product_id = $1::uuid`,
+          item.productId,
         );
         if (hasInventory.length === 0) {
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             INSERT INTO "${schemaName}".inventory (product_id, stock_available, stock_minimum)
             VALUES ($1::uuid, 9999, 5)
-          `, item.productId);
+          `,
+            item.productId,
+          );
           product.stockAvailable = 9999;
         } else if (product.stockAvailable < item.quantity) {
           // Auto-replenish (restaurants/services make products on demand)
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".inventory SET stock_available = 9999 WHERE product_id = $1::uuid
-          `, item.productId);
+          `,
+            item.productId,
+          );
           product.stockAvailable = 9999;
         }
       }
@@ -407,43 +451,48 @@ export class OrdersService {
     return resolved;
   }
 
-  private async reserveStock(
-    items: { productId: string; quantity: number }[],
-    schemaName: string,
-  ) {
+  private async reserveStock(items: { productId: string; quantity: number }[], schemaName: string) {
     for (const item of items) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".inventory
         SET stock_available = stock_available - $1,
             stock_reserved  = stock_reserved  + $1,
             updated_at      = NOW()
         WHERE product_id = $2::uuid
-      `, item.quantity, item.productId);
+      `,
+        item.quantity,
+        item.productId,
+      );
     }
   }
 
-  private async releaseStock(
-    items: { productId: string; quantity: number }[],
-    schemaName: string,
-  ) {
+  private async releaseStock(items: { productId: string; quantity: number }[], schemaName: string) {
     for (const item of items) {
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".inventory
         SET stock_available = stock_available + $1,
             stock_reserved  = GREATEST(0, stock_reserved - $1),
             updated_at      = NOW()
         WHERE product_id = $2::uuid
-      `, item.quantity, item.productId);
+      `,
+        item.quantity,
+        item.productId,
+      );
     }
   }
 
   private async generateOrderNumber(schemaName: string): Promise<string> {
     const year = new Date().getFullYear();
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT COUNT(*) AS count
       FROM "${schemaName}".orders
       WHERE EXTRACT(YEAR FROM created_at) = $1
-    `, year);
+    `,
+      year,
+    );
 
     const count = parseInt(rows[0].count) + 1;
     return `ORD-${year}-${String(count).padStart(5, '0')}`;
@@ -523,8 +572,8 @@ export class OrdersService {
           cancelledOrders: parseInt(m.cancelledOrders) || 0,
           lostRevenue: parseFloat(m.lostRevenue) || 0,
         },
-        reasons: reasons.map(r => ({ reason: r.reason, count: parseInt(r.count) || 0 })),
-        recent: recent.map(r => ({
+        reasons: reasons.map((r) => ({ reason: r.reason, count: parseInt(r.count) || 0 })),
+        recent: recent.map((r) => ({
           orderNumber: r.orderNumber,
           total: parseFloat(r.total) || 0,
           customerName: r.customerName ?? 'N/A',
@@ -534,7 +583,13 @@ export class OrdersService {
       };
     } catch {
       return {
-        overall: { totalOrders: 0, cancelledOrders: 0, cancellationRate: 0, lostRevenue: 0, deliveredRevenue: 0 },
+        overall: {
+          totalOrders: 0,
+          cancelledOrders: 0,
+          cancellationRate: 0,
+          lostRevenue: 0,
+          deliveredRevenue: 0,
+        },
         thisMonth: { totalOrders: 0, cancelledOrders: 0, lostRevenue: 0 },
         reasons: [],
         recent: [],

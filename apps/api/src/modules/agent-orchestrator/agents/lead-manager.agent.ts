@@ -23,7 +23,15 @@ export class LeadManagerAgent implements OrchestratorAgent {
 
   readonly name: OrchestratorAgentType = 'lead-manager';
   readonly description = 'Gestión de pipeline CRM: leads, scoring, follow-ups, conversión';
-  readonly domains = ['crm', 'leads', 'pipeline', 'conversion', 'follow-up', 'scoring', 'nurturing'];
+  readonly domains = [
+    'crm',
+    'leads',
+    'pipeline',
+    'conversion',
+    'follow-up',
+    'scoring',
+    'nurturing',
+  ];
   readonly riskLevel = 'medium' as const;
   readonly requiresApproval = false;
 
@@ -66,19 +74,23 @@ export class LeadManagerAgent implements OrchestratorAgent {
     `);
 
     const data = stats[0] ?? {};
-    const conversionRate = data.unique_customers > 0
-      ? ((parseInt(data.converted) / parseInt(data.unique_customers)) * 100).toFixed(1)
-      : '0';
+    const conversionRate =
+      data.unique_customers > 0
+        ? ((parseInt(data.converted) / parseInt(data.unique_customers)) * 100).toFixed(1)
+        : '0';
 
     const response = await this.openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      messages: [{
-        role: 'system',
-        content: `Eres un analista de CRM. Analiza estos datos del pipeline y genera insights accionables en español.`,
-      }, {
-        role: 'user',
-        content: `Pipeline últimos 30 días: ${JSON.stringify(data)}. Tasa conversión: ${conversionRate}%. Objetivo: ${task.description}`,
-      }],
+      messages: [
+        {
+          role: 'system',
+          content: `Eres un analista de CRM. Analiza estos datos del pipeline y genera insights accionables en español.`,
+        },
+        {
+          role: 'user',
+          content: `Pipeline últimos 30 días: ${JSON.stringify(data)}. Tasa conversión: ${conversionRate}%. Objetivo: ${task.description}`,
+        },
+      ],
       temperature: 0.3,
       max_tokens: 500,
     });
@@ -88,7 +100,11 @@ export class LeadManagerAgent implements OrchestratorAgent {
       toolsUsed: ['pipeline_analysis'],
       confidence: 0.85,
       data: { ...data, conversionRate: parseFloat(conversionRate) },
-      suggestedActions: ['Seguir leads estancados', 'Revisar objeciones de precio', 'Activar campaña win-back'],
+      suggestedActions: [
+        'Seguir leads estancados',
+        'Revisar objeciones de precio',
+        'Activar campaña win-back',
+      ],
     };
   }
 
@@ -104,9 +120,13 @@ export class LeadManagerAgent implements OrchestratorAgent {
     `);
 
     return {
-      response: staleLeads.length > 0
-        ? `Encontré ${staleLeads.length} leads estancados. Los de mayor valor: ${staleLeads.slice(0, 3).map(l => `${l.name} ($${parseFloat(l.total).toLocaleString()})`).join(', ')}`
-        : 'No hay leads estancados en este momento.',
+      response:
+        staleLeads.length > 0
+          ? `Encontré ${staleLeads.length} leads estancados. Los de mayor valor: ${staleLeads
+              .slice(0, 3)
+              .map((l) => `${l.name} ($${parseFloat(l.total).toLocaleString()})`)
+              .join(', ')}`
+          : 'No hay leads estancados en este momento.',
       toolsUsed: ['stale_leads_query'],
       confidence: 0.9,
       data: { staleLeads, count: staleLeads.length },

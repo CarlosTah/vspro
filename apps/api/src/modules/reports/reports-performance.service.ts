@@ -14,7 +14,11 @@ export class ReportsPerformanceService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async getPerformanceMetrics(schemaName: string, from: string, to: string): Promise<PerformanceMetrics> {
+  async getPerformanceMetrics(
+    schemaName: string,
+    from: string,
+    to: string,
+  ): Promise<PerformanceMetrics> {
     const [fulfillment, ai, products, channels] = await Promise.all([
       this.getFulfillmentMetrics(schemaName, from, to),
       this.getAiMetrics(schemaName, from, to),
@@ -26,7 +30,8 @@ export class ReportsPerformanceService {
   }
 
   private async getFulfillmentMetrics(schema: string, from: string, to: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         AVG(EXTRACT(EPOCH FROM (
           CASE WHEN status IN ('shipped','delivered') THEN updated_at ELSE NULL END
@@ -34,7 +39,10 @@ export class ReportsPerformanceService {
         COUNT(*) FILTER (WHERE status = 'in_production') AS backlog
       FROM "${schema}".orders
       WHERE created_at >= $1::date AND created_at < $2::date
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     const r = rows[0] ?? {};
     return {
@@ -46,14 +54,18 @@ export class ReportsPerformanceService {
   }
 
   private async getAiMetrics(schema: string, from: string, to: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         COUNT(*) AS total_messages,
         COUNT(*) FILTER (WHERE ai_processed = true) AS ai_handled,
         COUNT(*) FILTER (WHERE ai_processed = false AND direction = 'outbound') AS human_handled
       FROM "${schema}".messages
       WHERE created_at >= $1::date AND created_at < $2::date
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     const r = rows[0] ?? {};
     const total = parseInt(r.total_messages ?? '0');
@@ -73,7 +85,9 @@ export class ReportsPerformanceService {
 
   private async getProductMetrics(schema: string, from: string, to: string) {
     // Top selling products
-    const topSelling = await this.prisma.$queryRawUnsafe<any[]>(`
+    const topSelling = await this.prisma
+      .$queryRawUnsafe<any[]>(
+        `
       SELECT p.name,
              SUM((item->>'quantity')::int) AS quantity,
              SUM((item->>'quantity')::int * p.price) AS revenue
@@ -85,7 +99,11 @@ export class ReportsPerformanceService {
       GROUP BY p.name
       ORDER BY quantity DESC
       LIMIT 10
-    `, from, to).catch(() => []);
+    `,
+        from,
+        to,
+      )
+      .catch(() => []);
 
     // Low stock
     const lowStock = await this.prisma.$queryRawUnsafe<any[]>(`
@@ -105,12 +123,12 @@ export class ReportsPerformanceService {
     `);
 
     return {
-      topSelling: topSelling.map(r => ({
+      topSelling: topSelling.map((r) => ({
         name: r.name,
         quantity: parseInt(r.quantity ?? '0'),
         revenue: parseFloat(r.revenue ?? '0'),
       })),
-      lowStock: lowStock.map(r => ({
+      lowStock: lowStock.map((r) => ({
         name: r.name,
         sku: r.sku ?? '',
         stock: r.stock,
@@ -121,7 +139,8 @@ export class ReportsPerformanceService {
   }
 
   private async getChannelMetrics(schema: string, from: string, to: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         o.channel_type,
         COUNT(*) AS orders,
@@ -130,15 +149,22 @@ export class ReportsPerformanceService {
       WHERE o.created_at >= $1::date AND o.created_at < $2::date
         AND o.status != 'cancelled'
       GROUP BY o.channel_type
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
-    const msgRows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const msgRows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT c.channel_type, COUNT(m.*) AS messages
       FROM "${schema}".conversations c
       JOIN "${schema}".messages m ON m.conversation_id = c.id
       WHERE m.created_at >= $1::date AND m.created_at < $2::date
       GROUP BY c.channel_type
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     const byChannel: Record<string, { messages: number; orders: number; revenue: number }> = {};
     for (const r of rows) {
@@ -149,7 +175,8 @@ export class ReportsPerformanceService {
       };
     }
     for (const r of msgRows) {
-      if (!byChannel[r.channel_type]) byChannel[r.channel_type] = { messages: 0, orders: 0, revenue: 0 };
+      if (!byChannel[r.channel_type])
+        byChannel[r.channel_type] = { messages: 0, orders: 0, revenue: 0 };
       byChannel[r.channel_type].messages = parseInt(r.messages ?? '0');
     }
 

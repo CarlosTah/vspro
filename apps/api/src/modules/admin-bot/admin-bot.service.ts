@@ -27,10 +27,7 @@ export class AdminBotService {
    * Process an admin command received via WhatsApp.
    * Returns a formatted text response.
    */
-  async processAdminCommand(
-    message: string,
-    schemaName: string,
-  ): Promise<string> {
+  async processAdminCommand(message: string, schemaName: string): Promise<string> {
     const lower = message.toLowerCase().trim();
 
     // Sales summary
@@ -69,17 +66,20 @@ export class AdminBotService {
 
     const summary = await this.summaryService.getBusinessSummary(schema, today, tomorrow);
 
-    return `📊 *Resumen del día*\n\n` +
+    return (
+      `📊 *Resumen del día*\n\n` +
       `🛒 Pedidos: ${summary.orders.total}\n` +
       `💰 Ingresos: $${summary.revenue.total.toLocaleString()}\n` +
       `✅ Pagados: $${summary.revenue.paid.toLocaleString()}\n` +
       `⏳ Pendientes: $${summary.revenue.pending.toLocaleString()}\n` +
       `👥 Clientes nuevos: ${summary.customers.newInPeriod}\n` +
-      `💬 Conversaciones activas: ${summary.conversations.active}`;
+      `💬 Conversaciones activas: ${summary.conversations.active}`
+    );
   }
 
   private async getOrderStatus(orderNumber: string, schema: string): Promise<string> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT o.order_number, o.status, o.total, o.updated_at,
              c.name AS customer_name,
              s.carrier, s.tracking_number, s.status AS shipment_status
@@ -87,12 +87,15 @@ export class AdminBotService {
       JOIN "${schema}".customers c ON c.id = o.customer_id
       LEFT JOIN "${schema}".shipments s ON s.order_id = o.id
       WHERE o.order_number = $1
-    `, orderNumber.toUpperCase());
+    `,
+      orderNumber.toUpperCase(),
+    );
 
     if (!rows[0]) return `❌ Pedido ${orderNumber} no encontrado`;
 
     const o = rows[0];
-    let msg = `📋 *${o.order_number}*\n` +
+    let msg =
+      `📋 *${o.order_number}*\n` +
       `👤 ${o.customer_name}\n` +
       `💰 $${parseFloat(o.total).toLocaleString()}\n` +
       `📌 Estado: ${this.translateStatus(o.status)}\n`;
@@ -161,12 +164,14 @@ export class AdminBotService {
   }
 
   private getHelpMessage(): string {
-    return `🤖 *Admin Bot — Comandos disponibles*\n\n` +
+    return (
+      `🤖 *Admin Bot — Comandos disponibles*\n\n` +
       `📊 "ventas" — Resumen del día\n` +
       `📋 "ORD-2026-00001" — Estado de un pedido\n` +
       `📦 "envíos" — Pedidos pendientes de envío\n` +
       `📉 "stock" — Productos bajo mínimo\n` +
-      `💳 "pagos" — Pagos pendientes por cobrar`;
+      `💳 "pagos" — Pagos pendientes por cobrar`
+    );
   }
 
   // ─── Alerts (push to admin WhatsApp) ──────────────────────────

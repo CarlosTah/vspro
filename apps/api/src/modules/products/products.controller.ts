@@ -1,6 +1,15 @@
 import {
-  Controller, Get, Post, Patch, Delete,
-  Body, Param, Query, UseGuards, UseInterceptors, ParseUUIDPipe,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  UseInterceptors,
+  ParseUUIDPipe,
   UploadedFile,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -37,20 +46,20 @@ export class ProductsController {
     this.bucket = this.config.get('AWS_S3_BUCKET', 'vspro-uploads');
     this.endpoint = this.config.get('AWS_S3_ENDPOINT', `https://${region}.digitaloceanspaces.com`);
 
-    this.s3 = accessKey && secretKey ? new S3Client({
-      region,
-      endpoint: this.endpoint,
-      credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
-      forcePathStyle: false,
-    }) : null;
+    this.s3 =
+      accessKey && secretKey
+        ? new S3Client({
+            region,
+            endpoint: this.endpoint,
+            credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
+            forcePathStyle: false,
+          })
+        : null;
   }
 
   @Get()
   @ApiQuery({ name: 'all', required: false, type: Boolean })
-  findAll(
-    @TenantSchema() schema: string,
-    @Query('all') all?: string,
-  ) {
+  findAll(@TenantSchema() schema: string, @Query('all') all?: string) {
     return this.productsService.findAll(schema, all !== 'true');
   }
 
@@ -68,10 +77,7 @@ export class ProductsController {
   }
 
   @Get(':id')
-  findOne(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantSchema() schema: string,
-  ) {
+  findOne(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
     return this.productsService.findById(id, schema);
   }
 
@@ -99,10 +105,7 @@ export class ProductsController {
   }
 
   @Delete(':id')
-  remove(
-    @Param('id', ParseUUIDPipe) id: string,
-    @TenantSchema() schema: string,
-  ) {
+  remove(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
     return this.productsService.remove(id, schema);
   }
 
@@ -123,22 +126,28 @@ export class ProductsController {
     const key = `products/${schema}/${id}/${Date.now()}.${ext}`;
 
     // Upload to DO Spaces
-    await this.s3.send(new PutObjectCommand({
-      Bucket: this.bucket,
-      Key: key,
-      Body: file.buffer,
-      ContentType: file.mimetype,
-      ACL: 'public-read',
-    }));
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+        ACL: 'public-read',
+      }),
+    );
 
     const imageUrl = `${this.endpoint}/${this.bucket}/${key}`;
 
     // Add to product images array
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schema}".products
       SET images = array_append(COALESCE(images, '{}'), $1), updated_at = NOW()
       WHERE id = $2::uuid
-    `, imageUrl, id);
+    `,
+      imageUrl,
+      id,
+    );
 
     return { success: true, url: imageUrl };
   }
@@ -150,11 +159,15 @@ export class ProductsController {
     @Body() body: { url: string },
     @TenantSchema() schema: string,
   ) {
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schema}".products
       SET images = array_remove(images, $1), updated_at = NOW()
       WHERE id = $2::uuid
-    `, body.url, id);
+    `,
+      body.url,
+      id,
+    );
 
     return { success: true };
   }

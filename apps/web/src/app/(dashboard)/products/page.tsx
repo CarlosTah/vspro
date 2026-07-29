@@ -24,7 +24,10 @@ export default function ProductsPage() {
   // Filter products
   const filtered = products?.filter((p: any) => {
     const matchesCategory = !categoryFilter || p.category === categoryFilter;
-    const matchesSearch = !search || p.name?.toLowerCase().includes(search.toLowerCase()) || p.category?.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch =
+      !search ||
+      p.name?.toLowerCase().includes(search.toLowerCase()) ||
+      p.category?.toLowerCase().includes(search.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
@@ -51,10 +54,16 @@ export default function ProductsPage() {
           <p className="text-sm text-gray-400">{products?.length ?? 0} productos en catálogo</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowTemplates(!showTemplates)} className="vspro-btn-secondary text-sm">
+          <button
+            onClick={() => setShowTemplates(!showTemplates)}
+            className="vspro-btn-secondary text-sm"
+          >
             {showTemplates ? '✕ Cerrar' : '📋 Cargar plantilla'}
           </button>
-          <button onClick={() => router.push('/products/new')} className="vspro-btn-primary text-sm">
+          <button
+            onClick={() => router.push('/products/new')}
+            className="vspro-btn-primary text-sm"
+          >
             + Nuevo producto
           </button>
         </div>
@@ -63,7 +72,9 @@ export default function ProductsPage() {
       {/* Template loader */}
       {showTemplates && templates && (
         <div className="rounded-xl border border-accent/30 bg-accent/5 p-5">
-          <h3 className="text-sm font-semibold text-white mb-3">Cargar productos de plantilla por giro</h3>
+          <h3 className="text-sm font-semibold text-white mb-3">
+            Cargar productos de plantilla por giro
+          </h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {templates.map((t: any) => (
               <button
@@ -89,32 +100,46 @@ export default function ProductsPage() {
           className="vspro-input w-full"
         />
         <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex gap-2 overflow-x-auto">
-          <button
-            onClick={() => setCategoryFilter('')}
-            className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              !categoryFilter ? 'bg-accent text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-            }`}
-          >
-            Todos
-          </button>
-          {categories.map((cat: string) => (
+          <div className="flex gap-2 overflow-x-auto">
             <button
-              key={cat}
-              onClick={() => setCategoryFilter(cat)}
+              onClick={() => setCategoryFilter('')}
               className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                categoryFilter === cat ? 'bg-accent text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+                !categoryFilter
+                  ? 'bg-accent text-white'
+                  : 'bg-gray-800 text-gray-400 hover:text-white'
               }`}
             >
-              {cat}
+              Todos
             </button>
-          ))}
+            {categories.map((cat: string) => (
+              <button
+                key={cat}
+                onClick={() => setCategoryFilter(cat)}
+                className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  categoryFilter === cat
+                    ? 'bg-accent text-white'
+                    : 'bg-gray-800 text-gray-400 hover:text-white'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1 bg-gray-800 rounded-lg p-0.5">
+            <button
+              onClick={() => setView('grid')}
+              className={`px-2.5 py-1.5 rounded-md text-xs ${view === 'grid' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}
+            >
+              ▦
+            </button>
+            <button
+              onClick={() => setView('table')}
+              className={`px-2.5 py-1.5 rounded-md text-xs ${view === 'table' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}
+            >
+              ☰
+            </button>
+          </div>
         </div>
-        <div className="flex gap-1 bg-gray-800 rounded-lg p-0.5">
-          <button onClick={() => setView('grid')} className={`px-2.5 py-1.5 rounded-md text-xs ${view === 'grid' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}>▦</button>
-          <button onClick={() => setView('table')} className={`px-2.5 py-1.5 rounded-md text-xs ${view === 'table' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}>☰</button>
-        </div>
-      </div>
       </div>
 
       {/* Content */}
@@ -126,10 +151,19 @@ export default function ProductsPage() {
         <div className="rounded-xl border border-card-border bg-card p-12 text-center">
           <p className="text-3xl mb-3">📦</p>
           <p className="text-white font-medium">Sin productos</p>
-          <p className="text-sm text-gray-400 mt-1">Agrega tu primer producto o carga una plantilla</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Agrega tu primer producto o carga una plantilla
+          </p>
           <div className="flex gap-2 justify-center mt-4">
-            <button onClick={() => setShowTemplates(true)} className="vspro-btn-secondary text-sm">📋 Plantilla</button>
-            <button onClick={() => router.push('/products/new')} className="vspro-btn-primary text-sm">+ Crear</button>
+            <button onClick={() => setShowTemplates(true)} className="vspro-btn-secondary text-sm">
+              📋 Plantilla
+            </button>
+            <button
+              onClick={() => router.push('/products/new')}
+              className="vspro-btn-primary text-sm"
+            >
+              + Crear
+            </button>
           </div>
         </div>
       ) : view === 'grid' ? (
@@ -157,11 +191,15 @@ export default function ProductsPage() {
                     <p className="text-xs text-gray-500 mt-0.5">{p.category ?? 'General'}</p>
                   </div>
                   {!p.isActive && (
-                    <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs text-gray-400 ml-1">Off</span>
+                    <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs text-gray-400 ml-1">
+                      Off
+                    </span>
                   )}
                 </div>
                 <div className="mt-2 flex items-end justify-between">
-                  <p className="text-lg font-bold text-accent">${parseFloat(p.price).toLocaleString('es-MX')}</p>
+                  <p className="text-lg font-bold text-accent">
+                    ${parseFloat(p.price).toLocaleString('es-MX')}
+                  </p>
                   <p className="text-xs text-gray-500">Stock: {p.stockAvailable ?? '—'}</p>
                 </div>
               </div>
@@ -183,16 +221,24 @@ export default function ProductsPage() {
             </thead>
             <tbody className="divide-y divide-gray-700/50">
               {filtered.map((p: any) => (
-                <tr key={p.id} onClick={() => router.push(`/products/${p.id}`)} className="hover:bg-gray-800/50 cursor-pointer">
+                <tr
+                  key={p.id}
+                  onClick={() => router.push(`/products/${p.id}`)}
+                  className="hover:bg-gray-800/50 cursor-pointer"
+                >
                   <td className="px-5 py-3">
                     <p className="text-white font-medium">{p.name}</p>
                     <p className="text-xs text-gray-500">{p.sku}</p>
                   </td>
                   <td className="px-5 py-3 text-gray-300">{p.category ?? 'General'}</td>
-                  <td className="px-5 py-3 text-accent font-medium">${parseFloat(p.price).toLocaleString('es-MX')}</td>
+                  <td className="px-5 py-3 text-accent font-medium">
+                    ${parseFloat(p.price).toLocaleString('es-MX')}
+                  </td>
                   <td className="px-5 py-3 text-gray-300">{p.stockAvailable ?? '—'}</td>
                   <td className="px-5 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${p.isActive !== false ? 'bg-green-900/40 text-green-300' : 'bg-gray-700 text-gray-400'}`}>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs ${p.isActive !== false ? 'bg-green-900/40 text-green-300' : 'bg-gray-700 text-gray-400'}`}
+                    >
                       {p.isActive !== false ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>

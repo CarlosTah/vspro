@@ -28,7 +28,9 @@ export class NationalCarrierAdapter implements CarrierAdapter {
     // For now: simulate
     const trackingNumber = `NAC-${Date.now().toString(36).toUpperCase()}`;
 
-    this.logger.log(`[Simulated] National shipment created: ${trackingNumber} for order ${params.orderNumber}`);
+    this.logger.log(
+      `[Simulated] National shipment created: ${trackingNumber} for order ${params.orderNumber}`,
+    );
 
     return {
       trackingNumber,
@@ -47,8 +49,17 @@ export class NationalCarrierAdapter implements CarrierAdapter {
       lastUpdate: new Date().toISOString(),
       location: 'Centro de distribución CDMX',
       events: [
-        { timestamp: new Date().toISOString(), status: 'in_transit', description: 'En camino', location: 'CDMX' },
-        { timestamp: new Date(Date.now() - 86400000).toISOString(), status: 'picked_up', description: 'Recolectado' },
+        {
+          timestamp: new Date().toISOString(),
+          status: 'in_transit',
+          description: 'En camino',
+          location: 'CDMX',
+        },
+        {
+          timestamp: new Date(Date.now() - 86400000).toISOString(),
+          status: 'picked_up',
+          description: 'Recolectado',
+        },
       ],
     };
   }
@@ -68,7 +79,7 @@ export class NationalCarrierAdapter implements CarrierAdapter {
     const totalWeight = params.packages.reduce((sum, p) => sum + p.weightKg, 0);
     const basePrice = 120;
     const perKg = 25;
-    const price = basePrice + (totalWeight * perKg);
+    const price = basePrice + totalWeight * perKg;
 
     return {
       carrier: this.code,

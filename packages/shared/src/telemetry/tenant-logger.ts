@@ -13,7 +13,12 @@ export function createTenantLogger(serviceName: string) {
       return `[${serviceName}] [${tenant}] ${prefix} ${message}`;
     },
 
-    structuredLog(level: string, message: string, context?: TelemetryContext, meta?: Record<string, any>) {
+    structuredLog(
+      level: string,
+      message: string,
+      context?: TelemetryContext,
+      meta?: Record<string, any>,
+    ) {
       return {
         timestamp: new Date().toISOString(),
         level,

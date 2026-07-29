@@ -28,12 +28,14 @@ export class ReportScheduleController {
       FROM "${schema}".ai_config LIMIT 1
     `);
 
-    return rows[0]?.schedule ?? {
-      enabled: false,
-      frequency: 'daily',
-      time: '20:00',
-      phone: '',
-    };
+    return (
+      rows[0]?.schedule ?? {
+        enabled: false,
+        frequency: 'daily',
+        time: '20:00',
+        phone: '',
+      }
+    );
   }
 
   @Patch()
@@ -49,7 +51,8 @@ export class ReportScheduleController {
     const current = await this.getSchedule(schema);
     const updated = { ...current, ...dto };
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${schema}".ai_config
       SET agent_config = jsonb_set(
         COALESCE(agent_config, '{}'::jsonb),
@@ -57,7 +60,9 @@ export class ReportScheduleController {
         $1::jsonb
       ), updated_at = NOW()
       WHERE id = (SELECT id FROM "${schema}".ai_config LIMIT 1)
-    `, JSON.stringify(updated));
+    `,
+      JSON.stringify(updated),
+    );
 
     return updated;
   }

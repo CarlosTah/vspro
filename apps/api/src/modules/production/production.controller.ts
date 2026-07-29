@@ -1,7 +1,4 @@
-import {
-  Controller, Get, Post, Body,
-  Param, UseGuards, ParseUUIDPipe,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, ParseUUIDPipe } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ProductionService } from './production.service';
@@ -45,10 +42,7 @@ export class ProductionController {
 
   /** Marcar pedido como listo (notifica al cliente automáticamente) */
   @Post(':orderId/ready')
-  markReady(
-    @Param('orderId', ParseUUIDPipe) orderId: string,
-    @TenantSchema() schema: string,
-  ) {
+  markReady(@Param('orderId', ParseUUIDPipe) orderId: string, @TenantSchema() schema: string) {
     return this.productionService.markReady(orderId, schema);
   }
 }

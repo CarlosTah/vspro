@@ -1,4 +1,11 @@
-import { Controller, Get, Post, Param, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ApiTags, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { PrismaService } from '../../database/prisma.service';
 
@@ -43,13 +50,17 @@ export class DeliveryTrackingController {
   async accept(@Param('orderId') orderId: string, @Param('token') token: string) {
     const a = await this.findAssignment(orderId, token);
     if (!a) throw new NotFoundException('Enlace no válido');
-    if (a.status !== 'offered') throw new BadRequestException('Esta entrega ya fue aceptada o cancelada');
+    if (a.status !== 'offered')
+      throw new BadRequestException('Esta entrega ya fue aceptada o cancelada');
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${a.schemaName}".delivery_assignments
       SET status = 'accepted', accepted_at = NOW()
       WHERE id = $1::uuid
-    `, a.assignmentId);
+    `,
+      a.assignmentId,
+    );
 
     return { success: true, message: 'Entrega aceptada. ¡Ve a recoger el pedido!' };
   }
@@ -61,16 +72,22 @@ export class DeliveryTrackingController {
     if (!a) throw new NotFoundException('Enlace no válido');
     if (a.status !== 'accepted') throw new BadRequestException('Debes aceptar primero');
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${a.schemaName}".delivery_assignments
       SET status = 'picked_up', picked_up_at = NOW()
       WHERE id = $1::uuid
-    `, a.assignmentId);
+    `,
+      a.assignmentId,
+    );
 
     // Transition order to shipped — "en camino al cliente"
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${a.schemaName}".orders SET status = 'shipped', updated_at = NOW() WHERE id = $1::uuid
-    `, orderId);
+    `,
+      orderId,
+    );
 
     // Notify customer that order is on the way
     await this.notifyCustomer(a.schemaName, orderId, 'shipped');
@@ -85,16 +102,22 @@ export class DeliveryTrackingController {
     if (!a) throw new NotFoundException('Enlace no válido');
     if (a.status !== 'picked_up') throw new BadRequestException('Debes confirmar recogida primero');
 
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${a.schemaName}".delivery_assignments
       SET status = 'delivered', delivered_at = NOW()
       WHERE id = $1::uuid
-    `, a.assignmentId);
+    `,
+      a.assignmentId,
+    );
 
     // Transition order to delivered
-    await this.prisma.$executeRawUnsafe(`
+    await this.prisma.$executeRawUnsafe(
+      `
       UPDATE "${a.schemaName}".orders SET status = 'delivered', updated_at = NOW() WHERE id = $1::uuid
-    `, orderId);
+    `,
+      orderId,
+    );
 
     // Notify customer — final message "entregado, disfruta"
     await this.notifyCustomer(a.schemaName, orderId, 'delivered');
@@ -108,19 +131,27 @@ export class DeliveryTrackingController {
    * Send WhatsApp notification to customer when order status changes via tracking.
    * Uses the tenant's WhatsApp channel to send the message.
    */
-  private async notifyCustomer(schemaName: string, orderId: string, status: 'shipped' | 'delivered'): Promise<void> {
+  private async notifyCustomer(
+    schemaName: string,
+    orderId: string,
+    status: 'shipped' | 'delivered',
+  ): Promise<void> {
     try {
-      const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      const rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `
         SELECT o.order_number AS "orderNumber", c.name AS "customerName",
                c.channel_id AS "channelId", ch.external_id AS "phoneNumberId", ch.access_token AS "accessToken"
         FROM "${schemaName}".orders o
         JOIN "${schemaName}".customers c ON c.id = o.customer_id
         LEFT JOIN "${schemaName}".channels ch ON ch.type = 'whatsapp' AND ch.is_active = true
         WHERE o.id = $1::uuid
-      `, orderId);
+      `,
+        orderId,
+      );
 
       const order = rows[0];
-      if (!order?.channelId || !order.phoneNumberId || order.channelId.startsWith('manual-')) return;
+      if (!order?.channelId || !order.phoneNumberId || order.channelId.startsWith('manual-'))
+        return;
 
       const name = order.customerName?.split(' ')[0] ?? '';
       const num = order.orderNumber;
@@ -159,7 +190,8 @@ export class DeliveryTrackingController {
 
     for (const t of tenants) {
       try {
-        const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+        const rows = await this.prisma.$queryRawUnsafe<any[]>(
+          `
           SELECT da.id AS "assignmentId", da.status, da.tracking_token,
                  da.offered_at AS "offeredAt", da.accepted_at AS "acceptedAt",
                  da.picked_up_at AS "pickedUpAt", da.delivered_at AS "deliveredAt",
@@ -173,12 +205,17 @@ export class DeliveryTrackingController {
           LEFT JOIN "${t.schemaName}".delivery_drivers d ON d.id = da.driver_id
           WHERE da.order_id = $1::uuid AND da.tracking_token = $2
           ORDER BY da.offered_at DESC LIMIT 1
-        `, orderId, token);
+        `,
+          orderId,
+          token,
+        );
 
         if (rows[0]) {
           return { ...rows[0], schemaName: t.schemaName };
         }
-      } catch { /* skip tenants without table */ }
+      } catch {
+        /* skip tenants without table */
+      }
     }
 
     return null;

@@ -56,7 +56,11 @@ export class UpsellTool {
 
     // Strategy 4: Preference-based (if customer identified)
     if (args.customerId && strategy === 'auto') {
-      const prefBased = await this.getPreferenceBasedSuggestions(args.customerId, args.cartProductIds ?? [], schemaName);
+      const prefBased = await this.getPreferenceBasedSuggestions(
+        args.customerId,
+        args.cartProductIds ?? [],
+        schemaName,
+      );
       recommendations.push(...prefBased);
     }
 
@@ -85,14 +89,19 @@ export class UpsellTool {
 
     if (args.productId) {
       const rows = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT price, category FROM "${schema}".products WHERE id = $1::uuid`, args.productId,
+        `SELECT price, category FROM "${schema}".products WHERE id = $1::uuid`,
+        args.productId,
       );
-      if (rows[0]) { basePrice = parseFloat(rows[0].price); category = rows[0].category; }
+      if (rows[0]) {
+        basePrice = parseFloat(rows[0].price);
+        category = rows[0].category;
+      }
     }
 
     if (!category) return [];
 
-    const upgrades = await this.prisma.$queryRawUnsafe<any[]>(`
+    const upgrades = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT p.id, p.name, p.price, p.images, p.description, i.stock_available
       FROM "${schema}".products p
       LEFT JOIN "${schema}".inventory i ON i.product_id = p.id
@@ -101,7 +110,10 @@ export class UpsellTool {
         ${args.productId ? `AND p.id != '${args.productId}'::uuid` : ''}
       ORDER BY p.price ASC
       LIMIT 2
-    `, category, basePrice);
+    `,
+      category,
+      basePrice,
+    );
 
     return upgrades.map((p: any) => ({
       productId: p.id,
@@ -124,20 +136,21 @@ export class UpsellTool {
 
     // Category complement map (configurable per tenant in future)
     const complements: Record<string, string[]> = {
-      'Vestidos': ['Accesorios', 'Calzado', 'Chamarras'],
-      'Conjuntos': ['Accesorios', 'Calzado'],
-      'Pantalones': ['Playeras', 'Chamarras', 'Calzado'],
-      'Playeras': ['Pantalones', 'Faldas'],
-      'Chamarras': ['Vestidos', 'Conjuntos'],
-      'Faldas': ['Playeras', 'Chamarras'],
-      'Calzado': ['Accesorios'],
-      'Accesorios': ['Vestidos', 'Conjuntos'],
+      Vestidos: ['Accesorios', 'Calzado', 'Chamarras'],
+      Conjuntos: ['Accesorios', 'Calzado'],
+      Pantalones: ['Playeras', 'Chamarras', 'Calzado'],
+      Playeras: ['Pantalones', 'Faldas'],
+      Chamarras: ['Vestidos', 'Conjuntos'],
+      Faldas: ['Playeras', 'Chamarras'],
+      Calzado: ['Accesorios'],
+      Accesorios: ['Vestidos', 'Conjuntos'],
     };
 
     const complementCategories = complements[category] ?? [];
     if (complementCategories.length === 0) return [];
 
-    const products = await this.prisma.$queryRawUnsafe<any[]>(`
+    const products = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT p.id, p.name, p.price, p.category, p.images, i.stock_available
       FROM "${schema}".products p
       LEFT JOIN "${schema}".inventory i ON i.product_id = p.id
@@ -145,7 +158,9 @@ export class UpsellTool {
         AND (i.stock_available > 0 OR i.stock_available IS NULL)
       ORDER BY RANDOM()
       LIMIT 2
-    `, complementCategories);
+    `,
+      complementCategories,
+    );
 
     return products.map((p: any) => ({
       productId: p.id,
@@ -165,7 +180,9 @@ export class UpsellTool {
     if (!args.productId) return [];
 
     // Find products that appear in the same orders as the target product
-    const coProducts = await this.prisma.$queryRawUnsafe<any[]>(`
+    const coProducts = await this.prisma
+      .$queryRawUnsafe<any[]>(
+        `
       SELECT p.id, p.name, p.price, p.images, COUNT(*) AS co_count
       FROM "${schema}".orders o,
            jsonb_array_elements(o.items) AS item
@@ -179,7 +196,10 @@ export class UpsellTool {
       GROUP BY p.id, p.name, p.price, p.images
       ORDER BY co_count DESC
       LIMIT 2
-    `, args.productId).catch(() => []);
+    `,
+        args.productId,
+      )
+      .catch(() => []);
 
     return coProducts.map((p: any) => ({
       productId: p.id,
@@ -219,11 +239,13 @@ export class UpsellTool {
     if (searchTerms.length === 0) return [];
 
     const searchPattern = searchTerms.join('|');
-    const excludeClause = excludeIds.length > 0
-      ? `AND p.id NOT IN (${excludeIds.map(id => `'${id}'::uuid`).join(',')})`
-      : '';
+    const excludeClause =
+      excludeIds.length > 0
+        ? `AND p.id NOT IN (${excludeIds.map((id) => `'${id}'::uuid`).join(',')})`
+        : '';
 
-    const products = await this.prisma.$queryRawUnsafe<any[]>(`
+    const products = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT p.id, p.name, p.price, p.images
       FROM "${schema}".products p
       LEFT JOIN "${schema}".inventory i ON i.product_id = p.id
@@ -232,7 +254,9 @@ export class UpsellTool {
         AND (i.stock_available > 0 OR i.stock_available IS NULL)
         ${excludeClause}
       LIMIT 2
-    `, searchPattern);
+    `,
+      searchPattern,
+    );
 
     return products.map((p: any) => ({
       productId: p.id,
@@ -252,7 +276,12 @@ export class UpsellTool {
     const unique: Recommendation[] = [];
 
     // Priority order: preference > frequently_bought > complement > upgrade
-    const priorityOrder = ['preference_match', 'frequently_bought_together', 'complement', 'upgrade_same_category'];
+    const priorityOrder = [
+      'preference_match',
+      'frequently_bought_together',
+      'complement',
+      'upgrade_same_category',
+    ];
 
     const sorted = [...recs].sort((a, b) => {
       return priorityOrder.indexOf(a.reason) - priorityOrder.indexOf(b.reason);

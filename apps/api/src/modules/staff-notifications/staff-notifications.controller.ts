@@ -1,4 +1,13 @@
-import { Controller, Get, Patch, Post, Body, Param, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Post,
+  Body,
+  Param,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { StaffNotificationsService, StaffNotificationType } from './staff-notifications.service';
@@ -46,11 +55,10 @@ export class StaffNotificationsController {
   /** Broadcast a custom message to all staff */
   @Post('broadcast')
   @Roles('admin')
-  broadcast(@Body() body: { message: string; type?: StaffNotificationType }, @TenantSchema() schema: string) {
-    return this.staffNotifications.notifyAllStaff(
-      body.type ?? 'new_order',
-      body.message,
-      schema,
-    );
+  broadcast(
+    @Body() body: { message: string; type?: StaffNotificationType },
+    @TenantSchema() schema: string,
+  ) {
+    return this.staffNotifications.notifyAllStaff(body.type ?? 'new_order', body.message, schema);
   }
 }

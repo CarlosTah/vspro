@@ -73,7 +73,11 @@ export class AgentRouterService {
     const orderState = context?.orderState ?? context?.context?.orderState;
 
     // Sales signals
-    if (/precio|caro|descuento|promoción|comprar|pedir|ordenar|cuánto cuesta|quiero|me interesa/i.test(lower)) {
+    if (
+      /precio|caro|descuento|promoción|comprar|pedir|ordenar|cuánto cuesta|quiero|me interesa/i.test(
+        lower,
+      )
+    ) {
       return { agent: 'sales', confidence: 0.85 };
     }
     if (orderState === 'payment_pending' || orderState === 'new') {
@@ -153,14 +157,18 @@ Responde SOLO JSON: {"intent":"categoria","confidence":0.0-1.0}`,
         this.CACHE_TTL,
         JSON.stringify({ agent: result.agent, confidence: result.confidence }),
       );
-    } catch { /* ignore cache failures */ }
+    } catch {
+      /* ignore cache failures */
+    }
   }
 
   async invalidateCache(conversationId: string): Promise<void> {
     if (!this.redis) return;
     try {
       await this.redis.del(`intent:${conversationId}`);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   // ─── Helpers ──────────────────────────────────────────────────

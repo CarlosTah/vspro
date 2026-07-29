@@ -40,13 +40,16 @@ export default function ReportSettingsPage() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-400">Cargando configuración...</div>;
+  if (loading)
+    return <div className="p-8 text-center text-gray-400">Cargando configuración...</div>;
 
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold text-white">Reportes automáticos</h1>
-        <p className="text-sm text-gray-400">Recibe un resumen de tu negocio por WhatsApp automáticamente</p>
+        <p className="text-sm text-gray-400">
+          Recibe un resumen de tu negocio por WhatsApp automáticamente
+        </p>
       </div>
 
       <div className="rounded-xl border border-card-border bg-card p-6 space-y-6">
@@ -80,7 +83,7 @@ export default function ReportSettingsPage() {
                   { value: 'daily', label: 'Diario', desc: 'Cada día' },
                   { value: 'weekly', label: 'Semanal', desc: 'Cada lunes' },
                   { value: 'monthly', label: 'Mensual', desc: 'Día 1 del mes' },
-                ].map(opt => (
+                ].map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() => setForm({ ...form, frequency: opt.value })}
@@ -107,7 +110,11 @@ export default function ReportSettingsPage() {
               >
                 {Array.from({ length: 24 }, (_, i) => {
                   const h = i.toString().padStart(2, '0');
-                  return <option key={h} value={`${h}:00`}>{h}:00 hrs</option>;
+                  return (
+                    <option key={h} value={`${h}:00`}>
+                      {h}:00 hrs
+                    </option>
+                  );
                 })}
               </select>
               <p className="text-xs text-gray-500 mt-1">Hora de México (Ciudad de México)</p>
@@ -115,7 +122,9 @@ export default function ReportSettingsPage() {
 
             {/* Phone */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Número de WhatsApp</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Número de WhatsApp
+              </label>
               <input
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
@@ -129,7 +138,7 @@ export default function ReportSettingsPage() {
             <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-4">
               <p className="text-xs text-gray-400 mb-2">📱 Vista previa del reporte:</p>
               <div className="bg-green-900/20 border border-green-800/30 rounded-lg p-3 text-sm text-gray-200 whitespace-pre-line">
-{`📊 *Resumen ${form.frequency === 'daily' ? 'del día' : form.frequency === 'weekly' ? 'de la semana' : 'del mes'}* — Tu Negocio
+                {`📊 *Resumen ${form.frequency === 'daily' ? 'del día' : form.frequency === 'weekly' ? 'de la semana' : 'del mes'}* — Tu Negocio
 📅 ${new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}
 
 💰 Ventas: $4,580 MXN (12 pedidos)
@@ -156,9 +165,7 @@ export default function ReportSettingsPage() {
           >
             {saving ? 'Guardando...' : 'Guardar configuración'}
           </button>
-          {saved && (
-            <span className="text-sm text-green-400">✓ Guardado</span>
-          )}
+          {saved && <span className="text-sm text-green-400">✓ Guardado</span>}
         </div>
       </div>
     </div>

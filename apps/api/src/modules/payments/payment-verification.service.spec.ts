@@ -24,7 +24,11 @@ describe('PaymentVerificationService', () => {
     it('returns not verified when no pending payment found', async () => {
       mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([]);
 
-      const result = await service.verifyByImage('https://img.test/proof.jpg', 'order-1', 'tenant_test');
+      const result = await service.verifyByImage(
+        'https://img.test/proof.jpg',
+        'order-1',
+        'tenant_test',
+      );
 
       expect(result.verified).toBe(false);
       expect(result.reason).toContain('No pending payment');
@@ -32,11 +36,21 @@ describe('PaymentVerificationService', () => {
 
     it('returns not verified when OCR fails (no OpenAI key)', async () => {
       mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([
-        { id: 'pay-1', amount: '299.00', status: 'pending', order_number: 'ORD-001', total: '299.00' },
+        {
+          id: 'pay-1',
+          amount: '299.00',
+          status: 'pending',
+          order_number: 'ORD-001',
+          total: '299.00',
+        },
       ]);
 
       // Service has sk-test key so openai is null
-      const result = await service.verifyByImage('https://img.test/proof.jpg', 'order-1', 'tenant_test');
+      const result = await service.verifyByImage(
+        'https://img.test/proof.jpg',
+        'order-1',
+        'tenant_test',
+      );
 
       expect(result.verified).toBe(false);
       expect(result.reason).toContain('OCR failed');

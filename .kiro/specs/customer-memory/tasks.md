@@ -97,67 +97,67 @@ Implement a hybrid long-term memory system for customers combining JSONB-based d
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 7. Testing
-  - [ ]* 7.1 Write property test for profile upsert merge invariant
+  - [ ]\* 7.1 Write property test for profile upsert merge invariant
     - **Property 1: Profile upsert merge invariant**
     - **Validates: Requirements 2.1, 2.3**
     - Use fast-check to generate random initial profiles and partial updates; verify untargeted keys remain unchanged
 
-  - [ ]* 7.2 Write property test for profile key validation
+  - [ ]\* 7.2 Write property test for profile key validation
     - **Property 2: Profile key validation**
     - **Validates: Requirements 2.2**
     - Use fast-check to generate arbitrary strings; verify only allowed keys are accepted
 
-  - [ ]* 7.3 Write property test for episode storage round-trip
+  - [ ]\* 7.3 Write property test for episode storage round-trip
     - **Property 3: Episode storage round-trip**
     - **Validates: Requirements 3.2**
     - Use fast-check to generate random content + categories; verify retrieval returns same data
 
-  - [ ]* 7.4 Write property test for episode category validation
+  - [ ]\* 7.4 Write property test for episode category validation
     - **Property 4: Episode category validation**
     - **Validates: Requirements 3.3**
     - Use fast-check to generate arbitrary strings; verify only allowed categories are accepted
 
-  - [ ]* 7.5 Write property test for semantic search ordering and limit
+  - [ ]\* 7.5 Write property test for semantic search ordering and limit
     - **Property 5: Semantic search ordering and limit**
     - **Validates: Requirements 5.2**
     - Use fast-check to generate random embedding vectors; verify results are ordered by descending cosine similarity and capped at 5
 
-  - [ ]* 7.6 Write property test for hybrid context completeness
+  - [ ]\* 7.6 Write property test for hybrid context completeness
     - **Property 6: Hybrid context completeness**
     - **Validates: Requirements 5.1, 5.3**
     - Use fast-check to generate random profiles + episodes; verify context string contains profile data and episode content
 
-  - [ ]* 7.7 Write property test for tenant isolation
+  - [ ]\* 7.7 Write property test for tenant isolation
     - **Property 7: Tenant isolation for memory operations**
     - **Validates: Requirements 7.6**
     - Use fast-check to generate random UUIDs not in schema; verify operations fail with not-found/forbidden
 
-  - [ ]* 7.8 Write property test for unique profile per customer
+  - [ ]\* 7.8 Write property test for unique profile per customer
     - **Property 9: Unique profile per customer**
     - **Validates: Requirements 1.3**
     - Use fast-check to generate random upsert sequences; verify at most one row per customer_id
 
-  - [ ]* 7.9 Write unit tests for CustomerMemoryService
+  - [ ]\* 7.9 Write unit tests for CustomerMemoryService
     - Test tool handler returns confirmation message (Req 4.4)
     - Test tool handler returns error when customer_id missing (Req 4.5)
     - Test empty memory returns empty context string (Req 5.4)
     - Test embedding API failure stores NULL embedding (Req 3.4)
     - _Requirements: 3.4, 4.4, 4.5, 5.4_
 
-  - [ ]* 7.10 Write unit tests for CustomerMemoryController
+  - [ ]\* 7.10 Write unit tests for CustomerMemoryController
     - Test API endpoints require authentication (Req 7.5)
     - Test customer ownership validation (Req 7.6)
     - Test GET returns profile + episodes (Req 7.1)
     - Test DELETE removes all memory (Req 7.4)
     - _Requirements: 7.1, 7.4, 7.5, 7.6_
 
-  - [ ]* 7.11 Write integration test for AiEngineService memory flow
+  - [ ]\* 7.11 Write integration test for AiEngineService memory flow
     - Test tool is registered in getTools() array (Req 6.1)
     - Test system prompt contains memory context (Req 6.4)
     - Test executeTool delegates to CustomerMemoryService (Req 6.2)
     - _Requirements: 6.1, 6.2, 6.4_
 
-  - [ ]* 7.12 Write tenant isolation integration tests
+  - [ ]\* 7.12 Write tenant isolation integration tests
     - Create memory in tenant A, query from tenant B → returns nothing
     - Vector search in tenant A never returns tenant B episodes
     - Profile upsert in tenant A never affects tenant B profiles
@@ -173,7 +173,7 @@ Implement a hybrid long-term memory system for customers combining JSONB-based d
     - Log count of migrated records per customer on completion
     - _Requirements: 8.1, 8.2, 8.3, 8.4_
 
-  - [ ]* 8.2 Write property test for migration data mapping
+  - [ ]\* 8.2 Write property test for migration data mapping
     - **Property 8: Migration preserves data and maps categories**
     - **Validates: Requirements 8.1, 8.2, 8.3**
     - Use fast-check to generate random legacy records; verify correct category mapping and embedding preservation

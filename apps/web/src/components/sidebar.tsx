@@ -11,26 +11,31 @@ import { useSidebar } from '@/hooks/use-sidebar';
 // Labels adapt by industry
 const INDUSTRY_LABELS: Record<string, Record<string, string>> = {
   inmobiliaria: {
-    'Productos': 'Propiedades',
-    'Pedidos': 'Solicitudes',
-    'Clientes': 'Huéspedes',
-    'Pagos': 'Ingresos',
+    Productos: 'Propiedades',
+    Pedidos: 'Solicitudes',
+    Clientes: 'Huéspedes',
+    Pagos: 'Ingresos',
   },
   clinica: {
-    'Productos': 'Servicios',
-    'Pedidos': 'Citas',
-    'Clientes': 'Pacientes',
+    Productos: 'Servicios',
+    Pedidos: 'Citas',
+    Clientes: 'Pacientes',
   },
   barberia: {
-    'Productos': 'Servicios',
-    'Pedidos': 'Citas',
+    Productos: 'Servicios',
+    Pedidos: 'Citas',
   },
 };
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: '📊', industries: null },
   { name: 'Pedidos', href: '/orders', icon: '📋', industries: null },
-  { name: 'Producción', href: '/production', icon: '🏭', industries: ['restaurante', 'ropa', 'taller', 'ecommerce'] },
+  {
+    name: 'Producción',
+    href: '/production',
+    icon: '🏭',
+    industries: ['restaurante', 'ropa', 'taller', 'ecommerce'],
+  },
   { name: 'Cocina', href: '/kitchen', icon: '🍳', industries: ['restaurante'] },
   { name: 'Productos', href: '/products', icon: '📦', industries: null },
   { name: 'Propiedades', href: '/properties', icon: '🏠', industries: ['inmobiliaria'] },
@@ -39,7 +44,12 @@ const navigation = [
   { name: 'Escalaciones', href: '/escalations', icon: '⚠️', industries: null },
   { name: 'Tickets', href: '/tickets', icon: '🎫', industries: null },
   { name: 'Pagos', href: '/payments', icon: '💰', industries: null },
-  { name: 'Entregas', href: '/deliveries', icon: '🛵', industries: ['restaurante', 'ropa', 'ecommerce', 'barberia', 'taller'] },
+  {
+    name: 'Entregas',
+    href: '/deliveries',
+    icon: '🛵',
+    industries: ['restaurante', 'ropa', 'ecommerce', 'barberia', 'taller'],
+  },
   { name: 'Reportes', href: '/reports', icon: '📈', industries: null },
   { name: 'Analytics', href: '/analytics', icon: '📉', industries: null },
   { name: 'Promociones', href: '/promotions', icon: '🎉', industries: null },
@@ -47,9 +57,7 @@ const navigation = [
   { name: 'Reservaciones', href: '/reservations', icon: '📅', industries: ['inmobiliaria'] },
 ];
 
-const bottomNav = [
-  { name: 'Configuración', href: '/settings', icon: '⚙️' },
-];
+const bottomNav = [{ name: 'Configuración', href: '/settings', icon: '⚙️' }];
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -81,8 +89,8 @@ export function Sidebar() {
       {/* Navegación */}
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {visibleNav.map((item) => {
-          const isActive = pathname === item.href ||
-            (item.href !== '/' && pathname.startsWith(item.href));
+          const isActive =
+            pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
 
           return (
             <Link
@@ -130,18 +138,13 @@ export function Sidebar() {
   return (
     <>
       {/* Desktop Sidebar — hidden on mobile */}
-      <aside className="hidden lg:flex w-64 flex-col vspro-sidebar">
-        {sidebarContent}
-      </aside>
+      <aside className="hidden lg:flex w-64 flex-col vspro-sidebar">{sidebarContent}</aside>
 
       {/* Mobile Drawer Overlay */}
       {isOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={close}
-          />
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={close} />
           {/* Drawer */}
           <aside className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col vspro-sidebar shadow-2xl animate-slide-in pt-[env(safe-area-inset-top)]">
             {/* Close button */}

@@ -67,11 +67,15 @@ export class MessageProcessor {
       const responseText = `[${route.agent}] Mensaje procesado (confidence: ${route.confidence.toFixed(2)})`;
 
       // Store outbound message
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         INSERT INTO "${schemaName}".messages
           (conversation_id, direction, type, content, ai_processed)
         VALUES ($1::uuid, 'outbound', 'text', $2, true)
-      `, conversationId, responseText);
+      `,
+        conversationId,
+        responseText,
+      );
 
       this.logger.debug(`[${tenant.slug}] Message processed via ${route.agent} agent`);
     } catch (err: any) {

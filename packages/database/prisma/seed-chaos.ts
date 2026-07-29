@@ -15,9 +15,24 @@ const prisma = new PrismaClient();
 // ─── Datos de ejemplo ───────────────────────────────────────────
 
 const TENANTS = [
-  { slug: 'demo-tortilleria', name: 'Tortillería La Abuela', email: 'admin@tortilleria-demo.com', owner: 'Rosa Martínez' },
-  { slug: 'demo-panaderia', name: 'Panadería El Trigal', email: 'admin@panaderia-demo.com', owner: 'Carlos Ruiz' },
-  { slug: 'demo-taqueria', name: 'Taquería Los Compadres', email: 'admin@taqueria-demo.com', owner: 'Miguel Ángel López' },
+  {
+    slug: 'demo-tortilleria',
+    name: 'Tortillería La Abuela',
+    email: 'admin@tortilleria-demo.com',
+    owner: 'Rosa Martínez',
+  },
+  {
+    slug: 'demo-panaderia',
+    name: 'Panadería El Trigal',
+    email: 'admin@panaderia-demo.com',
+    owner: 'Carlos Ruiz',
+  },
+  {
+    slug: 'demo-taqueria',
+    name: 'Taquería Los Compadres',
+    email: 'admin@taqueria-demo.com',
+    owner: 'Miguel Ángel López',
+  },
 ];
 
 const PRODUCTS_BY_TENANT = [
@@ -65,10 +80,26 @@ const CUSTOMERS = [
 ];
 
 const ORDER_STATUSES = [
-  'new', 'new', 'quoted', 'payment_pending', 'payment_pending',
-  'payment_verified', 'payment_verified', 'in_production', 'in_production',
-  'ready', 'ready', 'shipped', 'shipped', 'shipped',
-  'delivered', 'delivered', 'delivered', 'delivered', 'delivered', 'cancelled',
+  'new',
+  'new',
+  'quoted',
+  'payment_pending',
+  'payment_pending',
+  'payment_verified',
+  'payment_verified',
+  'in_production',
+  'in_production',
+  'ready',
+  'ready',
+  'shipped',
+  'shipped',
+  'shipped',
+  'delivered',
+  'delivered',
+  'delivered',
+  'delivered',
+  'delivered',
+  'cancelled',
 ];
 
 const CARRIERS = ['fedex', 'dhl', 'estafeta', '99minutos'];
@@ -131,7 +162,13 @@ async function main() {
     const path = require('path');
     const sqlPath = path.resolve(__dirname, 'tenant-schema.sql');
     const sql = fs.readFileSync(sqlPath, 'utf-8').replaceAll('{{schema}}', schemaName);
-    const statements = sql.split('\n').filter((l: string) => !l.trim().startsWith('--')).join('\n').split(';').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+    const statements = sql
+      .split('\n')
+      .filter((l: string) => !l.trim().startsWith('--'))
+      .join('\n')
+      .split(';')
+      .map((s: string) => s.trim())
+      .filter((s: string) => s.length > 0);
     for (const stmt of statements) {
       await prisma.$executeRawUnsafe(stmt);
     }
@@ -139,11 +176,15 @@ async function main() {
     // 3. Crear usuarios
     await prisma.$executeRawUnsafe(
       `INSERT INTO "${schemaName}".users (email, password_hash, name, role) VALUES ($1, $2, $3, 'admin')`,
-      tenantData.email, passwordHash, tenantData.owner,
+      tenantData.email,
+      passwordHash,
+      tenantData.owner,
     );
     await prisma.$executeRawUnsafe(
       `INSERT INTO "${schemaName}".users (email, password_hash, name, role) VALUES ($1, $2, $3, 'operator')`,
-      `operador@${tenantData.slug}.com`, passwordHash, 'Operador Demo',
+      `operador@${tenantData.slug}.com`,
+      passwordHash,
+      'Operador Demo',
     );
 
     // 4. Crear AI config
@@ -161,11 +202,15 @@ async function main() {
       productIds.push(id);
       await prisma.$executeRawUnsafe(
         `INSERT INTO "${schemaName}".products (id, name, price, category, is_active) VALUES ($1::uuid, $2, $3, $4, true)`,
-        id, p.name, p.price, p.category,
+        id,
+        p.name,
+        p.price,
+        p.category,
       );
       await prisma.$executeRawUnsafe(
         `INSERT INTO "${schemaName}".inventory (product_id, stock_available, stock_minimum) VALUES ($1::uuid, $2, 10)`,
-        id, p.stock,
+        id,
+        p.stock,
       );
     }
     console.log(`   ✅ ${products.length} productos creados`);
@@ -177,7 +222,11 @@ async function main() {
       customerIds.push(id);
       await prisma.$executeRawUnsafe(
         `INSERT INTO "${schemaName}".customers (id, name, phone, channel_type, channel_id) VALUES ($1::uuid, $2, $3, $4, $5)`,
-        id, c.name, c.phone, c.channel, c.phone,
+        id,
+        c.name,
+        c.phone,
+        c.channel,
+        c.phone,
       );
     }
     console.log(`   ✅ ${customerIds.length} clientes creados`);
@@ -198,8 +247,19 @@ async function main() {
       await prisma.$executeRawUnsafe(
         `INSERT INTO "${schemaName}".orders (id, order_number, customer_id, channel_type, status, items, subtotal, total, created_at)
          VALUES ($1::uuid, $2, $3::uuid, 'whatsapp', $4, $5::jsonb, $6, $6, NOW() - INTERVAL '${numOrders - i} hours')`,
-        orderId, orderNumber, customerId, status,
-        JSON.stringify([{ productId: productIds[productIdx], productName: products[productIdx].name, quantity: qty, unitPrice, subtotal: total }]),
+        orderId,
+        orderNumber,
+        customerId,
+        status,
+        JSON.stringify([
+          {
+            productId: productIds[productIdx],
+            productName: products[productIdx].name,
+            quantity: qty,
+            unitPrice,
+            subtotal: total,
+          },
+        ]),
         total,
       );
 
@@ -208,7 +268,9 @@ async function main() {
         await prisma.$executeRawUnsafe(
           `INSERT INTO "${schemaName}".payments (order_id, method, amount, status, reference, verified_at)
            VALUES ($1::uuid, 'transfer', $2, 'verified', $3, NOW())`,
-          orderId, total, `REF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+          orderId,
+          total,
+          `REF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
         );
       }
 
@@ -218,7 +280,8 @@ async function main() {
         await prisma.$executeRawUnsafe(
           `INSERT INTO "${schemaName}".shipments (order_id, carrier, tracking_number, status)
            VALUES ($1::uuid, $2, $3, $4)`,
-          orderId, carrier,
+          orderId,
+          carrier,
           `${carrier.toUpperCase()}-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
           status === 'delivered' ? 'delivered' : 'in_transit',
         );
@@ -226,11 +289,13 @@ async function main() {
 
       // Registro contable para delivered
       if (status === 'delivered') {
-        const tax = total * 0.16 / 1.16;
+        const tax = (total * 0.16) / 1.16;
         await prisma.$executeRawUnsafe(
           `INSERT INTO "${schemaName}".accounting_entries (order_id, type, amount, tax_amount, description)
            VALUES ($1::uuid, 'sale', $2, $3, 'Venta completada')`,
-          orderId, total, tax,
+          orderId,
+          total,
+          tax,
         );
       }
 
@@ -245,15 +310,22 @@ async function main() {
       await prisma.$executeRawUnsafe(
         `INSERT INTO "${schemaName}".conversations (id, customer_id, channel_type, status, last_message_at)
          VALUES ($1::uuid, $2::uuid, 'whatsapp', 'active', NOW())`,
-        convId, custId,
+        convId,
+        custId,
       );
 
       // Mensajes de ejemplo
       const messages = [
         { dir: 'inbound', text: 'Hola, quiero hacer un pedido' },
-        { dir: 'outbound', text: `¡Hola! Soy ${t === 0 ? 'Lupita' : t === 1 ? 'Pancho' : 'Tacobot'}. ¿Qué te puedo ofrecer?` },
+        {
+          dir: 'outbound',
+          text: `¡Hola! Soy ${t === 0 ? 'Lupita' : t === 1 ? 'Pancho' : 'Tacobot'}. ¿Qué te puedo ofrecer?`,
+        },
         { dir: 'inbound', text: `Quiero ${products[0].name}` },
-        { dir: 'outbound', text: `Perfecto, ${products[0].name} a $${products[0].price}. ¿Confirmas?` },
+        {
+          dir: 'outbound',
+          text: `Perfecto, ${products[0].name} a $${products[0].price}. ¿Confirmas?`,
+        },
         { dir: 'inbound', text: 'Sí, confirmo' },
         { dir: 'outbound', text: '✅ Pedido creado. Te envío los datos para el pago.' },
       ];
@@ -262,7 +334,9 @@ async function main() {
         await prisma.$executeRawUnsafe(
           `INSERT INTO "${schemaName}".messages (conversation_id, direction, type, content, ai_processed)
            VALUES ($1::uuid, $2, 'text', $3, true)`,
-          convId, msg.dir, msg.text,
+          convId,
+          msg.dir,
+          msg.text,
         );
       }
     }
@@ -288,5 +362,8 @@ async function main() {
 }
 
 main()
-  .catch((e) => { console.error('❌ Error:', e); process.exit(1); })
+  .catch((e) => {
+    console.error('❌ Error:', e);
+    process.exit(1);
+  })
   .finally(() => prisma.$disconnect());

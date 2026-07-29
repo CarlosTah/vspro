@@ -193,12 +193,16 @@ function BusinessHoursPicker({ hours, onChange }: { hours: any; onChange: (h: an
             <button
               onClick={() => toggleDay(dayKey)}
               className={`w-5 h-5 rounded border flex items-center justify-center text-xs ${
-                enabled ? 'bg-purple-600 border-purple-500 text-white' : 'border-gray-600 text-gray-600'
+                enabled
+                  ? 'bg-purple-600 border-purple-500 text-white'
+                  : 'border-gray-600 text-gray-600'
               }`}
             >
               {enabled ? '✓' : ''}
             </button>
-            <span className={`w-24 text-sm ${enabled ? 'text-white' : 'text-gray-500'}`}>{day}</span>
+            <span className={`w-24 text-sm ${enabled ? 'text-white' : 'text-gray-500'}`}>
+              {day}
+            </span>
             {enabled && (
               <>
                 <input

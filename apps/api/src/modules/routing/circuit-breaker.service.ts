@@ -18,9 +18,9 @@ export class CircuitBreakerService {
   private readonly logger = new Logger(CircuitBreakerService.name);
   private readonly circuits = new Map<string, CircuitState>();
 
-  private readonly FAILURE_THRESHOLD = 5;      // Failures before opening
-  private readonly COOLDOWN_MS = 30_000;       // 30s before half-open
-  private readonly SUCCESS_THRESHOLD = 2;      // Successes in half-open before closing
+  private readonly FAILURE_THRESHOLD = 5; // Failures before opening
+  private readonly COOLDOWN_MS = 30_000; // 30s before half-open
+  private readonly SUCCESS_THRESHOLD = 2; // Successes in half-open before closing
 
   /**
    * Check if a service call is allowed.

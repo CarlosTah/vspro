@@ -55,7 +55,12 @@ export class InventoryAgent extends BaseAgent {
     }
   }
 
-  private async scanTenant(tenant: { id: string; schemaName: string; slug: string; businessName: string }): Promise<void> {
+  private async scanTenant(tenant: {
+    id: string;
+    schemaName: string;
+    slug: string;
+    businessName: string;
+  }): Promise<void> {
     const lowStockItems = await this.scanTenantStock(tenant.schemaName);
 
     if (lowStockItems.length === 0) return;
@@ -63,8 +68,8 @@ export class InventoryAgent extends BaseAgent {
     this.logger.log(`[${tenant.slug}] ${lowStockItems.length} products below stock minimum`);
 
     // Group by supplier
-    const withSupplier = lowStockItems.filter(i => i.supplierInfo?.supplier_email);
-    const withoutSupplier = lowStockItems.filter(i => !i.supplierInfo?.supplier_email);
+    const withSupplier = lowStockItems.filter((i) => i.supplierInfo?.supplier_email);
+    const withoutSupplier = lowStockItems.filter((i) => !i.supplierInfo?.supplier_email);
 
     // Generate drafts for items with supplier info
     if (withSupplier.length > 0) {
@@ -75,7 +80,7 @@ export class InventoryAgent extends BaseAgent {
     // Create alerts for items without supplier info
     if (withoutSupplier.length > 0) {
       this.logger.warn(
-        `[${tenant.slug}] ${withoutSupplier.length} low-stock items missing supplier_info: ${withoutSupplier.map(i => i.sku).join(', ')}`,
+        `[${tenant.slug}] ${withoutSupplier.length} low-stock items missing supplier_info: ${withoutSupplier.map((i) => i.sku).join(', ')}`,
       );
     }
   }
@@ -92,7 +97,7 @@ export class InventoryAgent extends BaseAgent {
         AND p.is_active = true
     `);
 
-    return rows.map(r => ({
+    return rows.map((r) => ({
       id: r.id,
       name: r.name,
       sku: r.sku ?? 'N/A',
@@ -108,9 +113,12 @@ export class InventoryAgent extends BaseAgent {
     const supplierEmail = items[0]?.supplierInfo?.supplier_email ?? 'proveedor@ejemplo.com';
     const supplierName = items[0]?.supplierInfo?.supplier_name ?? 'Proveedor';
 
-    const itemList = items.map(i =>
-      `  • ${i.name} (SKU: ${i.sku}) — Stock actual: ${i.stockAvailable}, Mínimo: ${i.stockMinimum}, Sugerido pedir: ${i.stockMinimum * 3}`,
-    ).join('\n');
+    const itemList = items
+      .map(
+        (i) =>
+          `  • ${i.name} (SKU: ${i.sku}) — Stock actual: ${i.stockAvailable}, Mínimo: ${i.stockMinimum}, Sugerido pedir: ${i.stockMinimum * 3}`,
+      )
+      .join('\n');
 
     return `Para: ${supplierEmail}
 Asunto: Solicitud de resurtido — ${businessName}

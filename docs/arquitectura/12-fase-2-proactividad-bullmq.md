@@ -11,6 +11,7 @@
 Sistema de outreach proactivo que permite a la IA enviar mensajes de seguimiento a clientes de forma autónoma, respetando la ventana de 24h de Meta API y manteniendo aislamiento estricto entre tenants.
 
 **Flujo principal:**
+
 ```
 Cron (60s) → Scan all tenant schemas → Enqueue BullMQ jobs → Worker processes → AI generates message → Send via channel
 ```
@@ -79,7 +80,7 @@ flowchart TD
     B --> C[Query: next_follow_up_at <= NOW AND status = active]
     C --> D[SET next_follow_up_at = NULL atomically]
     D --> E[Enqueue job in proactive-outreach queue]
-    
+
     E --> F[ProactivityWorker picks job]
     F --> G{Validate tenant ownership}
     G -->|Invalid| H[Reject + log]
@@ -178,16 +179,17 @@ async triggerProactiveOutreach(
 
 ## 5. Ventana 24h de Meta API
 
-| Condición | Acción |
-|-----------|--------|
+| Condición                       | Acción                           |
+| ------------------------------- | -------------------------------- |
 | `last_message_at` + 24h > NOW() | Enviar mensaje libre (free-form) |
-| `last_message_at` + 24h ≤ NOW() | Enviar template pre-aprobado |
-| No hay template configurado | Skip + log warning |
-| `last_message_at` es NULL | Skip + log warning |
+| `last_message_at` + 24h ≤ NOW() | Enviar template pre-aprobado     |
+| No hay template configurado     | Skip + log warning               |
+| `last_message_at` es NULL       | Skip + log warning               |
 
 ### Templates requeridos por tenant
 
 Cada tenant debe configurar al menos un template en `ai_config`:
+
 ```sql
 ALTER TABLE "{{schema}}".ai_config
   ADD COLUMN IF NOT EXISTS proactive_template JSONB DEFAULT NULL;
@@ -219,32 +221,32 @@ ALTER TABLE "{{schema}}".ai_config
 
 ## 7. Rate Limiting
 
-| Regla | Valor |
-|-------|-------|
-| Max proactive messages per conversation | 1 / 24h |
-| Max proactive messages per tenant per minute | 10 |
-| Job max age (TTL) | 1 hora |
-| Retry attempts | 3 (exponential backoff: 30s, 60s, 120s) |
+| Regla                                        | Valor                                   |
+| -------------------------------------------- | --------------------------------------- |
+| Max proactive messages per conversation      | 1 / 24h                                 |
+| Max proactive messages per tenant per minute | 10                                      |
+| Job max age (TTL)                            | 1 hora                                  |
+| Retry attempts                               | 3 (exponential backoff: 30s, 60s, 120s) |
 
 ---
 
 ## 8. Dashboard API
 
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/conversations/follow-ups` | Lista follow-ups pendientes del tenant |
-| DELETE | `/conversations/:id/follow-up` | Cancelar follow-up programado |
+| Método | Endpoint                       | Descripción                            |
+| ------ | ------------------------------ | -------------------------------------- |
+| GET    | `/conversations/follow-ups`    | Lista follow-ups pendientes del tenant |
+| DELETE | `/conversations/:id/follow-up` | Cancelar follow-up programado          |
 
 ---
 
 ## 9. Dependencias
 
-| Componente | Paquete | Notas |
-|------------|---------|-------|
-| BullMQ Queue | `@nestjs/bull` + `bull` | Ya instalado |
-| Cron | `@nestjs/schedule` | Necesita instalarse |
-| Redis | `ioredis` | Ya configurado (6380) |
-| Worker | `apps/worker/` | Nuevo servicio (actualmente disabled en docker-compose) |
+| Componente   | Paquete                 | Notas                                                   |
+| ------------ | ----------------------- | ------------------------------------------------------- |
+| BullMQ Queue | `@nestjs/bull` + `bull` | Ya instalado                                            |
+| Cron         | `@nestjs/schedule`      | Necesita instalarse                                     |
+| Redis        | `ioredis`               | Ya configurado (6380)                                   |
+| Worker       | `apps/worker/`          | Nuevo servicio (actualmente disabled en docker-compose) |
 
 ---
 

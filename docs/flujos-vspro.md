@@ -1,7 +1,7 @@
 graph TD
-    subgraph "Nivel Cliente"
-        A[WhatsApp/Insta Msg] -->|Input| B(Webhook Endpoint)
-    end
+subgraph "Nivel Cliente"
+A[WhatsApp/Insta Msg] -->|Input| B(Webhook Endpoint)
+end
 
     subgraph "Nivel VSPRO API"
         B --> C{Tenant Middleware}
@@ -17,4 +17,3 @@ graph TD
 
     style C fill:#f96,stroke:#333,stroke-width:2px
     style E fill:#69f,stroke:#333,stroke-width:2px
-    

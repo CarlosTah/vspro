@@ -80,13 +80,18 @@ export class AiEngineService {
       if (!isOwnerCheck) {
         if (!scheduleCheck.isOpen) {
           // Check if we already sent an away message recently (avoid spamming)
-          const recentAway = await this.prisma.$queryRawUnsafe<any[]>(`
+          const recentAway = await this.prisma
+            .$queryRawUnsafe<any[]>(
+              `
             SELECT 1 FROM "${schemaName}".messages
             WHERE conversation_id = $1::uuid AND direction = 'outbound'
               AND content LIKE '%no estamos disponibles%' OR content LIKE '%estamos cerrados%' OR content LIKE '%horario%'
               AND created_at > NOW() - INTERVAL '30 minutes'
             LIMIT 1
-          `, conversation.id).catch(() => []);
+          `,
+              conversation.id,
+            )
+            .catch(() => []);
 
           if (recentAway.length > 0) {
             // Already sent away message — don't spam, return silently
@@ -110,11 +115,16 @@ export class AiEngineService {
       // All messages to VSPRO use GPT-4o with the owner/support prompt, never the state machine.
       const isOwner = (conversation.context as any)?.isOwner === true;
       const isVsproPlatform = tenant.slug === 'vspro';
-      
+
       if (!isOwner && !isVsproPlatform) {
         try {
           const result = await this.stateMachine.process(
-            tenant, conversation, message, schemaName, aiConfig, products,
+            tenant,
+            conversation,
+            message,
+            schemaName,
+            aiConfig,
+            products,
           );
           return { text: result.text };
         } catch (smError: any) {
@@ -142,7 +152,10 @@ export class AiEngineService {
 
       // 4.3. Inyectar programa de lealtad
       const customerId = (conversation.context as any)?.customerId;
-      const loyaltyContext = await this.loyaltyService.buildLoyaltyContext(customerId ?? null, schemaName);
+      const loyaltyContext = await this.loyaltyService.buildLoyaltyContext(
+        customerId ?? null,
+        schemaName,
+      );
 
       // 4.5. HOOK: Inyectar memoria del cliente antes de la llamada a IA
       let memoryContext = '';
@@ -205,20 +218,34 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
       }
 
       const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-        { role: 'system', content: systemPrompt + kbContext + promosContext + loyaltyContext + memoryContext + orderContext },
+        {
+          role: 'system',
+          content:
+            systemPrompt +
+            kbContext +
+            promosContext +
+            loyaltyContext +
+            memoryContext +
+            orderContext,
+        },
         ...history,
       ];
 
       // Agregar mensaje actual (con imagen si aplica)
       // Prevent repeated image-error messages: if last 3 outbound messages mention "imagen" or "image", skip
       if (message.mediaUrl && message.type === 'image') {
-        const recentImageErrors = await this.prisma.$queryRawUnsafe<any[]>(`
+        const recentImageErrors = await this.prisma
+          .$queryRawUnsafe<any[]>(
+            `
           SELECT COUNT(*)::int AS cnt FROM "${schemaName}".messages
           WHERE conversation_id = $1::uuid AND direction = 'outbound'
             AND (content ILIKE '%imagen%' OR content ILIKE '%image%' OR content ILIKE '%foto%')
             AND created_at > NOW() - INTERVAL '5 minutes'
-        `, conversation.id).catch(() => [{ cnt: 0 }]);
-        
+        `,
+            conversation.id,
+          )
+          .catch(() => [{ cnt: 0 }]);
+
         if ((recentImageErrors[0]?.cnt ?? 0) >= 2) {
           // Already told the user about the image issue — don't spam
           return { text: '' };
@@ -233,11 +260,11 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           const axios = (await import('axios')).default;
           // Get the channel access token
           const channelRows = await this.prisma.$queryRawUnsafe<any[]>(
-            `SELECT access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`
+            `SELECT access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`,
           );
           const accessToken = channelRows[0]?.access_token;
           // Fallback: if this tenant has no WhatsApp channel, try VSPRO's token
-          const finalToken = accessToken || await this.getVsproToken();
+          const finalToken = accessToken || (await this.getVsproToken());
           if (finalToken) {
             // Get media download URL from Meta
             const mediaInfo = await axios.get(message.mediaUrl, {
@@ -277,17 +304,23 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           let contextHint = 'El cliente envió una imagen pero no se pudo descargar.';
           if (convCtx2?.lastOrderId) {
             const orderCheck = await this.prisma.$queryRawUnsafe<any[]>(
-              `SELECT status, delivery_type FROM "${schemaName}".orders WHERE id = $1::uuid`, convCtx2.lastOrderId,
+              `SELECT status, delivery_type FROM "${schemaName}".orders WHERE id = $1::uuid`,
+              convCtx2.lastOrderId,
             );
             const orderStatus = orderCheck[0]?.status;
             const deliveryType = orderCheck[0]?.delivery_type;
             if (orderStatus === 'payment_pending') {
-              contextHint = 'El cliente envió una imagen (probablemente COMPROBANTE DE PAGO) pero no se pudo procesar. Pídele que la reenvíe o confirma el pago manualmente.';
+              contextHint =
+                'El cliente envió una imagen (probablemente COMPROBANTE DE PAGO) pero no se pudo procesar. Pídele que la reenvíe o confirma el pago manualmente.';
             } else if (deliveryType === 'delivery') {
-              contextHint = 'El cliente envió una imagen (probablemente REFERENCIA VISUAL de su casa para el repartidor). Confirma que la recibiste como referencia para la entrega.';
+              contextHint =
+                'El cliente envió una imagen (probablemente REFERENCIA VISUAL de su casa para el repartidor). Confirma que la recibiste como referencia para la entrega.';
             }
           }
-          messages.push({ role: 'user', content: message.text ? `${message.text}\n\n[${contextHint}]` : contextHint });
+          messages.push({
+            role: 'user',
+            content: message.text ? `${message.text}\n\n[${contextHint}]` : contextHint,
+          });
         }
       } else {
         messages.push({ role: 'user', content: message.text ?? '' });
@@ -388,7 +421,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'request_payment',
-          description: 'Solicita el pago de un pedido por transferencia y proporciona instrucciones bancarias. Usa SOLO cuando el cliente va a pagar por transferencia.',
+          description:
+            'Solicita el pago de un pedido por transferencia y proporciona instrucciones bancarias. Usa SOLO cuando el cliente va a pagar por transferencia.',
           parameters: {
             type: 'object',
             properties: {
@@ -402,7 +436,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'set_payment_method',
-          description: 'Establece el método de pago del pedido. Usa cuando el cliente dice que paga en efectivo al repartidor (contra entrega/COD). El pedido pasa directo a producción sin esperar comprobante.',
+          description:
+            'Establece el método de pago del pedido. Usa cuando el cliente dice que paga en efectivo al repartidor (contra entrega/COD). El pedido pasa directo a producción sin esperar comprobante.',
           parameters: {
             type: 'object',
             properties: {
@@ -413,7 +448,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
               method: {
                 type: 'string',
                 enum: ['cod', 'cash', 'card'],
-                description: 'Método de pago: cod=contra entrega (el repartidor cobra), cash=efectivo en local, card=tarjeta en local',
+                description:
+                  'Método de pago: cod=contra entrega (el repartidor cobra), cash=efectivo en local, card=tarjeta en local',
               },
             },
             required: ['orderId', 'method'],
@@ -424,7 +460,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'check_stock',
-          description: 'Verifica el stock exacto de un producto específico. Usa cuando el cliente pregunta cuántas unidades hay disponibles.',
+          description:
+            'Verifica el stock exacto de un producto específico. Usa cuando el cliente pregunta cuántas unidades hay disponibles.',
           parameters: {
             type: 'object',
             properties: {
@@ -438,13 +475,17 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'apply_discount',
-          description: 'Aplica un descuento a un pedido existente. Solo usar si el negocio tiene una promoción activa o el cliente tiene un cupón válido.',
+          description:
+            'Aplica un descuento a un pedido existente. Solo usar si el negocio tiene una promoción activa o el cliente tiene un cupón válido.',
           parameters: {
             type: 'object',
             properties: {
               orderId: { type: 'string', description: 'ID del pedido' },
               discountPercent: { type: 'number', description: 'Porcentaje de descuento (1-50)' },
-              reason: { type: 'string', description: 'Razón del descuento (promoción, cupón, etc.)' },
+              reason: {
+                type: 'string',
+                description: 'Razón del descuento (promoción, cupón, etc.)',
+              },
             },
             required: ['orderId', 'discountPercent', 'reason'],
           },
@@ -454,13 +495,21 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'create_support_ticket',
-          description: 'Crea un ticket de soporte cuando el cliente tiene un problema que la IA no puede resolver. Escala a un humano.',
+          description:
+            'Crea un ticket de soporte cuando el cliente tiene un problema que la IA no puede resolver. Escala a un humano.',
           parameters: {
             type: 'object',
             properties: {
               subject: { type: 'string', description: 'Asunto breve del problema' },
-              description: { type: 'string', description: 'Descripción detallada del problema del cliente' },
-              priority: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Prioridad del ticket' },
+              description: {
+                type: 'string',
+                description: 'Descripción detallada del problema del cliente',
+              },
+              priority: {
+                type: 'string',
+                enum: ['low', 'medium', 'high'],
+                description: 'Prioridad del ticket',
+              },
             },
             required: ['subject', 'description', 'priority'],
           },
@@ -484,18 +533,21 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'update_customer_memory',
-          description: 'Guarda información aprendida sobre el cliente para futuras conversaciones. Usa "profile" para datos estructurados (preferencias, tallas, direcciones) y "episode" para contexto conversacional.',
+          description:
+            'Guarda información aprendida sobre el cliente para futuras conversaciones. Usa "profile" para datos estructurados (preferencias, tallas, direcciones) y "episode" para contexto conversacional.',
           parameters: {
             type: 'object',
             properties: {
               memory_type: {
                 type: 'string',
                 enum: ['profile', 'episode'],
-                description: 'Tipo de memoria: "profile" para datos estructurados, "episode" para contexto conversacional',
+                description:
+                  'Tipo de memoria: "profile" para datos estructurados, "episode" para contexto conversacional',
               },
               category: {
                 type: 'string',
-                description: 'Para profile: preferences|sizes|addresses|purchase_history_summary|important_dates|custom_facts. Para episode: conversation_summary|preference_detected|complaint|product_interest|general_context.',
+                description:
+                  'Para profile: preferences|sizes|addresses|purchase_history_summary|important_dates|custom_facts. Para episode: conversation_summary|preference_detected|complaint|product_interest|general_context.',
               },
               content: {
                 type: 'string',
@@ -503,7 +555,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
               },
               data: {
                 type: 'object',
-                description: 'Datos estructurados para profile updates (ej: {"color": "azul", "talla": "M"})',
+                description:
+                  'Datos estructurados para profile updates (ej: {"color": "azul", "talla": "M"})',
               },
             },
             required: ['memory_type', 'category'],
@@ -514,7 +567,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'schedule_follow_up',
-          description: 'Programa un mensaje de seguimiento proactivo para esta conversación. Usa cuando el cliente necesita tiempo para decidir, cuando prometiste información futura, o para dar seguimiento a un pedido.',
+          description:
+            'Programa un mensaje de seguimiento proactivo para esta conversación. Usa cuando el cliente necesita tiempo para decidir, cuando prometiste información futura, o para dar seguimiento a un pedido.',
           parameters: {
             type: 'object',
             properties: {
@@ -524,7 +578,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
               },
               reason: {
                 type: 'string',
-                description: 'Razón del seguimiento (ej: "cliente pidió tiempo para decidir", "confirmar recepción de pedido")',
+                description:
+                  'Razón del seguimiento (ej: "cliente pidió tiempo para decidir", "confirmar recepción de pedido")',
               },
             },
             required: ['delay_hours', 'reason'],
@@ -535,13 +590,15 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'register_business',
-          description: 'Registra un nuevo negocio en la plataforma VSPRO. Usa SOLO cuando el prospecto ha confirmado todos sus datos y quiere crear su cuenta. Necesitas: slug, nombre del negocio, email, contraseña y tipo de negocio (industry). SIEMPRE pregunta el giro/tipo de negocio para aplicar el template correcto.',
+          description:
+            'Registra un nuevo negocio en la plataforma VSPRO. Usa SOLO cuando el prospecto ha confirmado todos sus datos y quiere crear su cuenta. Necesitas: slug, nombre del negocio, email, contraseña y tipo de negocio (industry). SIEMPRE pregunta el giro/tipo de negocio para aplicar el template correcto.',
           parameters: {
             type: 'object',
             properties: {
               slug: {
                 type: 'string',
-                description: 'URL amigable del negocio (solo letras minúsculas, números y guiones, min 3 chars). Ej: "tortilleria-don-jose", "salon-bella"',
+                description:
+                  'URL amigable del negocio (solo letras minúsculas, números y guiones, min 3 chars). Ej: "tortilleria-don-jose", "salon-bella"',
               },
               businessName: {
                 type: 'string',
@@ -561,8 +618,17 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
               },
               industry: {
                 type: 'string',
-                enum: ['restaurante', 'barberia', 'ropa', 'taller', 'clinica', 'inmobiliaria', 'ecommerce'],
-                description: 'Tipo/giro del negocio. restaurante=comida/tacos/café, barberia=salón/estética, ropa=tienda/moda, taller=mecánico/automotriz, clinica=doctor/vet, inmobiliaria=rentas/depas, ecommerce=tienda online',
+                enum: [
+                  'restaurante',
+                  'barberia',
+                  'ropa',
+                  'taller',
+                  'clinica',
+                  'inmobiliaria',
+                  'ecommerce',
+                ],
+                description:
+                  'Tipo/giro del negocio. restaurante=comida/tacos/café, barberia=salón/estética, ropa=tienda/moda, taller=mecánico/automotriz, clinica=doctor/vet, inmobiliaria=rentas/depas, ecommerce=tienda online',
               },
             },
             required: ['slug', 'businessName', 'email', 'ownerName', 'password', 'industry'],
@@ -573,15 +639,23 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'add_product',
-          description: 'Agrega un producto al catálogo del negocio. Usa cuando el cliente te dice el nombre y precio de un producto o servicio que ofrece.',
+          description:
+            'Agrega un producto al catálogo del negocio. Usa cuando el cliente te dice el nombre y precio de un producto o servicio que ofrece.',
           parameters: {
             type: 'object',
             properties: {
               name: { type: 'string', description: 'Nombre del producto o servicio' },
               price: { type: 'number', description: 'Precio en MXN' },
-              category: { type: 'string', description: 'Categoría del producto (ej: "Cortes", "Tacos", "Vestidos", "Servicios")' },
+              category: {
+                type: 'string',
+                description:
+                  'Categoría del producto (ej: "Cortes", "Tacos", "Vestidos", "Servicios")',
+              },
               description: { type: 'string', description: 'Descripción breve (opcional)' },
-              stock: { type: 'number', description: 'Cantidad disponible (default: 50, usa -1 para ilimitado)' },
+              stock: {
+                type: 'number',
+                description: 'Cantidad disponible (default: 50, usa -1 para ilimitado)',
+              },
             },
             required: ['name', 'price'],
           },
@@ -591,20 +665,35 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'set_business_hours',
-          description: 'Configura los horarios de atención del negocio. Usa cuando el cliente te dice sus horarios de apertura y cierre.',
+          description:
+            'Configura los horarios de atención del negocio. Usa cuando el cliente te dice sus horarios de apertura y cierre.',
           parameters: {
             type: 'object',
             properties: {
-              monday: { type: 'string', description: 'Horario lunes (ej: "09:00-20:00" o "cerrado")' },
+              monday: {
+                type: 'string',
+                description: 'Horario lunes (ej: "09:00-20:00" o "cerrado")',
+              },
               tuesday: { type: 'string', description: 'Horario martes' },
               wednesday: { type: 'string', description: 'Horario miércoles' },
               thursday: { type: 'string', description: 'Horario jueves' },
               friday: { type: 'string', description: 'Horario viernes' },
               saturday: { type: 'string', description: 'Horario sábado' },
               sunday: { type: 'string', description: 'Horario domingo' },
-              timezone: { type: 'string', description: 'Zona horaria (default: America/Mexico_City)' },
+              timezone: {
+                type: 'string',
+                description: 'Zona horaria (default: America/Mexico_City)',
+              },
             },
-            required: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+            required: [
+              'monday',
+              'tuesday',
+              'wednesday',
+              'thursday',
+              'friday',
+              'saturday',
+              'sunday',
+            ],
           },
         },
       },
@@ -612,13 +701,20 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'set_payment_info',
-          description: 'Configura los datos bancarios del negocio para recibir pagos por transferencia. CLABE interbancaria y nombre del banco.',
+          description:
+            'Configura los datos bancarios del negocio para recibir pagos por transferencia. CLABE interbancaria y nombre del banco.',
           parameters: {
             type: 'object',
             properties: {
-              bank: { type: 'string', description: 'Nombre del banco (ej: "BBVA", "Banorte", "Santander")' },
+              bank: {
+                type: 'string',
+                description: 'Nombre del banco (ej: "BBVA", "Banorte", "Santander")',
+              },
               clabe: { type: 'string', description: 'CLABE interbancaria (18 dígitos)' },
-              beneficiary: { type: 'string', description: 'Nombre del beneficiario como aparece en el banco' },
+              beneficiary: {
+                type: 'string',
+                description: 'Nombre del beneficiario como aparece en el banco',
+              },
             },
             required: ['bank', 'clabe', 'beneficiary'],
           },
@@ -628,13 +724,20 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'add_delivery_driver',
-          description: 'Registra un repartidor/motorepartidor para entregas. Usa cuando el cliente quiere configurar su equipo de delivery.',
+          description:
+            'Registra un repartidor/motorepartidor para entregas. Usa cuando el cliente quiere configurar su equipo de delivery.',
           parameters: {
             type: 'object',
             properties: {
               name: { type: 'string', description: 'Nombre del repartidor' },
-              phone: { type: 'string', description: 'Teléfono del repartidor con lada (ej: "529841234567")' },
-              vehicleType: { type: 'string', description: 'Tipo de vehículo: "moto", "bicicleta", "auto", "a_pie"' },
+              phone: {
+                type: 'string',
+                description: 'Teléfono del repartidor con lada (ej: "529841234567")',
+              },
+              vehicleType: {
+                type: 'string',
+                description: 'Tipo de vehículo: "moto", "bicicleta", "auto", "a_pie"',
+              },
             },
             required: ['name', 'phone'],
           },
@@ -644,14 +747,16 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'generate_report',
-          description: 'Genera un reporte del negocio. Usa cuando el dueño pide información sobre ventas, pedidos, ingresos o desempeño de su negocio.',
+          description:
+            'Genera un reporte del negocio. Usa cuando el dueño pide información sobre ventas, pedidos, ingresos o desempeño de su negocio.',
           parameters: {
             type: 'object',
             properties: {
               reportType: {
                 type: 'string',
                 enum: ['daily', 'weekly', 'summary'],
-                description: 'Tipo de reporte: daily (hoy), weekly (últimos 7 días), summary (resumen general)',
+                description:
+                  'Tipo de reporte: daily (hoy), weekly (últimos 7 días), summary (resumen general)',
               },
             },
             required: ['reportType'],
@@ -662,7 +767,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'select_plan',
-          description: 'Genera un link de pago de Stripe para que el cliente se suscriba a un plan. Usa después del registro cuando el cliente elige su plan, o cuando quiere upgrade. Devuelve una URL de checkout que el cliente abre en su navegador.',
+          description:
+            'Genera un link de pago de Stripe para que el cliente se suscriba a un plan. Usa después del registro cuando el cliente elige su plan, o cuando quiere upgrade. Devuelve una URL de checkout que el cliente abre en su navegador.',
           parameters: {
             type: 'object',
             properties: {
@@ -673,7 +779,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
               planSlug: {
                 type: 'string',
                 enum: ['basic', 'pro', 'enterprise'],
-                description: 'Plan elegido: basic ($990/mes), pro ($1,490/mes), enterprise ($2,499/mes)',
+                description:
+                  'Plan elegido: basic ($990/mes), pro ($1,490/mes), enterprise ($2,499/mes)',
               },
             },
             required: ['tenantSlug', 'planSlug'],
@@ -684,7 +791,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'set_delivery_address',
-          description: 'Establece la dirección de entrega para un pedido existente. Usa cuando el cliente proporciona su dirección o ubicación para el envío. Si recibiste una ubicación de WhatsApp (coordenadas), incluye lat y lng.',
+          description:
+            'Establece la dirección de entrega para un pedido existente. Usa cuando el cliente proporciona su dirección o ubicación para el envío. Si recibiste una ubicación de WhatsApp (coordenadas), incluye lat y lng.',
           parameters: {
             type: 'object',
             properties: {
@@ -725,7 +833,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'escalate_complaint',
-          description: 'Escala una queja o problema grave al dueño del negocio. Usa cuando el cliente está frustrado, molesto o tiene un problema que no puedes resolver (producto defectuoso, mal servicio, pedido incorrecto, etc.). El dueño recibirá una notificación inmediata por WhatsApp con el contexto.',
+          description:
+            'Escala una queja o problema grave al dueño del negocio. Usa cuando el cliente está frustrado, molesto o tiene un problema que no puedes resolver (producto defectuoso, mal servicio, pedido incorrecto, etc.). El dueño recibirá una notificación inmediata por WhatsApp con el contexto.',
           parameters: {
             type: 'object',
             properties: {
@@ -736,7 +845,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
               priority: {
                 type: 'string',
                 enum: ['low', 'medium', 'high'],
-                description: 'Prioridad: high=cliente muy molesto/urgente, medium=problema claro pero no urgente, low=sugerencia/comentario',
+                description:
+                  'Prioridad: high=cliente muy molesto/urgente, medium=problema claro pero no urgente, low=sugerencia/comentario',
               },
               orderNumber: {
                 type: 'string',
@@ -751,7 +861,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'cancel_order',
-          description: 'Cancela un pedido existente. Solo se puede cancelar si el pedido NO está en producción o en entrega. Siempre pide el motivo al cliente antes de cancelar.',
+          description:
+            'Cancela un pedido existente. Solo se puede cancelar si el pedido NO está en producción o en entrega. Siempre pide el motivo al cliente antes de cancelar.',
           parameters: {
             type: 'object',
             properties: {
@@ -772,7 +883,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'check_availability',
-          description: 'Verifica disponibilidad de fechas para una reserva/hospedaje. Usa cuando el cliente pregunta si hay disponibilidad en ciertas fechas.',
+          description:
+            'Verifica disponibilidad de fechas para una reserva/hospedaje. Usa cuando el cliente pregunta si hay disponibilidad en ciertas fechas.',
           parameters: {
             type: 'object',
             properties: {
@@ -787,7 +899,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'create_reservation',
-          description: 'Crea una reserva para un huésped. Usa cuando el cliente confirma que quiere reservar en las fechas disponibles. Pide nombre, teléfono y fechas antes de usar.',
+          description:
+            'Crea una reserva para un huésped. Usa cuando el cliente confirma que quiere reservar en las fechas disponibles. Pide nombre, teléfono y fechas antes de usar.',
           parameters: {
             type: 'object',
             properties: {
@@ -806,11 +919,16 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'get_property_info',
-          description: 'Obtiene información de la propiedad/hospedaje: características, amenidades, reglas, precios. Usa cuando el cliente pregunta detalles sobre el lugar.',
+          description:
+            'Obtiene información de la propiedad/hospedaje: características, amenidades, reglas, precios. Usa cuando el cliente pregunta detalles sobre el lugar.',
           parameters: {
             type: 'object',
             properties: {
-              query: { type: 'string', description: 'Qué quiere saber: "precio", "amenidades", "reglas", "ubicación", "capacidad"' },
+              query: {
+                type: 'string',
+                description:
+                  'Qué quiere saber: "precio", "amenidades", "reglas", "ubicación", "capacidad"',
+              },
             },
             required: ['query'],
           },
@@ -820,14 +938,16 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'send_media_to_customer',
-          description: 'Envía una imagen o material gráfico al cliente (menú, promociones, catálogo, fotos de productos). Usa cuando el cliente pregunte por el menú, las promociones, fotos del producto, o cualquier material visual.',
+          description:
+            'Envía una imagen o material gráfico al cliente (menú, promociones, catálogo, fotos de productos). Usa cuando el cliente pregunte por el menú, las promociones, fotos del producto, o cualquier material visual.',
           parameters: {
             type: 'object',
             properties: {
               mediaType: {
                 type: 'string',
                 enum: ['menu', 'promo', 'catalog', 'product', 'general'],
-                description: 'Tipo de material: menu=carta/menú, promo=promociones, catalog=catálogo completo, product=foto de producto específico, general=otro material',
+                description:
+                  'Tipo de material: menu=carta/menú, promo=promociones, catalog=catálogo completo, product=foto de producto específico, general=otro material',
               },
               productName: {
                 type: 'string',
@@ -842,13 +962,15 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'repeat_last_order',
-          description: 'Repite el último pedido del cliente (mismos productos y cantidades). Usa cuando el cliente dice "lo mismo de siempre", "mi pedido habitual", "repite mi último pedido", o similar. Crea un nuevo pedido con los mismos items.',
+          description:
+            'Repite el último pedido del cliente (mismos productos y cantidades). Usa cuando el cliente dice "lo mismo de siempre", "mi pedido habitual", "repite mi último pedido", o similar. Crea un nuevo pedido con los mismos items.',
           parameters: {
             type: 'object',
             properties: {
               confirmFirst: {
                 type: 'boolean',
-                description: 'Si es true, solo muestra qué fue el último pedido sin crearlo. Si es false, crea el pedido directamente.',
+                description:
+                  'Si es true, solo muestra qué fue el último pedido sin crearlo. Si es false, crea el pedido directamente.',
               },
             },
             required: [],
@@ -859,7 +981,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'apply_promotion',
-          description: 'Aplica una promoción o combo activo al pedido del cliente. Usa cuando el pedido coincide con una promo activa, o cuando el cliente la solicita. Incrementa el uso de la promo y ajusta el total del pedido.',
+          description:
+            'Aplica una promoción o combo activo al pedido del cliente. Usa cuando el pedido coincide con una promo activa, o cuando el cliente la solicita. Incrementa el uso de la promo y ajusta el total del pedido.',
           parameters: {
             type: 'object',
             properties: {
@@ -884,7 +1007,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'list_active_promotions',
-          description: 'Lista todas las promociones y combos activos del negocio. Usa cuando el cliente pregunta por ofertas, promos, descuentos o combos disponibles.',
+          description:
+            'Lista todas las promociones y combos activos del negocio. Usa cuando el cliente pregunta por ofertas, promos, descuentos o combos disponibles.',
           parameters: {
             type: 'object',
             properties: {},
@@ -896,7 +1020,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'check_loyalty_points',
-          description: 'Consulta los puntos de lealtad del cliente actual. Usa cuando preguntan "¿cuántos puntos tengo?", "mi nivel", "mis recompensas". Muestra balance, nivel actual y recompensas disponibles.',
+          description:
+            'Consulta los puntos de lealtad del cliente actual. Usa cuando preguntan "¿cuántos puntos tengo?", "mi nivel", "mis recompensas". Muestra balance, nivel actual y recompensas disponibles.',
           parameters: {
             type: 'object',
             properties: {},
@@ -908,7 +1033,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'redeem_loyalty_points',
-          description: 'Canjea puntos de lealtad del cliente por una recompensa. Usa cuando el cliente dice "quiero canjear mis puntos", "usar mis puntos", etc.',
+          description:
+            'Canjea puntos de lealtad del cliente por una recompensa. Usa cuando el cliente dice "quiero canjear mis puntos", "usar mis puntos", etc.',
           parameters: {
             type: 'object',
             properties: {
@@ -929,12 +1055,17 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'upload_media',
-          description: 'Sube una imagen (menú, promoción, catálogo) al sistema. El owner envía la imagen por WhatsApp y se guarda en el CDN para que el agente la pueda enviar a clientes.',
+          description:
+            'Sube una imagen (menú, promoción, catálogo) al sistema. El owner envía la imagen por WhatsApp y se guarda en el CDN para que el agente la pueda enviar a clientes.',
           parameters: {
             type: 'object',
             properties: {
               mediaUrl: { type: 'string', description: 'URL de la imagen recibida de WhatsApp' },
-              type: { type: 'string', enum: ['menu', 'promo', 'catalog', 'general'], description: 'Tipo de material' },
+              type: {
+                type: 'string',
+                enum: ['menu', 'promo', 'catalog', 'general'],
+                description: 'Tipo de material',
+              },
               title: { type: 'string', description: 'Título descriptivo de la imagen' },
             },
             required: ['mediaUrl', 'type', 'title'],
@@ -945,7 +1076,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'update_product',
-          description: 'Edita un producto existente del catálogo. Puede cambiar nombre, precio o stock.',
+          description:
+            'Edita un producto existente del catálogo. Puede cambiar nombre, precio o stock.',
           parameters: {
             type: 'object',
             properties: {
@@ -976,11 +1108,15 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'set_custom_instructions',
-          description: 'Configura las instrucciones personalizadas del agente (personalidad, reglas, tono, prohibiciones). Esto define cómo se comporta el agente con los clientes.',
+          description:
+            'Configura las instrucciones personalizadas del agente (personalidad, reglas, tono, prohibiciones). Esto define cómo se comporta el agente con los clientes.',
           parameters: {
             type: 'object',
             properties: {
-              instructions: { type: 'string', description: 'Las instrucciones completas para el agente' },
+              instructions: {
+                type: 'string',
+                description: 'Las instrucciones completas para el agente',
+              },
             },
             required: ['instructions'],
           },
@@ -990,7 +1126,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'set_away_message',
-          description: 'Configura el mensaje que se envía cuando el negocio está cerrado (fuera de horario).',
+          description:
+            'Configura el mensaje que se envía cuando el negocio está cerrado (fuera de horario).',
           parameters: {
             type: 'object',
             properties: {
@@ -1004,7 +1141,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'set_welcome_message',
-          description: 'Configura el mensaje de bienvenida que recibe un cliente nuevo al escribir por primera vez.',
+          description:
+            'Configura el mensaje de bienvenida que recibe un cliente nuevo al escribir por primera vez.',
           parameters: {
             type: 'object',
             properties: {
@@ -1018,13 +1156,21 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'add_knowledge_base_entry',
-          description: 'Agrega información a la base de conocimiento del negocio (FAQs, políticas, horarios, info general). El agente usará esta info para responder preguntas de clientes.',
+          description:
+            'Agrega información a la base de conocimiento del negocio (FAQs, políticas, horarios, info general). El agente usará esta info para responder preguntas de clientes.',
           parameters: {
             type: 'object',
             properties: {
-              title: { type: 'string', description: 'Título o tema (ej: "Política de devoluciones")' },
+              title: {
+                type: 'string',
+                description: 'Título o tema (ej: "Política de devoluciones")',
+              },
               content: { type: 'string', description: 'Contenido/respuesta completa' },
-              category: { type: 'string', enum: ['info', 'politica', 'faq', 'general'], description: 'Categoría' },
+              category: {
+                type: 'string',
+                enum: ['info', 'politica', 'faq', 'general'],
+                description: 'Categoría',
+              },
             },
             required: ['title', 'content'],
           },
@@ -1064,7 +1210,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'switch_whatsapp_number',
-          description: 'Mueve el número de WhatsApp Business del negocio actual a otro tenant/negocio. Usa con precaución.',
+          description:
+            'Mueve el número de WhatsApp Business del negocio actual a otro tenant/negocio. Usa con precaución.',
           parameters: {
             type: 'object',
             properties: {
@@ -1078,7 +1225,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'get_subscription_status',
-          description: 'Muestra el estado de la suscripción del negocio: plan actual, fecha de vencimiento del trial, estado de pago. Usa cuando el dueño pregunta "¿cuándo vence mi prueba?", "¿qué plan tengo?", etc.',
+          description:
+            'Muestra el estado de la suscripción del negocio: plan actual, fecha de vencimiento del trial, estado de pago. Usa cuando el dueño pregunta "¿cuándo vence mi prueba?", "¿qué plan tengo?", etc.',
           parameters: { type: 'object', properties: {} },
         },
       },
@@ -1086,7 +1234,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'get_config_summary',
-          description: 'Muestra un resumen de toda la configuración actual del negocio: productos, horarios, repartidores, datos bancarios, personalidad del agente, base de conocimiento. Usa para validar que todo esté configurado correctamente.',
+          description:
+            'Muestra un resumen de toda la configuración actual del negocio: productos, horarios, repartidores, datos bancarios, personalidad del agente, base de conocimiento. Usa para validar que todo esté configurado correctamente.',
           parameters: { type: 'object', properties: {} },
         },
       },
@@ -1094,17 +1243,39 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'create_promotion',
-          description: 'Crea una promoción o combo para el negocio. Tipos: discount (porcentaje o monto fijo), combo (precio especial por conjunto), bogo (compra X lleva Y gratis).',
+          description:
+            'Crea una promoción o combo para el negocio. Tipos: discount (porcentaje o monto fijo), combo (precio especial por conjunto), bogo (compra X lleva Y gratis).',
           parameters: {
             type: 'object',
             properties: {
-              name: { type: 'string', description: 'Nombre de la promoción (ej: "Martes de Tacos 2x1")' },
-              type: { type: 'string', enum: ['discount', 'combo', 'bogo'], description: 'Tipo de promoción' },
+              name: {
+                type: 'string',
+                description: 'Nombre de la promoción (ej: "Martes de Tacos 2x1")',
+              },
+              type: {
+                type: 'string',
+                enum: ['discount', 'combo', 'bogo'],
+                description: 'Tipo de promoción',
+              },
               description: { type: 'string', description: 'Descripción para el cliente' },
-              discountValue: { type: 'number', description: 'Para discount: porcentaje (10=10%) o monto fijo' },
-              discountType: { type: 'string', enum: ['percentage', 'fixed'], description: 'Tipo de descuento' },
+              discountValue: {
+                type: 'number',
+                description: 'Para discount: porcentaje (10=10%) o monto fijo',
+              },
+              discountType: {
+                type: 'string',
+                enum: ['percentage', 'fixed'],
+                description: 'Tipo de descuento',
+              },
               comboPrice: { type: 'number', description: 'Para combo: precio del combo' },
-              comboProducts: { type: 'array', items: { type: 'object', properties: { productName: { type: 'string' }, quantity: { type: 'number' } } }, description: 'Productos del combo' },
+              comboProducts: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: { productName: { type: 'string' }, quantity: { type: 'number' } },
+                },
+                description: 'Productos del combo',
+              },
               buyQuantity: { type: 'number', description: 'Para bogo: cantidad que compra' },
               getQuantity: { type: 'number', description: 'Para bogo: cantidad gratis' },
               startDate: { type: 'string', description: 'Fecha inicio (YYYY-MM-DD), default: hoy' },
@@ -1118,7 +1289,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'get_usage_stats',
-          description: 'Muestra estadísticas de uso del negocio: mensajes enviados este mes, pedidos del mes, clientes nuevos, ingresos. Usa cuando preguntan métricas o "cómo va mi negocio".',
+          description:
+            'Muestra estadísticas de uso del negocio: mensajes enviados este mes, pedidos del mes, clientes nuevos, ingresos. Usa cuando preguntan métricas o "cómo va mi negocio".',
           parameters: { type: 'object', properties: {} },
         },
       },
@@ -1126,15 +1298,23 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         type: 'function',
         function: {
           name: 'save_prospect',
-          description: 'Guarda los datos de un prospecto interesado en VSPRO para seguimiento (CRM básico). Usa cuando un prospecto da su nombre, negocio o datos de contacto pero AÚN no se registra.',
+          description:
+            'Guarda los datos de un prospecto interesado en VSPRO para seguimiento (CRM básico). Usa cuando un prospecto da su nombre, negocio o datos de contacto pero AÚN no se registra.',
           parameters: {
             type: 'object',
             properties: {
               name: { type: 'string', description: 'Nombre del prospecto' },
               phone: { type: 'string', description: 'Teléfono (si lo da)' },
-              businessName: { type: 'string', description: 'Nombre de su negocio (si lo menciona)' },
+              businessName: {
+                type: 'string',
+                description: 'Nombre de su negocio (si lo menciona)',
+              },
               industry: { type: 'string', description: 'Giro del negocio' },
-              interest: { type: 'string', description: 'Qué le interesa o por qué preguntó (ej: "quiere automatizar pedidos")' },
+              interest: {
+                type: 'string',
+                description:
+                  'Qué le interesa o por qué preguntó (ej: "quiere automatizar pedidos")',
+              },
             },
             required: ['name'],
           },
@@ -1198,12 +1378,22 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
 
     // If GPT wants MORE tool calls (e.g., save memory), execute them
     if (finalChoice.finish_reason === 'tool_calls' && finalChoice.message.tool_calls) {
-      messages.push({ role: 'assistant', tool_calls: finalChoice.message.tool_calls, content: null });
+      messages.push({
+        role: 'assistant',
+        tool_calls: finalChoice.message.tool_calls,
+        content: null,
+      });
       for (const toolCall of finalChoice.message.tool_calls) {
         const args2 = JSON.parse(toolCall.function.arguments);
         let result2: string;
         try {
-          result2 = await this.executeTool(toolCall.function.name, args2, conversation, tenant, schemaName);
+          result2 = await this.executeTool(
+            toolCall.function.name,
+            args2,
+            conversation,
+            tenant,
+            schemaName,
+          );
         } catch (e: any) {
           result2 = `Error: ${e.message}`;
         }
@@ -1216,7 +1406,9 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         temperature: 0.3,
         max_tokens: 800,
       });
-      return { text: thirdResponse.choices[0]?.message?.content ?? 'Procesé tu solicitud correctamente.' };
+      return {
+        text: thirdResponse.choices[0]?.message?.content ?? 'Procesé tu solicitud correctamente.',
+      };
     }
 
     const text = finalChoice.message.content ?? 'Procesé tu solicitud correctamente.';
@@ -1249,10 +1441,7 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
 
       case 'get_order_status': {
         try {
-          const order = await this.ordersService.findByOrderNumber(
-            args.orderNumber,
-            schemaName,
-          );
+          const order = await this.ordersService.findByOrderNumber(args.orderNumber, schemaName);
           return JSON.stringify({
             orderNumber: order.orderNumber,
             status: order.status,
@@ -1294,32 +1483,40 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         );
 
         // IMPORTANT: Persist orderId in conversation context for subsequent tool calls
-        const updatedContext = { ...(conversation.context as any), lastOrderId: order.id, lastOrderNumber: order.orderNumber };
-        await this.prisma.$executeRawUnsafe(`
+        const updatedContext = {
+          ...(conversation.context as any),
+          lastOrderId: order.id,
+          lastOrderNumber: order.orderNumber,
+        };
+        await this.prisma.$executeRawUnsafe(
+          `
           UPDATE "${schemaName}".conversations SET context = $1::jsonb WHERE id = $2::uuid
-        `, JSON.stringify(updatedContext), conversation.id);
+        `,
+          JSON.stringify(updatedContext),
+          conversation.id,
+        );
         // Update local reference too
         (conversation.context as any).lastOrderId = order.id;
         (conversation.context as any).lastOrderNumber = order.orderNumber;
- // AUTO-SAVE: Store order in customer memory (non-blocking)
- this.customerMemory.upsertProfile(
- ctx.customerId,
- 'purchase_history_summary',
- { [`order_${order.orderNumber}`]: `${args.items.map((i: any) => i.productName ?? "producto").join(", ")} — Total: $${order.total}` },
- schemaName,
- ).catch(() => {});
+        // AUTO-SAVE: Store order in customer memory (non-blocking)
+        this.customerMemory
+          .upsertProfile(
+            ctx.customerId,
+            'purchase_history_summary',
+            {
+              [`order_${order.orderNumber}`]: `${args.items.map((i: any) => i.productName ?? 'producto').join(', ')} — Total: $${order.total}`,
+            },
+            schemaName,
+          )
+          .catch(() => {});
 
         // AUTO-SAVE: Store customer name if available from conversation context
         const customerName = (conversation.context as any)?.customerName;
         if (customerName && ctx.customerId) {
-          this.customerMemory.upsertProfile(
-            ctx.customerId,
-            'profile_name',
-            { name: customerName },
-            schemaName,
-          ).catch(() => {});
+          this.customerMemory
+            .upsertProfile(ctx.customerId, 'profile_name', { name: customerName }, schemaName)
+            .catch(() => {});
         }
-
 
         return JSON.stringify({
           success: true,
@@ -1359,11 +1556,16 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           `);
 
           // Update payment method on the order
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".orders
             SET payment_method = $1, notes = COALESCE(notes, '') || E'\n' || $2, updated_at = NOW()
             WHERE id = $3::uuid
-          `, method, `[PAGO] Método: ${method === 'cod' ? 'Contra entrega' : method === 'cash' ? 'Efectivo' : 'Tarjeta'}`, orderId);
+          `,
+            method,
+            `[PAGO] Método: ${method === 'cod' ? 'Contra entrega' : method === 'cash' ? 'Efectivo' : 'Tarjeta'}`,
+            orderId,
+          );
 
           // For COD/cash/card: skip payment_pending, go directly to in_production
           if (method === 'cod' || method === 'cash' || method === 'card') {
@@ -1397,7 +1599,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             message: `Método de pago: ${method}. Pedido en preparación.`,
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al configurar método de pago: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al configurar método de pago: ${err.message}`,
+          });
         }
       }
 
@@ -1429,11 +1634,16 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           const discount = currentTotal * (percent / 100);
           const newTotal = currentTotal - discount;
 
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".orders
             SET total = $1, notes = COALESCE(notes, '') || $2, updated_at = NOW()
             WHERE id = $3::uuid
-          `, newTotal, `\n[Descuento ${percent}%: -$${discount.toFixed(2)} — ${args.reason}]`, args.orderId);
+          `,
+            newTotal,
+            `\n[Descuento ${percent}%: -$${discount.toFixed(2)} — ${args.reason}]`,
+            args.orderId,
+          );
 
           return JSON.stringify({
             success: true,
@@ -1456,7 +1666,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
 
           if (customerId) {
             const customers = await this.prisma.$queryRawUnsafe<any[]>(
-              `SELECT name, channel_id FROM "${schemaName}".customers WHERE id = $1::uuid`, customerId,
+              `SELECT name, channel_id FROM "${schemaName}".customers WHERE id = $1::uuid`,
+              customerId,
             );
             if (customers[0]) {
               customerName = customers[0].name || 'Cliente';
@@ -1484,11 +1695,19 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           `);
 
           // Insert ticket
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             INSERT INTO "${schemaName}".support_tickets
               (ticket_number, conversation_id, customer_id, subject, description, priority)
             VALUES ($1, $2::uuid, $3, $4, $5, $6)
-          `, ticketNumber, conversation.id, customerId ?? null, args.subject, args.description, args.priority);
+          `,
+            ticketNumber,
+            conversation.id,
+            customerId ?? null,
+            args.subject,
+            args.description,
+            args.priority,
+          );
 
           // Notify owner via WhatsApp
           await this.ownerNotification.notifyOwner({
@@ -1509,23 +1728,32 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             message: `Ticket #${ticketNumber} creado. El dueño del negocio ha sido notificado y dará seguimiento a tu caso.`,
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al crear ticket: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al crear ticket: ${err.message}`,
+          });
         }
       }
 
       case 'get_shipment_tracking': {
         try {
           const order = await this.ordersService.findByOrderNumber(args.orderNumber, schemaName);
-          const shipments = await this.prisma.$queryRawUnsafe<any[]>(`
+          const shipments = await this.prisma.$queryRawUnsafe<any[]>(
+            `
             SELECT carrier, tracking_number AS "trackingNumber",
                    tracking_url AS "trackingUrl", status
             FROM "${schemaName}".shipments
             WHERE order_id = $1::uuid
             ORDER BY created_at DESC LIMIT 1
-          `, order.id);
+          `,
+            order.id,
+          );
 
           if (!shipments[0]) {
-            return JSON.stringify({ found: false, message: 'Este pedido aún no tiene envío registrado' });
+            return JSON.stringify({
+              found: false,
+              message: 'Este pedido aún no tiene envío registrado',
+            });
           }
 
           return JSON.stringify({
@@ -1567,15 +1795,18 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
       case 'register_business': {
         try {
           // Check if slug already exists AND belongs to the same owner
-          const existingTenant = await this.prisma.tenant.findFirst({ where: { slug: args.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-') } });
+          const existingTenant = await this.prisma.tenant.findFirst({
+            where: { slug: args.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-') },
+          });
           if (existingTenant) {
             // Check if the sender is already the admin of this tenant
             const senderPhone2 = (conversation.context as any)?.senderPhone ?? '';
-            const existingAdmin = await this.prisma.$queryRawUnsafe<any[]>(
-              `SELECT 1 FROM "${(existingTenant as any).schemaName}".users WHERE role = 'admin' AND (phone = $1 OR phone = $2) LIMIT 1`,
-              senderPhone2, senderPhone2.replace(/^52/, ''),
-            ).catch(() => []);
-            
+            const existingAdmin = await this.prisma
+              .$queryRawUnsafe<
+                any[]
+              >(`SELECT 1 FROM "${(existingTenant as any).schemaName}".users WHERE role = 'admin' AND (phone = $1 OR phone = $2) LIMIT 1`, senderPhone2, senderPhone2.replace(/^52/, ''))
+              .catch(() => []);
+
             if (existingAdmin.length > 0) {
               return JSON.stringify({
                 success: true,
@@ -1607,7 +1838,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
                 ALTER TABLE "${tenant.schemaName}".ai_config
                 ADD COLUMN IF NOT EXISTS agent_config JSONB DEFAULT '{}'
               `);
-              await this.prisma.$executeRawUnsafe(`
+              await this.prisma.$executeRawUnsafe(
+                `
                 UPDATE "${tenant.schemaName}".ai_config
                 SET agent_config = jsonb_set(
                   COALESCE(agent_config, '{}'::jsonb),
@@ -1615,19 +1847,28 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
                   $1::jsonb
                 ), updated_at = NOW()
                 WHERE id = (SELECT id FROM "${tenant.schemaName}".ai_config LIMIT 1)
-              `, JSON.stringify(args.industry));
+              `,
+                JSON.stringify(args.industry),
+              );
             } catch (indErr: any) {
-              this.logger.warn(`[register_business] Could not save industry in agent_config: ${indErr.message}`);
+              this.logger.warn(
+                `[register_business] Could not save industry in agent_config: ${indErr.message}`,
+              );
             }
 
             try {
               const templates = await this.prisma.$queryRawUnsafe<any[]>(
-                `SELECT slug FROM public.industry_templates WHERE slug = $1`, args.industry,
+                `SELECT slug FROM public.industry_templates WHERE slug = $1`,
+                args.industry,
               );
               if (templates.length > 0) {
-                const { IndustryTemplatesService } = await import('../tenants/industry-templates.service');
+                const { IndustryTemplatesService } =
+                  await import('../tenants/industry-templates.service');
                 const templatesService = new IndustryTemplatesService(this.prisma);
-                templateApplied = await templatesService.applyTemplate(args.industry, tenant.schemaName);
+                templateApplied = await templatesService.applyTemplate(
+                  args.industry,
+                  tenant.schemaName,
+                );
               }
             } catch (tplErr: any) {
               this.logger.warn(`Template apply failed: ${tplErr.message}`);
@@ -1644,7 +1885,9 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
                 CREATE TABLE IF NOT EXISTS "${tenant.schemaName}".channels (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), type VARCHAR(20) NOT NULL, external_id VARCHAR(100), access_token TEXT, is_active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW())
               `);
               // Note: Don't auto-move the channel - just log that it needs to be configured
-              this.logger.log(`[register_business] New tenant ${tenant.slug} created. WhatsApp channel needs manual assignment via switch_whatsapp_number.`);
+              this.logger.log(
+                `[register_business] New tenant ${tenant.slug} created. WhatsApp channel needs manual assignment via switch_whatsapp_number.`,
+              );
             }
           } catch {}
 
@@ -1659,7 +1902,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           });
         } catch (err: any) {
           if (err.message?.includes('ya está en uso')) {
-            return JSON.stringify({ success: false, message: `El slug '${args.slug}' ya está ocupado. Sugiere otro nombre para la URL.` });
+            return JSON.stringify({
+              success: false,
+              message: `El slug '${args.slug}' ya está ocupado. Sugiere otro nombre para la URL.`,
+            });
           }
           return JSON.stringify({ success: false, message: `Error al registrar: ${err.message}` });
         }
@@ -1670,30 +1916,50 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           const sku = `PRD-${Date.now().toString(36).toUpperCase()}`;
           const stock = args.stock === -1 ? 9999 : (args.stock ?? 50);
 
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             INSERT INTO "${schemaName}".products (name, price, category, description, sku, is_active)
             VALUES ($1, $2, $3, $4, $5, true)
-          `, args.name, args.price, args.category ?? 'General', args.description ?? '', sku);
+          `,
+            args.name,
+            args.price,
+            args.category ?? 'General',
+            args.description ?? '',
+            sku,
+          );
 
           // Get the product ID to create inventory
           const products = await this.prisma.$queryRawUnsafe<any[]>(
-            `SELECT id FROM "${schemaName}".products WHERE sku = $1`, sku,
+            `SELECT id FROM "${schemaName}".products WHERE sku = $1`,
+            sku,
           );
           if (products[0]) {
-            await this.prisma.$executeRawUnsafe(`
+            await this.prisma.$executeRawUnsafe(
+              `
               INSERT INTO "${schemaName}".inventory (product_id, stock_available, stock_minimum)
               VALUES ($1::uuid, $2, 5)
               ON CONFLICT (product_id) DO NOTHING
-            `, products[0].id, stock);
+            `,
+              products[0].id,
+              stock,
+            );
           }
 
           return JSON.stringify({
             success: true,
-            product: { name: args.name, price: args.price, category: args.category ?? 'General', sku },
+            product: {
+              name: args.name,
+              price: args.price,
+              category: args.category ?? 'General',
+              sku,
+            },
             message: `Producto "${args.name}" agregado al catálogo por $${args.price} MXN.`,
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al agregar producto: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al agregar producto: ${err.message}`,
+          });
         }
       }
 
@@ -1701,8 +1967,13 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         try {
           const schedule: Record<string, any> = {};
           const dayMap: Record<string, string> = {
-            monday: 'mon', tuesday: 'tue', wednesday: 'wed',
-            thursday: 'thu', friday: 'fri', saturday: 'sat', sunday: 'sun',
+            monday: 'mon',
+            tuesday: 'tue',
+            wednesday: 'wed',
+            thursday: 'thu',
+            friday: 'fri',
+            saturday: 'sat',
+            sunday: 'sun',
           };
 
           for (const [day, abbr] of Object.entries(dayMap)) {
@@ -1720,11 +1991,14 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             schedule,
           });
 
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".ai_config
             SET business_hours = $1::jsonb, updated_at = NOW()
             WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
-          `, hoursJson);
+          `,
+            hoursJson,
+          );
 
           return JSON.stringify({
             success: true,
@@ -1732,7 +2006,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             message: 'Horarios de atención configurados correctamente.',
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al configurar horarios: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al configurar horarios: ${err.message}`,
+          });
         }
       }
 
@@ -1750,7 +2027,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             ADD COLUMN IF NOT EXISTS agent_config JSONB DEFAULT '{}'
           `);
 
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".ai_config
             SET agent_config = jsonb_set(
               COALESCE(agent_config, '{}'::jsonb),
@@ -1758,7 +2036,9 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
               $1::jsonb
             ), updated_at = NOW()
             WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
-          `, paymentInfo);
+          `,
+            paymentInfo,
+          );
 
           return JSON.stringify({
             success: true,
@@ -1768,7 +2048,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             message: `Datos bancarios configurados: ${args.bank}, CLABE terminación ${args.clabe.slice(-4)}, a nombre de ${args.beneficiary}.`,
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al configurar datos bancarios: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al configurar datos bancarios: ${err.message}`,
+          });
         }
       }
 
@@ -1786,11 +2069,16 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             )
           `);
 
-          const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+          const rows = await this.prisma.$queryRawUnsafe<any[]>(
+            `
             INSERT INTO "${schemaName}".delivery_drivers (name, phone, vehicle_type)
             VALUES ($1, $2, $3)
             RETURNING id, name, phone, vehicle_type AS "vehicleType"
-          `, args.name, args.phone, args.vehicleType ?? 'moto');
+          `,
+            args.name,
+            args.phone,
+            args.vehicleType ?? 'moto',
+          );
 
           return JSON.stringify({
             success: true,
@@ -1798,7 +2086,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             message: `Repartidor "${args.name}" registrado (${args.vehicleType ?? 'moto'}). Recibirá pedidos por WhatsApp al ${args.phone}.`,
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al registrar repartidor: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al registrar repartidor: ${err.message}`,
+          });
         }
       }
 
@@ -1809,7 +2100,11 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             `SELECT COUNT(*)::int AS count FROM "${schemaName}".orders`,
           );
           if (!orderCount[0]?.count || orderCount[0].count === 0) {
-            return JSON.stringify({ success: true, message: 'Aún no hay datos para generar reportes. Necesitas al menos una orden completada.' });
+            return JSON.stringify({
+              success: true,
+              message:
+                'Aún no hay datos para generar reportes. Necesitas al menos una orden completada.',
+            });
           }
 
           const now = new Date();
@@ -1861,7 +2156,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             message: `📊 Reporte ${label}:\n• Pedidos: ${report.orders.total} (${report.orders.delivered} entregados, ${report.orders.pending} pendientes)\n• Revenue: $${report.revenue.toLocaleString()} MXN\n• Cobrado: $${report.collected.toLocaleString()} MXN\n• Nuevos clientes: ${report.newCustomers}`,
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al generar reporte: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al generar reporte: ${err.message}`,
+          });
         }
       }
 
@@ -1872,7 +2170,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           });
 
           if (!tenant) {
-            return JSON.stringify({ success: false, message: `No se encontró el negocio '${args.tenantSlug}'. Verifica el nombre.` });
+            return JSON.stringify({
+              success: false,
+              message: `No se encontró el negocio '${args.tenantSlug}'. Verifica el nombre.`,
+            });
           }
 
           const result = await this.billingService.createCheckoutSession(
@@ -1881,7 +2182,11 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             'monthly',
           );
 
-          const planNames: Record<string, string> = { basic: 'Básico ($990/mes)', pro: 'Profesional ($1,490/mes)', enterprise: 'Avanzado ($2,499/mes)' };
+          const planNames: Record<string, string> = {
+            basic: 'Básico ($990/mes)',
+            pro: 'Profesional ($1,490/mes)',
+            enterprise: 'Avanzado ($2,499/mes)',
+          };
 
           return JSON.stringify({
             success: true,
@@ -1890,7 +2195,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             message: `Link de pago generado para el plan ${planNames[args.planSlug]}. El cliente debe abrir el link en su navegador para completar el pago.`,
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al generar link de pago: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al generar link de pago: ${err.message}`,
+          });
         }
       }
 
@@ -1899,7 +2207,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           // Use orderId from args, or fallback to lastOrderId from conversation context
           const orderId = args.orderId || (conversation.context as any)?.lastOrderId;
           if (!orderId) {
-            return JSON.stringify({ success: false, message: 'No hay pedido activo. Primero crea un pedido.' });
+            return JSON.stringify({
+              success: false,
+              message: 'No hay pedido activo. Primero crea un pedido.',
+            });
           }
 
           const address: Record<string, any> = {};
@@ -1931,33 +2242,39 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           } catch {}
 
           // Update order: set address, delivery type, and add shipping cost
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".orders
             SET shipping_address = $1::jsonb, delivery_type = 'delivery',
                 shipping_cost = $2, total = subtotal + $2, updated_at = NOW()
             WHERE id = $3::uuid
-          `, JSON.stringify(address), deliveryCost, orderId);
+          `,
+            JSON.stringify(address),
+            deliveryCost,
+            orderId,
+          );
 
-          const readable = [
-            args.street,
-            args.colony,
-            args.city,
-          ].filter(Boolean).join(', ') || 'Ubicación guardada';
+          const readable =
+            [args.street, args.colony, args.city].filter(Boolean).join(', ') ||
+            'Ubicación guardada';
 
           // Get updated order total
           const updatedOrder = await this.ordersService.findById(orderId, schemaName);
- // AUTO-SAVE: Store address in customer memory (non-blocking)
- const addrCustomerId = (conversation.context as any)?.customerId;
- if (addrCustomerId) {
- const addrText = [args.street, args.colony, args.city, args.reference].filter(Boolean).join(", ");
- this.customerMemory.upsertProfile(
- addrCustomerId,
- "addresses",
- { last_delivery: addrText, full: address },
- schemaName,
- ).catch(() => {});
- }
-
+          // AUTO-SAVE: Store address in customer memory (non-blocking)
+          const addrCustomerId = (conversation.context as any)?.customerId;
+          if (addrCustomerId) {
+            const addrText = [args.street, args.colony, args.city, args.reference]
+              .filter(Boolean)
+              .join(', ');
+            this.customerMemory
+              .upsertProfile(
+                addrCustomerId,
+                'addresses',
+                { last_delivery: addrText, full: address },
+                schemaName,
+              )
+              .catch(() => {});
+          }
 
           return JSON.stringify({
             success: true,
@@ -1967,7 +2284,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             message: `Dirección guardada: ${readable}${address.mapsUrl ? ` 📍` : ''}. Envío: $${deliveryCost}. Total con envío: $${parseFloat(updatedOrder.total).toLocaleString('es-MX')}`,
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al guardar dirección: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al guardar dirección: ${err.message}`,
+          });
         }
       }
 
@@ -1979,7 +2299,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
 
           if (customerId) {
             const customers = await this.prisma.$queryRawUnsafe<any[]>(
-              `SELECT name, channel_id FROM "${schemaName}".customers WHERE id = $1::uuid`, customerId,
+              `SELECT name, channel_id FROM "${schemaName}".customers WHERE id = $1::uuid`,
+              customerId,
             );
             if (customers[0]) {
               customerName = customers[0].name || 'Cliente';
@@ -2004,10 +2325,17 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             )
           `);
 
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             INSERT INTO "${schemaName}".escalations (conversation_id, customer_id, reason, priority, order_number)
             VALUES ($1::uuid, $2, $3, $4, $5)
-          `, conversation.id, customerId ?? null, args.reason, args.priority, args.orderNumber ?? null);
+          `,
+            conversation.id,
+            customerId ?? null,
+            args.reason,
+            args.priority,
+            args.orderNumber ?? null,
+          );
 
           // Notify owner via WhatsApp
           await this.ownerNotification.notifyOwner({
@@ -2045,18 +2373,23 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           }
 
           // Cancel the order
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".orders
             SET status = 'cancelled', notes = COALESCE(notes, '') || $1, updated_at = NOW()
             WHERE id = $2::uuid
-          `, `\n[CANCELADO: ${args.reason}]`, args.orderId);
+          `,
+            `\n[CANCELADO: ${args.reason}]`,
+            args.orderId,
+          );
 
           // Get customer info for notification
           const customerId = (conversation.context as any)?.customerId;
           let customerName = 'Cliente';
           if (customerId) {
             const customers = await this.prisma.$queryRawUnsafe<any[]>(
-              `SELECT name FROM "${schemaName}".customers WHERE id = $1::uuid`, customerId,
+              `SELECT name FROM "${schemaName}".customers WHERE id = $1::uuid`,
+              customerId,
             );
             if (customers[0]) customerName = customers[0].name || 'Cliente';
           }
@@ -2095,15 +2428,25 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
               FROM "${schemaName}".properties WHERE is_active = true ORDER BY name
             `);
             if (props.length > 1) {
-              propertiesInfo = `\n\nPropiedades disponibles:\n${props.map(p => `• ${p.name} (${p.capacity} huéspedes, $${parseFloat(p.pricePerNight)}/noche)`).join('\n')}`;
+              propertiesInfo = `\n\nPropiedades disponibles:\n${props.map((p) => `• ${p.name} (${p.capacity} huéspedes, $${parseFloat(p.pricePerNight)}/noche)`).join('\n')}`;
             }
           } catch {}
 
-          const result = await reservationsService.checkAvailability(args.checkIn, args.checkOut, schemaName);
+          const result = await reservationsService.checkAvailability(
+            args.checkIn,
+            args.checkOut,
+            schemaName,
+          );
 
           if (result.available) {
-            const price = await reservationsService.calculatePrice(args.checkIn, args.checkOut, schemaName);
-            const nights = Math.ceil((new Date(args.checkOut).getTime() - new Date(args.checkIn).getTime()) / 86400000);
+            const price = await reservationsService.calculatePrice(
+              args.checkIn,
+              args.checkOut,
+              schemaName,
+            );
+            const nights = Math.ceil(
+              (new Date(args.checkOut).getTime() - new Date(args.checkIn).getTime()) / 86400000,
+            );
             return JSON.stringify({
               available: true,
               checkIn: args.checkIn,
@@ -2129,14 +2472,17 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         try {
           const { ReservationsService } = await import('../reservations/reservations.service');
           const reservationsService = new ReservationsService(this.prisma);
-          const reservation = await reservationsService.create({
-            guestName: args.guestName,
-            guestPhone: args.guestPhone,
-            checkIn: args.checkIn,
-            checkOut: args.checkOut,
-            guests: args.guests ?? 1,
-            notes: args.notes,
-          }, schemaName);
+          const reservation = await reservationsService.create(
+            {
+              guestName: args.guestName,
+              guestPhone: args.guestPhone,
+              checkIn: args.checkIn,
+              checkOut: args.checkOut,
+              guests: args.guests ?? 1,
+              notes: args.notes,
+            },
+            schemaName,
+          );
 
           return JSON.stringify({
             success: true,
@@ -2174,7 +2520,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
               return JSON.stringify({
                 success: true,
                 property: p,
-                message: `🏠 *${p.name}*\n\n${p.description ?? ''}\n\n` +
+                message:
+                  `🏠 *${p.name}*\n\n${p.description ?? ''}\n\n` +
                   `📍 ${p.address ?? 'Ubicación disponible al reservar'}${mapsLink ? ` (${mapsLink})` : ''}\n` +
                   `👥 Hasta ${p.capacity} huéspedes | 🛏️ ${p.bedrooms} hab | 🚿 ${p.bathrooms} baños\n` +
                   `💰 Desde $${parseFloat(p.pricePerNight)}/noche` +
@@ -2186,12 +2533,20 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
               });
             } else {
               // Multiple properties
-              const list = props.map(p =>
-                `• *${p.name}* — $${parseFloat(p.pricePerNight)}/noche, ${p.capacity} huéspedes, ${p.bedrooms} hab`
-              ).join('\n');
+              const list = props
+                .map(
+                  (p) =>
+                    `• *${p.name}* — $${parseFloat(p.pricePerNight)}/noche, ${p.capacity} huéspedes, ${p.bedrooms} hab`,
+                )
+                .join('\n');
               return JSON.stringify({
                 success: true,
-                properties: props.map(p => ({ id: p.id, name: p.name, price: p.pricePerNight, capacity: p.capacity })),
+                properties: props.map((p) => ({
+                  id: p.id,
+                  name: p.name,
+                  price: p.pricePerNight,
+                  capacity: p.capacity,
+                })),
                 message: `Tenemos ${props.length} propiedades disponibles:\n\n${list}\n\n¿Cuál te interesa? Puedo darte más detalles de cualquiera.`,
               });
             }
@@ -2208,7 +2563,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             message: `${property?.name ?? 'Propiedad'}: $${property?.price ?? 0}/noche. ${property?.description ?? ''}`,
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al obtener info: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al obtener info: ${err.message}`,
+          });
         }
       }
 
@@ -2234,15 +2592,21 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
               assets = products[0].images.map((url: string) => ({ url, title: products[0].name }));
             }
           } else {
-            assets = await this.prisma.$queryRawUnsafe<any[]>(`
+            assets = await this.prisma.$queryRawUnsafe<any[]>(
+              `
               SELECT url, title FROM "${schemaName}".media_assets
               WHERE type = $1 AND is_active = true
               ORDER BY sort_order ASC, created_at DESC LIMIT 5
-            `, args.mediaType);
+            `,
+              args.mediaType,
+            );
           }
 
           if (assets.length === 0) {
-            return JSON.stringify({ success: false, message: `No hay material de tipo "${args.mediaType}" configurado. El dueño debe subir imágenes en Configuración → Media.` });
+            return JSON.stringify({
+              success: false,
+              message: `No hay material de tipo "${args.mediaType}" configurado. El dueño debe subir imágenes en Configuración → Media.`,
+            });
           }
 
           // Get customer phone — try multiple sources
@@ -2251,23 +2615,32 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             const custId = (conversation.context as any)?.customerId;
             if (custId) {
               const custRows = await this.prisma.$queryRawUnsafe<any[]>(
-                `SELECT channel_id FROM "${schemaName}".customers WHERE id = $1::uuid`, custId,
+                `SELECT channel_id FROM "${schemaName}".customers WHERE id = $1::uuid`,
+                custId,
               );
               customerPhone = custRows[0]?.channel_id;
             }
           }
 
           if (!customerPhone) {
-            return JSON.stringify({ success: true, sent: 0, message: `Material encontrado pero no se pudo obtener el teléfono del cliente para enviarlo. Describe el contenido al cliente.` });
+            return JSON.stringify({
+              success: true,
+              sent: 0,
+              message: `Material encontrado pero no se pudo obtener el teléfono del cliente para enviarlo. Describe el contenido al cliente.`,
+            });
           }
 
           // Get WhatsApp channel config
           const channelRows = await this.prisma.$queryRawUnsafe<any[]>(
-            `SELECT external_id, access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`
+            `SELECT external_id, access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`,
           );
 
           if (!channelRows[0]) {
-            return JSON.stringify({ success: true, sent: 0, message: 'Canal de WhatsApp no configurado. Describe el material al cliente.' });
+            return JSON.stringify({
+              success: true,
+              sent: 0,
+              message: 'Canal de WhatsApp no configurado. Describe el material al cliente.',
+            });
           }
 
           const { external_id: phoneNumberId, access_token: accessToken } = channelRows[0];
@@ -2286,27 +2659,52 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
                     const ext2 = match2[1].includes('png') ? 'png' : 'jpg';
                     const key2 = `media/${schemaName}/${args.mediaType}/${asset.id}.${ext2}`;
                     const s3 = new S3Client({
-                      endpoint: this.config.get('AWS_S3_ENDPOINT') || 'https://nyc3.digitaloceanspaces.com',
+                      endpoint:
+                        this.config.get('AWS_S3_ENDPOINT') || 'https://nyc3.digitaloceanspaces.com',
                       region: this.config.get('AWS_REGION') || 'nyc3',
-                      credentials: { accessKeyId: this.config.get('AWS_ACCESS_KEY_ID') || '', secretAccessKey: this.config.get('AWS_SECRET_ACCESS_KEY') || '' },
+                      credentials: {
+                        accessKeyId: this.config.get('AWS_ACCESS_KEY_ID') || '',
+                        secretAccessKey: this.config.get('AWS_SECRET_ACCESS_KEY') || '',
+                      },
                       forcePathStyle: false,
                     });
                     const bucket = this.config.get('AWS_S3_BUCKET') || 'vspro-uploads';
-                    await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key2, Body: buf, ContentType: match2[1], ACL: 'public-read' }));
+                    await s3.send(
+                      new PutObjectCommand({
+                        Bucket: bucket,
+                        Key: key2,
+                        Body: buf,
+                        ContentType: match2[1],
+                        ACL: 'public-read',
+                      }),
+                    );
                     const cdnUrl = `https://${bucket}.nyc3.digitaloceanspaces.com/${key2}`;
                     // Update DB
-                    await this.prisma.$executeRawUnsafe(`UPDATE "${schemaName}".media_assets SET url = $1 WHERE id = $2::uuid`, cdnUrl, asset.id);
+                    await this.prisma.$executeRawUnsafe(
+                      `UPDATE "${schemaName}".media_assets SET url = $1 WHERE id = $2::uuid`,
+                      cdnUrl,
+                      asset.id,
+                    );
                     asset.url = cdnUrl;
                     // Now send it
-                    await axios.post(
-                      `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
-                      { messaging_product: 'whatsapp', to: customerPhone, type: 'image', image: { link: cdnUrl, caption: asset.title ?? '' } },
-                      { headers: { Authorization: `Bearer ${accessToken}` } },
-                    ).catch(() => {});
+                    await axios
+                      .post(
+                        `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+                        {
+                          messaging_product: 'whatsapp',
+                          to: customerPhone,
+                          type: 'image',
+                          image: { link: cdnUrl, caption: asset.title ?? '' },
+                        },
+                        { headers: { Authorization: `Bearer ${accessToken}` } },
+                      )
+                      .catch(() => {});
                     sentCount++;
                   }
                 } catch (migErr: any) {
-                  this.logger.warn(`[${schemaName}] Failed to auto-migrate base64 to CDN: ${migErr.message}`);
+                  this.logger.warn(
+                    `[${schemaName}] Failed to auto-migrate base64 to CDN: ${migErr.message}`,
+                  );
                 }
               } else if (asset.url) {
                 // Regular URL — send directly via link
@@ -2328,7 +2726,11 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           }
 
           if (sentCount === 0) {
-            return JSON.stringify({ success: false, message: 'No se pudo enviar el material. Puede que las imágenes no sean accesibles. Describe el contenido al cliente.' });
+            return JSON.stringify({
+              success: false,
+              message:
+                'No se pudo enviar el material. Puede que las imágenes no sean accesibles. Describe el contenido al cliente.',
+            });
           }
 
           return JSON.stringify({
@@ -2338,7 +2740,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           });
         } catch (err: any) {
           this.logger.error(`send_media_to_customer error: ${err.message}`);
-          return JSON.stringify({ success: false, message: `Error al enviar material: ${err.message}. Describe el material al cliente.` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al enviar material: ${err.message}. Describe el material al cliente.`,
+          });
         }
       }
 
@@ -2346,23 +2751,33 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         try {
           const customerId = (conversation.context as any)?.customerId;
           if (!customerId) {
-            return JSON.stringify({ success: false, message: 'No se pudo identificar al cliente.' });
+            return JSON.stringify({
+              success: false,
+              message: 'No se pudo identificar al cliente.',
+            });
           }
 
           // Find last delivered/completed order for this customer
-          const lastOrders = await this.prisma.$queryRawUnsafe<any[]>(`
+          const lastOrders = await this.prisma.$queryRawUnsafe<any[]>(
+            `
             SELECT id, order_number AS "orderNumber", items, total, shipping_address AS "shippingAddress"
             FROM "${schemaName}".orders
             WHERE customer_id = $1::uuid AND status IN ('delivered', 'payment_verified', 'ready', 'shipped')
             ORDER BY created_at DESC LIMIT 1
-          `, customerId);
+          `,
+            customerId,
+          );
 
           if (lastOrders.length === 0) {
-            return JSON.stringify({ success: false, message: 'Este cliente no tiene pedidos anteriores.' });
+            return JSON.stringify({
+              success: false,
+              message: 'Este cliente no tiene pedidos anteriores.',
+            });
           }
 
           const lastOrder = lastOrders[0];
-          const items = typeof lastOrder.items === 'string' ? JSON.parse(lastOrder.items) : lastOrder.items;
+          const items =
+            typeof lastOrder.items === 'string' ? JSON.parse(lastOrder.items) : lastOrder.items;
           const itemsSummary = items.map((i: any) => `${i.productName} x${i.quantity}`).join(', ');
 
           if (args.confirmFirst !== false) {
@@ -2384,24 +2799,41 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
               resolvedItems.push({ productId: item.productId, quantity: item.quantity });
             } else if (item.productName) {
               const found = await this.productsService.search(item.productName, schemaName);
-              if (found.length > 0) resolvedItems.push({ productId: found[0].id, quantity: item.quantity });
+              if (found.length > 0)
+                resolvedItems.push({ productId: found[0].id, quantity: item.quantity });
             }
           }
 
           if (resolvedItems.length === 0) {
-            return JSON.stringify({ success: false, message: 'No se pudieron resolver los productos del pedido anterior.' });
+            return JSON.stringify({
+              success: false,
+              message: 'No se pudieron resolver los productos del pedido anterior.',
+            });
           }
 
           const order = await this.ordersService.create(
-            { customerId, channelType: 'whatsapp', items: resolvedItems, notes: 'Repetición de pedido anterior' },
+            {
+              customerId,
+              channelType: 'whatsapp',
+              items: resolvedItems,
+              notes: 'Repetición de pedido anterior',
+            },
             schemaName,
           );
 
           // Persist orderId in context
-          const updatedCtx = { ...(conversation.context as any), lastOrderId: order.id, lastOrderNumber: order.orderNumber };
-          await this.prisma.$executeRawUnsafe(`
+          const updatedCtx = {
+            ...(conversation.context as any),
+            lastOrderId: order.id,
+            lastOrderNumber: order.orderNumber,
+          };
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".conversations SET context = $1::jsonb WHERE id = $2::uuid
-          `, JSON.stringify(updatedCtx), conversation.id);
+          `,
+            JSON.stringify(updatedCtx),
+            conversation.id,
+          );
           (conversation.context as any).lastOrderId = order.id;
           (conversation.context as any).lastOrderNumber = order.orderNumber;
 
@@ -2414,7 +2846,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             message: `¡Pedido repetido! #${order.orderNumber}: ${itemsSummary}. Total: $${parseFloat(order.total).toLocaleString('es-MX')}`,
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al repetir pedido: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al repetir pedido: ${err.message}`,
+          });
         }
       }
 
@@ -2422,7 +2857,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         try {
           const orderId = args.orderId || (conversation.context as any)?.lastOrderId;
           if (!orderId) {
-            return JSON.stringify({ success: false, message: 'No hay pedido activo para aplicar la promoción.' });
+            return JSON.stringify({
+              success: false,
+              message: 'No hay pedido activo para aplicar la promoción.',
+            });
           }
 
           const promo = await this.promotionsService.findById(args.promotionId, schemaName);
@@ -2436,7 +2874,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
 
           // Get order to calculate discount
           const orderRows = await this.prisma.$queryRawUnsafe<any[]>(
-            `SELECT total, subtotal FROM "${schemaName}".orders WHERE id = $1::uuid`, orderId,
+            `SELECT total, subtotal FROM "${schemaName}".orders WHERE id = $1::uuid`,
+            orderId,
           );
           const order = orderRows[0];
           if (!order) {
@@ -2467,11 +2906,16 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
 
           if (discount > 0) {
             const newTotal = Math.max(0, orderTotal - discount);
-            await this.prisma.$executeRawUnsafe(`
+            await this.prisma.$executeRawUnsafe(
+              `
               UPDATE "${schemaName}".orders
               SET total = $1, notes = COALESCE(notes, '') || E'\n' || $2, updated_at = NOW()
               WHERE id = $3::uuid
-            `, newTotal, `[PROMO] ${description} (-$${discount.toFixed(2)})`, orderId);
+            `,
+              newTotal,
+              `[PROMO] ${description} (-$${discount.toFixed(2)})`,
+              orderId,
+            );
           }
 
           // Increment promotion usage
@@ -2485,7 +2929,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             message: `${description}. Descuento: $${discount.toFixed(2)}. Nuevo total: $${(orderTotal - discount).toFixed(2)}`,
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al aplicar promoción: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al aplicar promoción: ${err.message}`,
+          });
         }
       }
 
@@ -2493,7 +2940,11 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         try {
           const promos = await this.promotionsService.findActive(schemaName);
           if (promos.length === 0) {
-            return JSON.stringify({ success: true, promotions: [], message: 'No hay promociones activas en este momento.' });
+            return JSON.stringify({
+              success: true,
+              promotions: [],
+              message: 'No hay promociones activas en este momento.',
+            });
           }
 
           const formatted = promos.map((p: any) => {
@@ -2507,9 +2958,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
                 }
                 break;
               case 'discount':
-                details = rules.discountType === 'percentage'
-                  ? `${rules.discountValue}% de descuento`
-                  : `$${rules.discountValue} de descuento`;
+                details =
+                  rules.discountType === 'percentage'
+                    ? `${rules.discountValue}% de descuento`
+                    : `$${rules.discountValue} de descuento`;
                 if (rules.minOrderTotal) details += ` (mínimo $${rules.minOrderTotal})`;
                 break;
               case 'bogo':
@@ -2528,7 +2980,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             message: `Tenemos ${formatted.length} promoción(es) activa(s).`,
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al listar promociones: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al listar promociones: ${err.message}`,
+          });
         }
       }
 
@@ -2536,16 +2991,24 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         try {
           const custId = (conversation.context as any)?.customerId;
           if (!custId) {
-            return JSON.stringify({ success: false, message: 'No se pudo identificar al cliente.' });
+            return JSON.stringify({
+              success: false,
+              message: 'No se pudo identificar al cliente.',
+            });
           }
 
           const loyalty = await this.loyaltyService.getCustomerLoyalty(custId, schemaName);
           if (!loyalty) {
-            return JSON.stringify({ success: true, message: 'El programa de lealtad no está activo en este negocio.' });
+            return JSON.stringify({
+              success: true,
+              message: 'El programa de lealtad no está activo en este negocio.',
+            });
           }
 
           const config = await this.loyaltyService.getConfig(schemaName);
-          const availableRewards = config.rewards.filter(r => loyalty.totalPoints >= r.pointsCost);
+          const availableRewards = config.rewards.filter(
+            (r) => loyalty.totalPoints >= r.pointsCost,
+          );
 
           return JSON.stringify({
             success: true,
@@ -2555,11 +3018,14 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             pointsToNextTier: loyalty.pointsToNextTier,
             totalEarned: loyalty.totalEarned,
             totalRedeemed: loyalty.totalRedeemed,
-            availableRewards: availableRewards.map(r => ({ name: r.name, cost: r.pointsCost })),
-            message: `Tienes ${loyalty.totalPoints} puntos (nivel ${loyalty.currentTier}).${loyalty.nextTier ? ` Te faltan ${loyalty.pointsToNextTier} para ${loyalty.nextTier}.` : ''}${availableRewards.length > 0 ? ` Puedes canjear: ${availableRewards.map(r => `${r.name} (${r.pointsCost} pts)`).join(', ')}.` : ''}`,
+            availableRewards: availableRewards.map((r) => ({ name: r.name, cost: r.pointsCost })),
+            message: `Tienes ${loyalty.totalPoints} puntos (nivel ${loyalty.currentTier}).${loyalty.nextTier ? ` Te faltan ${loyalty.pointsToNextTier} para ${loyalty.nextTier}.` : ''}${availableRewards.length > 0 ? ` Puedes canjear: ${availableRewards.map((r) => `${r.name} (${r.pointsCost} pts)`).join(', ')}.` : ''}`,
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al consultar puntos: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al consultar puntos: ${err.message}`,
+          });
         }
       }
 
@@ -2567,7 +3033,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         try {
           const custId = (conversation.context as any)?.customerId;
           if (!custId) {
-            return JSON.stringify({ success: false, message: 'No se pudo identificar al cliente.' });
+            return JSON.stringify({
+              success: false,
+              message: 'No se pudo identificar al cliente.',
+            });
           }
 
           const orderId = (conversation.context as any)?.lastOrderId;
@@ -2593,11 +3062,16 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
 
           // If there's an active order, apply the discount
           if (orderId && result.discountValue > 0) {
-            await this.prisma.$executeRawUnsafe(`
+            await this.prisma.$executeRawUnsafe(
+              `
               UPDATE "${schemaName}".orders
               SET total = GREATEST(0, total - $1), notes = COALESCE(notes, '') || E'\n' || $2, updated_at = NOW()
               WHERE id = $3::uuid
-            `, result.discountValue, `[LEALTAD] -$${result.discountValue.toFixed(2)} (${args.points} pts canjeados)`, orderId);
+            `,
+              result.discountValue,
+              `[LEALTAD] -$${result.discountValue.toFixed(2)} (${args.points} pts canjeados)`,
+              orderId,
+            );
           }
 
           return JSON.stringify({
@@ -2608,7 +3082,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             message: `¡Canjeaste ${result.redeemed} puntos! ${result.discountValue > 0 ? `Descuento de $${result.discountValue.toFixed(2)} aplicado.` : ''} Tu nuevo balance: ${result.newBalance} puntos.`,
           });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al canjear puntos: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al canjear puntos: ${err.message}`,
+          });
         }
       }
 
@@ -2616,38 +3093,64 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         try {
           const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
           const axios = (await import('axios')).default;
-          
+
           // Download image from WhatsApp URL
-          const mediaResponse = await axios.get(args.mediaUrl, { responseType: 'arraybuffer', headers: { Authorization: `Bearer ${this.config.get('WHATSAPP_TOKEN') || ''}` } }).catch(() => null);
-          if (!mediaResponse) return JSON.stringify({ success: false, message: 'No se pudo descargar la imagen' });
-          
+          const mediaResponse = await axios
+            .get(args.mediaUrl, {
+              responseType: 'arraybuffer',
+              headers: { Authorization: `Bearer ${this.config.get('WHATSAPP_TOKEN') || ''}` },
+            })
+            .catch(() => null);
+          if (!mediaResponse)
+            return JSON.stringify({ success: false, message: 'No se pudo descargar la imagen' });
+
           const buffer = Buffer.from(mediaResponse.data);
           const mimeType = String(mediaResponse.headers['content-type'] || 'image/jpeg');
           const ext = mimeType.includes('png') ? 'png' : 'jpg';
           const id = require('crypto').randomUUID();
           const key = `media/${schemaName}/${args.type}/${id}.${ext}`;
-          
+
           const s3 = new S3Client({
             endpoint: this.config.get('AWS_S3_ENDPOINT') || 'https://nyc3.digitaloceanspaces.com',
             region: this.config.get('AWS_REGION') || 'nyc3',
-            credentials: { accessKeyId: this.config.get('AWS_ACCESS_KEY_ID') || '', secretAccessKey: this.config.get('AWS_SECRET_ACCESS_KEY') || '' },
+            credentials: {
+              accessKeyId: this.config.get('AWS_ACCESS_KEY_ID') || '',
+              secretAccessKey: this.config.get('AWS_SECRET_ACCESS_KEY') || '',
+            },
             forcePathStyle: false,
           });
-          
+
           const bucket = this.config.get('AWS_S3_BUCKET') || 'vspro-uploads';
-          await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: buffer, ContentType: mimeType as string, ACL: 'public-read' }));
-          
+          await s3.send(
+            new PutObjectCommand({
+              Bucket: bucket,
+              Key: key,
+              Body: buffer,
+              ContentType: mimeType as string,
+              ACL: 'public-read',
+            }),
+          );
+
           const publicUrl = `https://${bucket}.nyc3.digitaloceanspaces.com/${key}`;
-          
+
           // Save to media_assets
           await this.prisma.$executeRawUnsafe(`
             CREATE TABLE IF NOT EXISTS "${schemaName}".media_assets (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), type VARCHAR(50) NOT NULL DEFAULT 'general', title VARCHAR(255), url TEXT NOT NULL, is_active BOOLEAN NOT NULL DEFAULT true, sort_order INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())
           `);
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             INSERT INTO "${schemaName}".media_assets (type, title, url) VALUES ($1, $2, $3)
-          `, args.type, args.title, publicUrl);
-          
-          return JSON.stringify({ success: true, url: publicUrl, message: `Imagen "${args.title}" subida como ${args.type}. Los clientes ahora podrán verla.` });
+          `,
+            args.type,
+            args.title,
+            publicUrl,
+          );
+
+          return JSON.stringify({
+            success: true,
+            url: publicUrl,
+            message: `Imagen "${args.title}" subida como ${args.type}. Los clientes ahora podrán verla.`,
+          });
         } catch (e: any) {
           return JSON.stringify({ success: false, message: e.message });
         }
@@ -2659,26 +3162,43 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             `SELECT id, name, price, stock_available AS "stockAvailable" FROM "${schemaName}".products WHERE LOWER(name) LIKE $1 LIMIT 1`,
             `%${args.productName.toLowerCase()}%`,
           );
-          if (products.length === 0) return JSON.stringify({ success: false, message: `Producto "${args.productName}" no encontrado` });
-          
+          if (products.length === 0)
+            return JSON.stringify({
+              success: false,
+              message: `Producto "${args.productName}" no encontrado`,
+            });
+
           const p = products[0];
           const updates: string[] = [];
           const values: any[] = [];
           let idx = 1;
-          
-          if (args.newName) { updates.push(`name = $${idx++}`); values.push(args.newName); }
-          if (args.newPrice !== undefined) { updates.push(`price = $${idx++}`); values.push(args.newPrice); }
-          if (args.stockAvailable !== undefined) { updates.push(`stock_available = $${idx++}`); values.push(args.stockAvailable); }
-          
-          if (updates.length === 0) return JSON.stringify({ success: false, message: 'No se proporcionaron cambios' });
-          
+
+          if (args.newName) {
+            updates.push(`name = $${idx++}`);
+            values.push(args.newName);
+          }
+          if (args.newPrice !== undefined) {
+            updates.push(`price = $${idx++}`);
+            values.push(args.newPrice);
+          }
+          if (args.stockAvailable !== undefined) {
+            updates.push(`stock_available = $${idx++}`);
+            values.push(args.stockAvailable);
+          }
+
+          if (updates.length === 0)
+            return JSON.stringify({ success: false, message: 'No se proporcionaron cambios' });
+
           values.push(p.id);
           await this.prisma.$executeRawUnsafe(
             `UPDATE "${schemaName}".products SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${idx}::uuid`,
             ...values,
           );
-          
-          return JSON.stringify({ success: true, message: `Producto "${p.name}" actualizado: ${args.newName ? `nombre → ${args.newName}` : ''}${args.newPrice ? ` precio → $${args.newPrice}` : ''}${args.stockAvailable !== undefined ? ` stock → ${args.stockAvailable}` : ''}` });
+
+          return JSON.stringify({
+            success: true,
+            message: `Producto "${p.name}" actualizado: ${args.newName ? `nombre → ${args.newName}` : ''}${args.newPrice ? ` precio → $${args.newPrice}` : ''}${args.stockAvailable !== undefined ? ` stock → ${args.stockAvailable}` : ''}`,
+          });
         } catch (e: any) {
           return JSON.stringify({ success: false, message: e.message });
         }
@@ -2690,10 +3210,20 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             `SELECT id, name FROM "${schemaName}".products WHERE LOWER(name) LIKE $1 LIMIT 1`,
             `%${args.productName.toLowerCase()}%`,
           );
-          if (products.length === 0) return JSON.stringify({ success: false, message: `Producto "${args.productName}" no encontrado` });
-          
-          await this.prisma.$executeRawUnsafe(`DELETE FROM "${schemaName}".products WHERE id = $1::uuid`, products[0].id);
-          return JSON.stringify({ success: true, message: `Producto "${products[0].name}" eliminado del catálogo.` });
+          if (products.length === 0)
+            return JSON.stringify({
+              success: false,
+              message: `Producto "${args.productName}" no encontrado`,
+            });
+
+          await this.prisma.$executeRawUnsafe(
+            `DELETE FROM "${schemaName}".products WHERE id = $1::uuid`,
+            products[0].id,
+          );
+          return JSON.stringify({
+            success: true,
+            message: `Producto "${products[0].name}" eliminado del catálogo.`,
+          });
         } catch (e: any) {
           return JSON.stringify({ success: false, message: e.message });
         }
@@ -2705,7 +3235,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             `UPDATE "${schemaName}".ai_config SET custom_instructions = $1, updated_at = NOW() WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)`,
             args.instructions,
           );
-          return JSON.stringify({ success: true, message: 'Instrucciones del agente actualizadas. El agente ahora seguirá estas reglas.' });
+          return JSON.stringify({
+            success: true,
+            message: 'Instrucciones del agente actualizadas. El agente ahora seguirá estas reglas.',
+          });
         } catch (e: any) {
           return JSON.stringify({ success: false, message: e.message });
         }
@@ -2742,9 +3275,14 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           `);
           await this.prisma.$executeRawUnsafe(
             `INSERT INTO "${schemaName}".knowledge_base (title, content, category) VALUES ($1, $2, $3)`,
-            args.title, args.content, args.category || 'general',
+            args.title,
+            args.content,
+            args.category || 'general',
           );
-          return JSON.stringify({ success: true, message: `Info agregada a la base de conocimiento: "${args.title}". El agente ahora podrá usar esta información para responder clientes.` });
+          return JSON.stringify({
+            success: true,
+            message: `Info agregada a la base de conocimiento: "${args.title}". El agente ahora podrá usar esta información para responder clientes.`,
+          });
         } catch (e: any) {
           return JSON.stringify({ success: false, message: e.message });
         }
@@ -2755,8 +3293,18 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           const products = await this.prisma.$queryRawUnsafe<any[]>(
             `SELECT name, price, stock_available AS "stock" FROM "${schemaName}".products WHERE is_active = true ORDER BY name`,
           );
-          if (products.length === 0) return JSON.stringify({ success: true, products: [], message: 'No hay productos en el catálogo aún.' });
-          const list = products.map((p: any) => `• ${p.name}: $${p.price}${p.stock !== null ? ` (stock: ${p.stock})` : ''}`).join('\n');
+          if (products.length === 0)
+            return JSON.stringify({
+              success: true,
+              products: [],
+              message: 'No hay productos en el catálogo aún.',
+            });
+          const list = products
+            .map(
+              (p: any) =>
+                `• ${p.name}: $${p.price}${p.stock !== null ? ` (stock: ${p.stock})` : ''}`,
+            )
+            .join('\n');
           return JSON.stringify({ success: true, count: products.length, products: list });
         } catch (e: any) {
           return JSON.stringify({ success: false, message: e.message });
@@ -2765,11 +3313,18 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
 
       case 'list_drivers': {
         try {
-          await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "${schemaName}".delivery_drivers (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARCHAR(100), phone VARCHAR(20), status VARCHAR(20) DEFAULT 'available', max_deliveries INTEGER DEFAULT 3, created_at TIMESTAMPTZ DEFAULT NOW())`);
+          await this.prisma.$executeRawUnsafe(
+            `CREATE TABLE IF NOT EXISTS "${schemaName}".delivery_drivers (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARCHAR(100), phone VARCHAR(20), status VARCHAR(20) DEFAULT 'available', max_deliveries INTEGER DEFAULT 3, created_at TIMESTAMPTZ DEFAULT NOW())`,
+          );
           const drivers = await this.prisma.$queryRawUnsafe<any[]>(
             `SELECT name, phone, status, max_deliveries AS "maxDeliveries" FROM "${schemaName}".delivery_drivers ORDER BY name`,
           );
-          if (drivers.length === 0) return JSON.stringify({ success: true, drivers: [], message: 'No hay repartidores configurados.' });
+          if (drivers.length === 0)
+            return JSON.stringify({
+              success: true,
+              drivers: [],
+              message: 'No hay repartidores configurados.',
+            });
           const list = drivers.map((d: any) => `• ${d.name} (${d.phone}) — ${d.status}`).join('\n');
           return JSON.stringify({ success: true, count: drivers.length, drivers: list });
         } catch (e: any) {
@@ -2779,10 +3334,16 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
 
       case 'set_delivery_cost': {
         try {
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             UPDATE "${schemaName}".ai_config SET agent_config = jsonb_set(COALESCE(agent_config, '{}'::jsonb), '{deliverySettings,shippingCost}', $1::jsonb), updated_at = NOW() WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
-          `, JSON.stringify(args.cost));
-          return JSON.stringify({ success: true, message: `Costo de envío actualizado a $${args.cost}.` });
+          `,
+            JSON.stringify(args.cost),
+          );
+          return JSON.stringify({
+            success: true,
+            message: `Costo de envío actualizado a $${args.cost}.`,
+          });
         } catch (e: any) {
           return JSON.stringify({ success: false, message: e.message });
         }
@@ -2794,17 +3355,30 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           const currentChannel = await this.prisma.$queryRawUnsafe<any[]>(
             `SELECT id, external_id, access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`,
           );
-          if (currentChannel.length === 0) return JSON.stringify({ success: false, message: 'Este negocio no tiene un número WhatsApp configurado.' });
-          
+          if (currentChannel.length === 0)
+            return JSON.stringify({
+              success: false,
+              message: 'Este negocio no tiene un número WhatsApp configurado.',
+            });
+
           // Find target tenant
-          const targetTenant = await this.prisma.tenant.findFirst({ where: { slug: args.targetTenantSlug, status: { in: ['ACTIVE', 'TRIAL'] } } });
-          if (!targetTenant) return JSON.stringify({ success: false, message: `Tenant "${args.targetTenantSlug}" no encontrado o no está activo.` });
-          
+          const targetTenant = await this.prisma.tenant.findFirst({
+            where: { slug: args.targetTenantSlug, status: { in: ['ACTIVE', 'TRIAL'] } },
+          });
+          if (!targetTenant)
+            return JSON.stringify({
+              success: false,
+              message: `Tenant "${args.targetTenantSlug}" no encontrado o no está activo.`,
+            });
+
           const targetSchema = (targetTenant as any).schemaName;
-          
+
           // Remove from current
-          await this.prisma.$executeRawUnsafe(`DELETE FROM "${schemaName}".channels WHERE id = $1::uuid`, currentChannel[0].id);
-          
+          await this.prisma.$executeRawUnsafe(
+            `DELETE FROM "${schemaName}".channels WHERE id = $1::uuid`,
+            currentChannel[0].id,
+          );
+
           // Add to target
           await this.prisma.$executeRawUnsafe(`
             CREATE TABLE IF NOT EXISTS "${targetSchema}".channels (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), type VARCHAR(20) NOT NULL, external_id VARCHAR(100), access_token TEXT, is_active BOOLEAN DEFAULT true, created_at TIMESTAMPTZ DEFAULT NOW())
@@ -2812,11 +3386,18 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           await this.prisma.$executeRawUnsafe(`
             DELETE FROM "${targetSchema}".channels WHERE type = 'whatsapp'
           `);
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             INSERT INTO "${targetSchema}".channels (type, external_id, access_token, is_active) VALUES ('whatsapp', $1, $2, true)
-          `, currentChannel[0].external_id, currentChannel[0].access_token);
-          
-          return JSON.stringify({ success: true, message: `Número WhatsApp movido a "${args.targetTenantSlug}". Los mensajes ahora irán a ese negocio.` });
+          `,
+            currentChannel[0].external_id,
+            currentChannel[0].access_token,
+          );
+
+          return JSON.stringify({
+            success: true,
+            message: `Número WhatsApp movido a "${args.targetTenantSlug}". Los mensajes ahora irán a ese negocio.`,
+          });
         } catch (e: any) {
           return JSON.stringify({ success: false, message: e.message });
         }
@@ -2828,7 +3409,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             where: { schemaName },
             include: { plan: true },
           });
-          if (!tenantData) return JSON.stringify({ success: false, message: 'Tenant no encontrado' });
+          if (!tenantData)
+            return JSON.stringify({ success: false, message: 'Tenant no encontrado' });
 
           const subscription = await this.prisma.subscription.findFirst({
             where: { tenantId: tenantData.id, status: { in: ['ACTIVE', 'TRIALING'] } },
@@ -2838,7 +3420,9 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           const trialEnd = (tenantData as any).trialEndsAt;
           const now = new Date();
           const isTrialActive = trialEnd && new Date(trialEnd) > now;
-          const daysLeft = isTrialActive ? Math.ceil((new Date(trialEnd).getTime() - now.getTime()) / 86400000) : 0;
+          const daysLeft = isTrialActive
+            ? Math.ceil((new Date(trialEnd).getTime() - now.getTime()) / 86400000)
+            : 0;
 
           return JSON.stringify({
             success: true,
@@ -2912,7 +3496,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           const industry: string | null = cfg.industry ?? null;
 
           // Determine which features are relevant for this industry
-          const needsDelivery = !industry || ['restaurante', 'ecommerce', 'ropa'].includes(industry);
+          const needsDelivery =
+            !industry || ['restaurante', 'ecommerce', 'ropa'].includes(industry);
           const needsDrivers = needsDelivery;
           const needsPayment = !industry || !['inmobiliaria'].includes(industry); // inmobiliaria uses bank transfers differently
 
@@ -3001,17 +3586,28 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           }
 
           const startDate = args.startDate ?? new Date().toISOString().split('T')[0];
-          const endDate = args.endDate ?? new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+          const endDate =
+            args.endDate ?? new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
 
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             INSERT INTO "${schemaName}".promotions (name, description, type, rules, start_date, end_date)
             VALUES ($1, $2, $3, $4::jsonb, $5::date, $6::date)
-          `, args.name, args.description ?? '', args.type, JSON.stringify(rules), startDate, endDate);
+          `,
+            args.name,
+            args.description ?? '',
+            args.type,
+            JSON.stringify(rules),
+            startDate,
+            endDate,
+          );
 
           let promoDesc = '';
-          if (args.type === 'discount') promoDesc = `${rules.discountValue}${rules.discountType === 'percentage' ? '%' : '$'} de descuento`;
+          if (args.type === 'discount')
+            promoDesc = `${rules.discountValue}${rules.discountType === 'percentage' ? '%' : '$'} de descuento`;
           else if (args.type === 'combo') promoDesc = `Combo por $${rules.comboPrice}`;
-          else if (args.type === 'bogo') promoDesc = `Compra ${rules.buyQuantity} lleva ${rules.getQuantity} gratis`;
+          else if (args.type === 'bogo')
+            promoDesc = `Compra ${rules.buyQuantity} lleva ${rules.getQuantity} gratis`;
 
           return JSON.stringify({
             success: true,
@@ -3028,25 +3624,34 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
           // Orders this month
-          const orders = await this.prisma.$queryRawUnsafe<any[]>(`
+          const orders = await this.prisma.$queryRawUnsafe<any[]>(
+            `
             SELECT COUNT(*)::int AS total,
                    COUNT(*) FILTER (WHERE status = 'delivered')::int AS delivered,
                    COALESCE(SUM(total) FILTER (WHERE status = 'delivered'), 0) AS revenue
             FROM "${schemaName}".orders
             WHERE created_at >= $1::timestamptz
-          `, firstOfMonth);
+          `,
+            firstOfMonth,
+          );
 
           // Messages this month
-          const messages = await this.prisma.$queryRawUnsafe<any[]>(`
+          const messages = await this.prisma.$queryRawUnsafe<any[]>(
+            `
             SELECT COUNT(*)::int AS total FROM "${schemaName}".messages
             WHERE created_at >= $1::timestamptz
-          `, firstOfMonth);
+          `,
+            firstOfMonth,
+          );
 
           // New customers this month
-          const customers = await this.prisma.$queryRawUnsafe<any[]>(`
+          const customers = await this.prisma.$queryRawUnsafe<any[]>(
+            `
             SELECT COUNT(*)::int AS total FROM "${schemaName}".customers
             WHERE created_at >= $1::timestamptz
-          `, firstOfMonth);
+          `,
+            firstOfMonth,
+          );
 
           // Total customers
           const totalCustomers = await this.prisma.$queryRawUnsafe<any[]>(
@@ -3093,10 +3698,17 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
 
           const senderPhone = (conversation.context as any)?.senderPhone ?? args.phone ?? '';
 
-          await this.prisma.$executeRawUnsafe(`
+          await this.prisma.$executeRawUnsafe(
+            `
             INSERT INTO "${schemaName}".prospects (name, phone, business_name, industry, interest)
             VALUES ($1, $2, $3, $4, $5)
-          `, args.name, senderPhone || args.phone || null, args.businessName || null, args.industry || null, args.interest || null);
+          `,
+            args.name,
+            senderPhone || args.phone || null,
+            args.businessName || null,
+            args.industry || null,
+            args.interest || null,
+          );
 
           return JSON.stringify({
             success: true,
@@ -3118,7 +3730,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
     conversationId: string,
     schemaName: string,
   ): Promise<OpenAI.Chat.ChatCompletionMessageParam[]> {
-    const messages = await this.prisma.$queryRawUnsafe<any[]>(`
+    const messages = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT direction, content
       FROM "${schemaName}".messages
       WHERE conversation_id = $1::uuid
@@ -3126,7 +3739,9 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         AND content IS NOT NULL
       ORDER BY created_at DESC
       LIMIT 10
-    `, conversationId);
+    `,
+      conversationId,
+    );
 
     // Invertir para orden cronológico y mapear a formato OpenAI
     return messages.reverse().map((m) => ({
@@ -3147,29 +3762,28 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
       LIMIT 1
     `);
 
-    return rows[0] ?? {
-      assistantName: 'Asistente',
-      tone: 'friendly',
-      welcomeMessage: `¡Hola! Soy el asistente de ${businessName}. ¿En qué te ayudo?`,
-      language: 'es',
-    };
+    return (
+      rows[0] ?? {
+        assistantName: 'Asistente',
+        tone: 'friendly',
+        welcomeMessage: `¡Hola! Soy el asistente de ${businessName}. ¿En qué te ayudo?`,
+        language: 'es',
+      }
+    );
   }
 
-  private buildSystemPrompt(
-    tenant: any,
-    aiConfig: any,
-    products: any[],
-  ): string {
+  private buildSystemPrompt(tenant: any, aiConfig: any, products: any[]): string {
     const productList = products
       .slice(0, 20) // máximo 20 productos en el prompt
       .map((p: any) => `- ${p.name}: $${p.price}${p.stockAvailable > 0 ? '' : ' (sin stock)'}`)
       .join('\n');
 
     // If tenant has custom instructions with identity, use those as the primary personality
-    const hasCustomIdentity = aiConfig.customInstructions && 
-      (aiConfig.customInstructions.toLowerCase().includes('nombre:') || 
-       aiConfig.customInstructions.toLowerCase().includes('personalidad') ||
-       aiConfig.customInstructions.toLowerCase().includes('perfil'));
+    const hasCustomIdentity =
+      aiConfig.customInstructions &&
+      (aiConfig.customInstructions.toLowerCase().includes('nombre:') ||
+        aiConfig.customInstructions.toLowerCase().includes('personalidad') ||
+        aiConfig.customInstructions.toLowerCase().includes('perfil'));
 
     const identityBlock = hasCustomIdentity
       ? `Eres el asistente virtual de ${tenant.businessName}. Tu identidad y personalidad están definidas en las INSTRUCCIONES DEL NEGOCIO más abajo. SIEMPRE sigue esas instrucciones de personalidad.`
@@ -3400,27 +4014,21 @@ SI MANDAN UNA IMAGEN:
 - Los "pedidos" aquí son RESERVACIONES.`;
         break;
       case 'barberia':
-        industryCapabilities = [
-          '- Configurar datos bancarios (usa set_payment_info)',
-        ];
+        industryCapabilities = ['- Configurar datos bancarios (usa set_payment_info)'];
         industryContext = `\nCONTEXTO DE INDUSTRIA: Este es un negocio de BARBERÍA/SALÓN/ESTÉTICA.
 - NO sugieras repartidores ni envíos — los clientes van al local.
 - Sugiere: agregar servicios con precios (cortes, tintes, etc.), configurar horarios, agregar fotos de trabajos.
 - El "catálogo" aquí son los SERVICIOS que ofrece.`;
         break;
       case 'clinica':
-        industryCapabilities = [
-          '- Configurar datos bancarios (usa set_payment_info)',
-        ];
+        industryCapabilities = ['- Configurar datos bancarios (usa set_payment_info)'];
         industryContext = `\nCONTEXTO DE INDUSTRIA: Este es un negocio de CLÍNICA/CONSULTORIO.
 - NO sugieras repartidores ni envíos — los pacientes van al consultorio.
 - Sugiere: agregar servicios/consultas con precios, configurar horarios de atención, agregar info de especialidades.
 - El "catálogo" aquí son los SERVICIOS/CONSULTAS disponibles.`;
         break;
       case 'taller':
-        industryCapabilities = [
-          '- Configurar datos bancarios (usa set_payment_info)',
-        ];
+        industryCapabilities = ['- Configurar datos bancarios (usa set_payment_info)'];
         industryContext = `\nCONTEXTO DE INDUSTRIA: Este es un TALLER MECÁNICO/AUTOMOTRIZ.
 - NO sugieras repartidores ni envíos — los clientes llevan su vehículo.
 - Sugiere: agregar servicios con precios (afinación, frenos, etc.), configurar horarios, agregar FAQs.
@@ -3491,53 +4099,70 @@ REGLAS DE COMUNICACIÓN:
     const schedule = businessHours.schedule ?? businessHours;
     const timezone = businessHours.timezone ?? 'America/Mexico_City';
     const dayNames: Record<string, string> = {
-      mon: 'Lunes', tue: 'Martes', wed: 'Miércoles', thu: 'Jueves',
-      fri: 'Viernes', sat: 'Sábado', sun: 'Domingo',
+      mon: 'Lunes',
+      tue: 'Martes',
+      wed: 'Miércoles',
+      thu: 'Jueves',
+      fri: 'Viernes',
+      sat: 'Sábado',
+      sun: 'Domingo',
     };
     const daysOrder = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
-    const lines = daysOrder.map(day => {
+    const lines = daysOrder.map((day) => {
       const hours = schedule[day];
       if (!hours || !hours.open) return `- ${dayNames[day]}: Cerrado`;
       return `- ${dayNames[day]}: ${hours.open} - ${hours.close}`;
     });
 
     lines.push(`- Zona horaria: ${timezone}`);
-    lines.push('- Si un cliente pregunta horarios, responde con esta información exacta. NUNCA inventes horarios.');
+    lines.push(
+      '- Si un cliente pregunta horarios, responde con esta información exacta. NUNCA inventes horarios.',
+    );
     return lines.join('\n');
   }
 
   /** Verifica si el negocio está dentro de su horario de atención */
-  private checkBusinessHours(businessHours: any): { isOpen: boolean; nextOpen?: string; minutesToClose?: number } {
+  private checkBusinessHours(businessHours: any): {
+    isOpen: boolean;
+    nextOpen?: string;
+    minutesToClose?: number;
+  } {
     if (!businessHours) return { isOpen: true }; // Sin horario configurado = siempre abierto
 
-  // Parse format: could be {timezone, schedule: {mon: {open, close}}} or {mon: {open, close}}
-  let timezone = businessHours.timezone ?? 'America/Mexico_City';
-  let schedule = businessHours.schedule ?? businessHours;
- 
-  // MERGE: Dashboard saves in Spanish format (lunes, martes, domingo, etc.) with 'enabled' flag.
-  // If Spanish keys exist with enabled:true, they override the schedule keys.
-  const spanishToKey: Record<string, string> = {
-  lunes: 'mon', martes: 'tue', miércoles: 'wed', miercoles: 'wed',
-  jueves: 'thu', viernes: 'fri', sábado: 'sat', sabado: 'sat', domingo: 'sun',
-  };
-  for (const [spanishDay, engKey] of Object.entries(spanishToKey)) {
-  const dashEntry = businessHours[spanishDay];
-  if (dashEntry && typeof dashEntry === 'object') {
-  if (dashEntry.enabled === false) {
-  // Day explicitly disabled from dashboard
-  schedule[engKey] = null;
-  } else if (dashEntry.open || dashEntry.close) {
-  // Day has hours from dashboard — merge with existing schedule
-  const existing = schedule[engKey] ?? {};
-  schedule[engKey] = {
-  open: dashEntry.open ?? existing.open ?? '08:00',
-  close: dashEntry.close ?? existing.close ?? '00:00',
-  };
-  }
-  }
-  }
- 
+    // Parse format: could be {timezone, schedule: {mon: {open, close}}} or {mon: {open, close}}
+    let timezone = businessHours.timezone ?? 'America/Mexico_City';
+    let schedule = businessHours.schedule ?? businessHours;
+
+    // MERGE: Dashboard saves in Spanish format (lunes, martes, domingo, etc.) with 'enabled' flag.
+    // If Spanish keys exist with enabled:true, they override the schedule keys.
+    const spanishToKey: Record<string, string> = {
+      lunes: 'mon',
+      martes: 'tue',
+      miércoles: 'wed',
+      miercoles: 'wed',
+      jueves: 'thu',
+      viernes: 'fri',
+      sábado: 'sat',
+      sabado: 'sat',
+      domingo: 'sun',
+    };
+    for (const [spanishDay, engKey] of Object.entries(spanishToKey)) {
+      const dashEntry = businessHours[spanishDay];
+      if (dashEntry && typeof dashEntry === 'object') {
+        if (dashEntry.enabled === false) {
+          // Day explicitly disabled from dashboard
+          schedule[engKey] = null;
+        } else if (dashEntry.open || dashEntry.close) {
+          // Day has hours from dashboard — merge with existing schedule
+          const existing = schedule[engKey] ?? {};
+          schedule[engKey] = {
+            open: dashEntry.open ?? existing.open ?? '08:00',
+            close: dashEntry.close ?? existing.close ?? '00:00',
+          };
+        }
+      }
+    }
 
     // Get current time in business timezone
     const now = new Date();
@@ -3557,7 +4182,13 @@ REGLAS DE COMUNICACIÓN:
 
     // Map English day abbreviations to our keys
     const dayMap: Record<string, string> = {
-      mon: 'mon', tue: 'tue', wed: 'wed', thu: 'thu', fri: 'fri', sat: 'sat', sun: 'sun',
+      mon: 'mon',
+      tue: 'tue',
+      wed: 'wed',
+      thu: 'thu',
+      fri: 'fri',
+      sat: 'sat',
+      sun: 'sun',
     };
     const dayKey = dayMap[currentDay] ?? currentDay;
 
@@ -3573,10 +4204,18 @@ REGLAS DE COMUNICACIÓN:
         const nextDay = daysOrder[nextIdx];
         if (schedule[nextDay]?.open) {
           const dayNames: Record<string, string> = {
-            mon: 'lunes', tue: 'martes', wed: 'miércoles', thu: 'jueves',
-            fri: 'viernes', sat: 'sábado', sun: 'domingo',
+            mon: 'lunes',
+            tue: 'martes',
+            wed: 'miércoles',
+            thu: 'jueves',
+            fri: 'viernes',
+            sat: 'sábado',
+            sun: 'domingo',
           };
-          return { isOpen: false, nextOpen: `el ${dayNames[nextDay]} a las ${schedule[nextDay].open}` };
+          return {
+            isOpen: false,
+            nextOpen: `el ${dayNames[nextDay]} a las ${schedule[nextDay].open}`,
+          };
         }
       }
       return { isOpen: false };
@@ -3616,10 +4255,18 @@ REGLAS DE COMUNICACIÓN:
       const nextDay = daysOrder[nextIdx];
       if (schedule[nextDay]?.open) {
         const dayNames: Record<string, string> = {
-          mon: 'lunes', tue: 'martes', wed: 'miércoles', thu: 'jueves',
-          fri: 'viernes', sat: 'sábado', sun: 'domingo',
+          mon: 'lunes',
+          tue: 'martes',
+          wed: 'miércoles',
+          thu: 'jueves',
+          fri: 'viernes',
+          sat: 'sábado',
+          sun: 'domingo',
         };
-        return { isOpen: false, nextOpen: `el ${dayNames[nextDay]} a las ${schedule[nextDay].open}` };
+        return {
+          isOpen: false,
+          nextOpen: `el ${dayNames[nextDay]} a las ${schedule[nextDay].open}`,
+        };
       }
     }
     return { isOpen: false };
@@ -3642,7 +4289,9 @@ REGLAS DE COMUNICACIÓN:
     const text = message.text?.toLowerCase() ?? '';
 
     if (text.includes('hola') || text.includes('buenos')) {
-      return { text: '¡Hola! Soy el asistente virtual. ¿En qué te puedo ayudar? (modo desarrollo)' };
+      return {
+        text: '¡Hola! Soy el asistente virtual. ¿En qué te puedo ayudar? (modo desarrollo)',
+      };
     }
     if (text.includes('precio') || text.includes('producto')) {
       return { text: 'Tenemos varios productos disponibles. ¿Cuál te interesa? (modo desarrollo)' };

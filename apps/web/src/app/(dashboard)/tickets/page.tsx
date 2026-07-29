@@ -6,7 +6,9 @@ import { api } from '@/lib/api';
 export default function TicketsPage() {
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'resolved' | 'closed'>('all');
+  const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'resolved' | 'closed'>(
+    'all',
+  );
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [replyText, setReplyText] = useState('');
   const [resolveNote, setResolveNote] = useState('');
@@ -47,10 +49,10 @@ export default function TicketsPage() {
     loadTickets();
   };
 
-  const filtered = filter === 'all' ? tickets : tickets.filter(t => t.status === filter);
+  const filtered = filter === 'all' ? tickets : tickets.filter((t) => t.status === filter);
 
-  const openCount = tickets.filter(t => t.status === 'open').length;
-  const inProgressCount = tickets.filter(t => t.status === 'in_progress').length;
+  const openCount = tickets.filter((t) => t.status === 'open').length;
+  const inProgressCount = tickets.filter((t) => t.status === 'in_progress').length;
 
   const priorityColors: Record<string, string> = {
     high: 'bg-red-900/40 text-red-300',
@@ -81,14 +83,18 @@ export default function TicketsPage() {
         <h1 className="text-2xl font-bold text-white">Tickets de Soporte</h1>
         <p className="text-sm text-gray-400 mt-1">
           {openCount > 0 && <span className="text-red-400 font-medium">{openCount} abiertos</span>}
-          {inProgressCount > 0 && <span className="text-yellow-400 font-medium ml-3">{inProgressCount} en progreso</span>}
-          {openCount === 0 && inProgressCount === 0 && <span className="text-green-400">Sin tickets pendientes</span>}
+          {inProgressCount > 0 && (
+            <span className="text-yellow-400 font-medium ml-3">{inProgressCount} en progreso</span>
+          )}
+          {openCount === 0 && inProgressCount === 0 && (
+            <span className="text-green-400">Sin tickets pendientes</span>
+          )}
         </p>
       </div>
 
       {/* Filters */}
       <div className="flex gap-2">
-        {(['all', 'open', 'in_progress', 'resolved', 'closed'] as const).map(f => (
+        {(['all', 'open', 'in_progress', 'resolved', 'closed'] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -96,7 +102,9 @@ export default function TicketsPage() {
               filter === f ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
             }`}
           >
-            {f === 'all' ? `Todos (${tickets.length})` : `${statusLabels[f]} (${tickets.filter(t => t.status === f).length})`}
+            {f === 'all'
+              ? `Todos (${tickets.length})`
+              : `${statusLabels[f]} (${tickets.filter((t) => t.status === f).length})`}
           </button>
         ))}
       </div>
@@ -104,19 +112,26 @@ export default function TicketsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Ticket List */}
         <div className="lg:col-span-2 space-y-3">
-          {filtered.map(ticket => (
+          {filtered.map((ticket) => (
             <div
               key={ticket.id}
               onClick={() => setSelectedTicket(ticket)}
               className={`rounded-xl border bg-gray-800 p-4 cursor-pointer transition-colors ${
-                selectedTicket?.id === ticket.id ? 'border-blue-500' : 'border-gray-700 hover:border-gray-600'
+                selectedTicket?.id === ticket.id
+                  ? 'border-blue-500'
+                  : 'border-gray-700 hover:border-gray-600'
               }`}
             >
               <div className="flex items-center gap-2 mb-1.5">
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${priorityColors[ticket.priority] ?? ''}`}>
-                  {ticket.priority === 'high' ? '🔴' : ticket.priority === 'medium' ? '🟡' : '🟢'} {ticket.priority}
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${priorityColors[ticket.priority] ?? ''}`}
+                >
+                  {ticket.priority === 'high' ? '🔴' : ticket.priority === 'medium' ? '🟡' : '🟢'}{' '}
+                  {ticket.priority}
                 </span>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusColors[ticket.status] ?? ''}`}>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusColors[ticket.status] ?? ''}`}
+                >
                   {statusLabels[ticket.status]}
                 </span>
                 <span className="text-[10px] text-gray-500 font-mono">{ticket.ticketNumber}</span>
@@ -124,7 +139,14 @@ export default function TicketsPage() {
               <p className="text-sm font-medium text-white">{ticket.subject}</p>
               <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
                 <span>👤 {ticket.customerName ?? 'Sin nombre'}</span>
-                <span>{new Date(ticket.createdAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                <span>
+                  {new Date(ticket.createdAt).toLocaleDateString('es-MX', {
+                    day: 'numeric',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
               </div>
             </div>
           ))}
@@ -138,8 +160,12 @@ export default function TicketsPage() {
           {selectedTicket ? (
             <div className="rounded-xl border border-gray-700 bg-gray-800 p-5 space-y-4 sticky top-6">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono text-gray-400">{selectedTicket.ticketNumber}</span>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[selectedTicket.status]}`}>
+                <span className="text-xs font-mono text-gray-400">
+                  {selectedTicket.ticketNumber}
+                </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[selectedTicket.status]}`}
+                >
                   {statusLabels[selectedTicket.status]}
                 </span>
               </div>
@@ -160,7 +186,9 @@ export default function TicketsPage() {
               {selectedTicket.resolutionNote && (
                 <div className="bg-gray-900 rounded-lg p-3">
                   <p className="text-xs text-gray-400 mb-1">Notas:</p>
-                  <p className="text-sm text-gray-200 whitespace-pre-wrap">{selectedTicket.resolutionNote}</p>
+                  <p className="text-sm text-gray-200 whitespace-pre-wrap">
+                    {selectedTicket.resolutionNote}
+                  </p>
                 </div>
               )}
 

@@ -58,7 +58,6 @@ Es el módulo más crítico. Recibe todos los mensajes de Meta y los enruta.
 
 @Controller('webhooks')
 export class WebhooksController {
-
   // Verificación de webhook (Meta lo llama al configurar)
   @Get('meta/:tenantSlug')
   verifyWebhook(
@@ -101,14 +100,12 @@ export class WebhooksController {
 
 @Injectable()
 export class AiEngineService {
-
   async processMessage(
     tenant: Tenant,
     conversation: Conversation,
     message: string,
     mediaUrl?: string,
   ): Promise<AiResponse> {
-
     // 1. Cargar contexto de la conversación (últimos N mensajes)
     const history = await this.getConversationHistory(conversation.id);
 
@@ -116,10 +113,7 @@ export class AiEngineService {
     const aiConfig = await this.getAiConfig(tenant.schemaName);
 
     // 3. Cargar catálogo relevante (búsqueda semántica)
-    const relevantProducts = await this.searchProducts(
-      tenant.schemaName,
-      message
-    );
+    const relevantProducts = await this.searchProducts(tenant.schemaName, message);
 
     // 4. Construir el system prompt dinámico
     const systemPrompt = this.buildSystemPrompt(tenant, aiConfig, relevantProducts);
@@ -133,10 +127,10 @@ export class AiEngineService {
         content: mediaUrl
           ? [
               { type: 'text', text: message },
-              { type: 'image_url', image_url: { url: mediaUrl } }
+              { type: 'image_url', image_url: { url: mediaUrl } },
             ]
-          : message
-      }
+          : message,
+      },
     ];
 
     const response = await this.openai.chat.completions.create({
@@ -169,14 +163,14 @@ export class AiEngineService {
                   properties: {
                     product_id: { type: 'string' },
                     quantity: { type: 'number' },
-                  }
-                }
+                  },
+                },
               },
-              notes: { type: 'string' }
+              notes: { type: 'string' },
             },
-            required: ['items']
-          }
-        }
+            required: ['items'],
+          },
+        },
       },
       {
         type: 'function',
@@ -186,11 +180,11 @@ export class AiEngineService {
           parameters: {
             type: 'object',
             properties: {
-              product_name: { type: 'string' }
+              product_name: { type: 'string' },
             },
-            required: ['product_name']
-          }
-        }
+            required: ['product_name'],
+          },
+        },
       },
       {
         type: 'function',
@@ -200,11 +194,11 @@ export class AiEngineService {
           parameters: {
             type: 'object',
             properties: {
-              order_number: { type: 'string' }
+              order_number: { type: 'string' },
             },
-            required: ['order_number']
-          }
-        }
+            required: ['order_number'],
+          },
+        },
       },
       {
         type: 'function',
@@ -215,11 +209,11 @@ export class AiEngineService {
             type: 'object',
             properties: {
               image_url: { type: 'string' },
-              order_id: { type: 'string' }
+              order_id: { type: 'string' },
             },
-            required: ['image_url', 'order_id']
-          }
-        }
+            required: ['image_url', 'order_id'],
+          },
+        },
       },
       {
         type: 'function',
@@ -229,20 +223,16 @@ export class AiEngineService {
           parameters: {
             type: 'object',
             properties: {
-              order_id: { type: 'string' }
+              order_id: { type: 'string' },
             },
-            required: ['order_id']
-          }
-        }
-      }
+            required: ['order_id'],
+          },
+        },
+      },
     ];
   }
 
-  private buildSystemPrompt(
-    tenant: Tenant,
-    config: AiConfig,
-    products: Product[]
-  ): string {
+  private buildSystemPrompt(tenant: Tenant, config: AiConfig, products: Product[]): string {
     return `
 Eres ${config.assistantName}, el asistente virtual de ${tenant.businessName}.
 Tu tono es ${config.tone}.
@@ -256,7 +246,7 @@ INSTRUCCIONES:
 - Si no puedes ayudar con algo, ofrece contactar a un humano
 
 CATÁLOGO DISPONIBLE HOY:
-${products.map(p => `- ${p.name}: $${p.price} (${p.description})`).join('\n')}
+${products.map((p) => `- ${p.name}: $${p.price} (${p.description})`).join('\n')}
 
 HORARIO DE ATENCIÓN:
 ${this.formatBusinessHours(config.businessHours)}
@@ -276,22 +266,21 @@ ${config.customPrompts?.additionalInstructions || ''}
 
 @Injectable()
 export class PaymentVerificationService {
-
   async verifyTransferProof(
     imageUrl: string,
     orderId: string,
     tenantSchema: string,
   ): Promise<VerificationResult> {
-
     // 1. Extraer datos del comprobante con GPT-4o Vision
     const ocrResult = await this.openai.chat.completions.create({
       model: 'gpt-4o',
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: `Analiza este comprobante de transferencia bancaria y extrae:
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `Analiza este comprobante de transferencia bancaria y extrae:
             - monto (número)
             - banco emisor
             - banco receptor
@@ -301,14 +290,15 @@ export class PaymentVerificationService {
             
             Responde SOLO con JSON válido con estas claves:
             { amount, sender_bank, receiver_bank, reference, date, sender_name }
-            Si no puedes leer algún campo, usa null.`
-          },
-          {
-            type: 'image_url',
-            image_url: { url: imageUrl, detail: 'high' }
-          }
-        ]
-      }],
+            Si no puedes leer algún campo, usa null.`,
+            },
+            {
+              type: 'image_url',
+              image_url: { url: imageUrl, detail: 'high' },
+            },
+          ],
+        },
+      ],
       response_format: { type: 'json_object' },
     });
 
@@ -321,15 +311,18 @@ export class PaymentVerificationService {
     const amountMatch = Math.abs(extracted.amount - order.total) <= 1;
 
     // 4. Registrar resultado
-    const payment = await this.paymentsRepo.create({
-      orderId,
-      method: 'transfer',
-      amount: extracted.amount,
-      status: amountMatch ? 'verified' : 'pending_review',
-      reference: extracted.reference,
-      proofImageUrl: imageUrl,
-      ocrData: extracted,
-    }, tenantSchema);
+    const payment = await this.paymentsRepo.create(
+      {
+        orderId,
+        method: 'transfer',
+        amount: extracted.amount,
+        status: amountMatch ? 'verified' : 'pending_review',
+        reference: extracted.reference,
+        proofImageUrl: imageUrl,
+        ocrData: extracted,
+      },
+      tenantSchema,
+    );
 
     if (amountMatch) {
       // 5. Actualizar estado del pedido automáticamente
@@ -343,13 +336,13 @@ export class PaymentVerificationService {
 
       return {
         verified: true,
-        message: `✅ Pago verificado por $${extracted.amount}. Tu pedido #${order.orderNumber} está en producción.`
+        message: `✅ Pago verificado por $${extracted.amount}. Tu pedido #${order.orderNumber} está en producción.`,
       };
     }
 
     return {
       verified: false,
-      message: `⚠️ El monto del comprobante ($${extracted.amount}) no coincide con el total del pedido ($${order.total}). Por favor verifica y envía el comprobante correcto.`
+      message: `⚠️ El monto del comprobante ($${extracted.amount}) no coincide con el total del pedido ($${order.total}). Por favor verifica y envía el comprobante correcto.`,
     };
   }
 }
@@ -364,10 +357,8 @@ export class PaymentVerificationService {
 
 @Injectable()
 export class ProductionService {
-
   // Operador de producción marca pedido como listo
   async markOrderReady(orderId: string, userId: string, tenantSchema: string) {
-
     const order = await this.ordersRepo.findById(orderId, tenantSchema);
 
     // 1. Actualizar estado
@@ -383,34 +374,26 @@ export class ProductionService {
 Para coordinar la entrega, ¿confirmas que tu dirección es:
 ${this.formatAddress(order.shippingAddress)}?
 
-Responde SÍ para confirmar o escribe tu nueva dirección.`
+Responde SÍ para confirmar o escribe tu nueva dirección.`,
     );
 
     // 3. Notificar al equipo de ventas/envíos en el panel
     await this.notificationsService.notifyTeam(tenantSchema, {
       type: 'order_ready',
       orderId,
-      message: `Pedido #${order.orderNumber} listo para envío`
+      message: `Pedido #${order.orderNumber} listo para envío`,
     });
 
     return { success: true };
   }
 
   // Cuando el cliente confirma dirección → generar envío
-  async confirmShippingAddress(
-    orderId: string,
-    address: ShippingAddress,
-    tenantSchema: string,
-  ) {
+  async confirmShippingAddress(orderId: string, address: ShippingAddress, tenantSchema: string) {
     await this.ordersRepo.updateShippingAddress(orderId, address, tenantSchema);
     await this.ordersRepo.updateStatus(orderId, 'shipped', tenantSchema);
 
     // Crear registro de envío (integración con paquetería)
-    const shipment = await this.shipmentsService.createShipment(
-      orderId,
-      address,
-      tenantSchema
-    );
+    const shipment = await this.shipmentsService.createShipment(orderId, address, tenantSchema);
 
     // Notificar al cliente con número de rastreo
     await this.messagingService.sendToCustomer(
@@ -421,7 +404,7 @@ Responde SÍ para confirmar o escribe tu nueva dirección.`
       
 Número de rastreo: ${shipment.trackingNumber}
 Rastrear en: ${shipment.trackingUrl}
-Entrega estimada: ${formatDate(shipment.estimatedDelivery)}`
+Entrega estimada: ${formatDate(shipment.estimatedDelivery)}`,
     );
   }
 }

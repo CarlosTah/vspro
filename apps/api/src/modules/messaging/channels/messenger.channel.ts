@@ -38,17 +38,21 @@ export class MessengerChannel implements MessagingChannel {
     const url = `${this.baseUrl}/${this.apiVersion}/me/messages`;
 
     try {
-      const response = await axios.post(url, {
-        recipient: { id: recipientId },
-        messaging_type: 'RESPONSE',
-        message: { text },
-      }, {
-        headers: {
-          Authorization: `Bearer ${channelConfig.accessToken}`,
-          'Content-Type': 'application/json',
+      const response = await axios.post(
+        url,
+        {
+          recipient: { id: recipientId },
+          messaging_type: 'RESPONSE',
+          message: { text },
         },
-        params: { access_token: channelConfig.accessToken },
-      });
+        {
+          headers: {
+            Authorization: `Bearer ${channelConfig.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          params: { access_token: channelConfig.accessToken },
+        },
+      );
 
       const messageId = response.data?.message_id;
       this.logger.debug(`Messenger text sent to ${recipientId}: ${messageId}`);
@@ -67,25 +71,31 @@ export class MessengerChannel implements MessagingChannel {
     const url = `${this.baseUrl}/${this.apiVersion}/me/messages`;
 
     try {
-      const response = await axios.post(url, {
-        recipient: { id: recipientId },
-        messaging_type: 'UPDATE',
-        message: {
-          attachment: {
-            type: 'template',
-            payload: {
-              template_type: 'generic',
-              elements: components ?? [{
-                title: templateName,
-                subtitle: 'Mensaje de seguimiento',
-              }],
+      const response = await axios.post(
+        url,
+        {
+          recipient: { id: recipientId },
+          messaging_type: 'UPDATE',
+          message: {
+            attachment: {
+              type: 'template',
+              payload: {
+                template_type: 'generic',
+                elements: components ?? [
+                  {
+                    title: templateName,
+                    subtitle: 'Mensaje de seguimiento',
+                  },
+                ],
+              },
             },
           },
         },
-      }, {
-        headers: { Authorization: `Bearer ${channelConfig.accessToken}` },
-        params: { access_token: channelConfig.accessToken },
-      });
+        {
+          headers: { Authorization: `Bearer ${channelConfig.accessToken}` },
+          params: { access_token: channelConfig.accessToken },
+        },
+      );
 
       return { success: true, messageId: response.data?.message_id };
     } catch (err: any) {
@@ -103,30 +113,38 @@ export class MessengerChannel implements MessagingChannel {
 
     try {
       // Send media
-      const mediaResponse = await axios.post(url, {
-        recipient: { id: recipientId },
-        messaging_type: 'RESPONSE',
-        message: {
-          attachment: {
-            type: attachmentType,
-            payload: { url: mediaUrl, is_reusable: true },
+      const mediaResponse = await axios.post(
+        url,
+        {
+          recipient: { id: recipientId },
+          messaging_type: 'RESPONSE',
+          message: {
+            attachment: {
+              type: attachmentType,
+              payload: { url: mediaUrl, is_reusable: true },
+            },
           },
         },
-      }, {
-        headers: { Authorization: `Bearer ${channelConfig.accessToken}` },
-        params: { access_token: channelConfig.accessToken },
-      });
+        {
+          headers: { Authorization: `Bearer ${channelConfig.accessToken}` },
+          params: { access_token: channelConfig.accessToken },
+        },
+      );
 
       // If there's a caption, send it as a follow-up text
       if (caption) {
-        await axios.post(url, {
-          recipient: { id: recipientId },
-          messaging_type: 'RESPONSE',
-          message: { text: caption },
-        }, {
-          headers: { Authorization: `Bearer ${channelConfig.accessToken}` },
-          params: { access_token: channelConfig.accessToken },
-        });
+        await axios.post(
+          url,
+          {
+            recipient: { id: recipientId },
+            messaging_type: 'RESPONSE',
+            message: { text: caption },
+          },
+          {
+            headers: { Authorization: `Bearer ${channelConfig.accessToken}` },
+            params: { access_token: channelConfig.accessToken },
+          },
+        );
       }
 
       return { success: true, messageId: mediaResponse.data?.message_id };
@@ -138,14 +156,20 @@ export class MessengerChannel implements MessagingChannel {
   async markAsRead(messageId: string, channelConfig: ChannelConfig): Promise<void> {
     const url = `${this.baseUrl}/${this.apiVersion}/me/messages`;
     try {
-      await axios.post(url, {
-        recipient: { id: messageId }, // For Messenger, we need sender_id not message_id
-        sender_action: 'mark_seen',
-      }, {
-        headers: { Authorization: `Bearer ${channelConfig.accessToken}` },
-        params: { access_token: channelConfig.accessToken },
-      });
-    } catch { /* non-critical */ }
+      await axios.post(
+        url,
+        {
+          recipient: { id: messageId }, // For Messenger, we need sender_id not message_id
+          sender_action: 'mark_seen',
+        },
+        {
+          headers: { Authorization: `Bearer ${channelConfig.accessToken}` },
+          params: { access_token: channelConfig.accessToken },
+        },
+      );
+    } catch {
+      /* non-critical */
+    }
   }
 
   // ─── Messenger-specific features ─────────────────────────────
@@ -162,21 +186,25 @@ export class MessengerChannel implements MessagingChannel {
     const url = `${this.baseUrl}/${this.apiVersion}/me/messages`;
 
     try {
-      const response = await axios.post(url, {
-        recipient: { id: recipientId },
-        messaging_type: 'RESPONSE',
-        message: {
-          text,
-          quick_replies: replies.map(r => ({
-            content_type: 'text',
-            title: r.title,
-            payload: r.payload,
-          })),
+      const response = await axios.post(
+        url,
+        {
+          recipient: { id: recipientId },
+          messaging_type: 'RESPONSE',
+          message: {
+            text,
+            quick_replies: replies.map((r) => ({
+              content_type: 'text',
+              title: r.title,
+              payload: r.payload,
+            })),
+          },
         },
-      }, {
-        headers: { Authorization: `Bearer ${channelConfig.accessToken}` },
-        params: { access_token: channelConfig.accessToken },
-      });
+        {
+          headers: { Authorization: `Bearer ${channelConfig.accessToken}` },
+          params: { access_token: channelConfig.accessToken },
+        },
+      );
 
       return { success: true, messageId: response.data?.message_id };
     } catch (err: any) {
@@ -189,37 +217,49 @@ export class MessengerChannel implements MessagingChannel {
    */
   async sendProductCarousel(
     recipientId: string,
-    products: Array<{ title: string; subtitle: string; imageUrl: string; buttonLabel: string; buttonPayload: string }>,
+    products: Array<{
+      title: string;
+      subtitle: string;
+      imageUrl: string;
+      buttonLabel: string;
+      buttonPayload: string;
+    }>,
     channelConfig: ChannelConfig,
   ): Promise<SendResult> {
     const url = `${this.baseUrl}/${this.apiVersion}/me/messages`;
 
     try {
-      const response = await axios.post(url, {
-        recipient: { id: recipientId },
-        messaging_type: 'RESPONSE',
-        message: {
-          attachment: {
-            type: 'template',
-            payload: {
-              template_type: 'generic',
-              elements: products.slice(0, 10).map(p => ({
-                title: p.title,
-                subtitle: p.subtitle,
-                image_url: p.imageUrl,
-                buttons: [{
-                  type: 'postback',
-                  title: p.buttonLabel,
-                  payload: p.buttonPayload,
-                }],
-              })),
+      const response = await axios.post(
+        url,
+        {
+          recipient: { id: recipientId },
+          messaging_type: 'RESPONSE',
+          message: {
+            attachment: {
+              type: 'template',
+              payload: {
+                template_type: 'generic',
+                elements: products.slice(0, 10).map((p) => ({
+                  title: p.title,
+                  subtitle: p.subtitle,
+                  image_url: p.imageUrl,
+                  buttons: [
+                    {
+                      type: 'postback',
+                      title: p.buttonLabel,
+                      payload: p.buttonPayload,
+                    },
+                  ],
+                })),
+              },
             },
           },
         },
-      }, {
-        headers: { Authorization: `Bearer ${channelConfig.accessToken}` },
-        params: { access_token: channelConfig.accessToken },
-      });
+        {
+          headers: { Authorization: `Bearer ${channelConfig.accessToken}` },
+          params: { access_token: channelConfig.accessToken },
+        },
+      );
 
       return { success: true, messageId: response.data?.message_id };
     } catch (err: any) {

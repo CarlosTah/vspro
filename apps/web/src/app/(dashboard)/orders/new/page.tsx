@@ -30,29 +30,34 @@ export default function NewOrderPage() {
   const [error, setError] = useState('');
 
   const addToCart = (product: any) => {
-    const existing = cart.find(i => i.productId === product.id);
+    const existing = cart.find((i) => i.productId === product.id);
     if (existing) {
-      setCart(cart.map(i => i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i));
+      setCart(
+        cart.map((i) => (i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i)),
+      );
     } else {
-      setCart([...cart, {
-        productId: product.id,
-        productName: product.name,
-        price: parseFloat(product.price),
-        quantity: 1,
-      }]);
+      setCart([
+        ...cart,
+        {
+          productId: product.id,
+          productName: product.name,
+          price: parseFloat(product.price),
+          quantity: 1,
+        },
+      ]);
     }
   };
 
   const updateQuantity = (productId: string, qty: number) => {
     if (qty <= 0) {
-      setCart(cart.filter(i => i.productId !== productId));
+      setCart(cart.filter((i) => i.productId !== productId));
     } else {
-      setCart(cart.map(i => i.productId === productId ? { ...i, quantity: qty } : i));
+      setCart(cart.map((i) => (i.productId === productId ? { ...i, quantity: qty } : i)));
     }
   };
 
   const removeItem = (productId: string) => {
-    setCart(cart.filter(i => i.productId !== productId));
+    setCart(cart.filter((i) => i.productId !== productId));
   };
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -89,7 +94,7 @@ export default function NewOrderPage() {
         customerId,
         channelType: 'manual',
         deliveryType,
-        items: cart.map(i => ({ productId: i.productId, quantity: i.quantity })),
+        items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
         notes: notes || undefined,
         shippingAddress: deliveryType === 'delivery' && address ? { street: address } : undefined,
         status: paymentMethod === 'cash' || paymentMethod === 'card' ? 'payment_verified' : 'new',
@@ -136,7 +141,9 @@ export default function NewOrderPage() {
                 >
                   <option value="">Seleccionar cliente...</option>
                   {customers?.map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.name} ({c.phone ?? c.email ?? c.channelId})</option>
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.phone ?? c.email ?? c.channelId})
+                    </option>
                   ))}
                 </select>
                 <button
@@ -161,7 +168,11 @@ export default function NewOrderPage() {
                   className="w-full vspro-input"
                 />
                 <button
-                  onClick={() => { setShowNewCustomer(false); setNewCustomerName(''); setNewCustomerPhone(''); }}
+                  onClick={() => {
+                    setShowNewCustomer(false);
+                    setNewCustomerName('');
+                    setNewCustomerPhone('');
+                  }}
                   className="text-sm text-gray-400 hover:underline"
                 >
                   ← Seleccionar cliente existente
@@ -174,21 +185,27 @@ export default function NewOrderPage() {
           <div className="rounded-xl border border-card-border bg-card p-5">
             <h3 className="text-sm font-semibold text-gray-300 mb-4">📦 Agregar productos</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-              {products?.filter((p: any) => p.isActive !== false).map((product: any) => (
-                <button
-                  key={product.id}
-                  onClick={() => addToCart(product)}
-                  className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2.5 text-left hover:border-accent/50 hover:bg-gray-800 transition-colors"
-                >
-                  <div>
-                    <p className="text-sm text-white font-medium">{product.name}</p>
-                    <p className="text-xs text-gray-400">{product.category ?? 'General'}</p>
-                  </div>
-                  <span className="text-sm text-accent font-semibold">${parseFloat(product.price).toLocaleString('es-MX')}</span>
-                </button>
-              ))}
+              {products
+                ?.filter((p: any) => p.isActive !== false)
+                .map((product: any) => (
+                  <button
+                    key={product.id}
+                    onClick={() => addToCart(product)}
+                    className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2.5 text-left hover:border-accent/50 hover:bg-gray-800 transition-colors"
+                  >
+                    <div>
+                      <p className="text-sm text-white font-medium">{product.name}</p>
+                      <p className="text-xs text-gray-400">{product.category ?? 'General'}</p>
+                    </div>
+                    <span className="text-sm text-accent font-semibold">
+                      ${parseFloat(product.price).toLocaleString('es-MX')}
+                    </span>
+                  </button>
+                ))}
               {(!products || products.length === 0) && (
-                <p className="text-sm text-gray-500 col-span-2">No hay productos. Crea uno en Productos.</p>
+                <p className="text-sm text-gray-500 col-span-2">
+                  No hay productos. Crea uno en Productos.
+                </p>
               )}
             </div>
           </div>
@@ -229,7 +246,9 @@ export default function NewOrderPage() {
                   placeholder="Calle, número, colonia, referencias..."
                   className="w-full vspro-input"
                 />
-                <p className="text-xs text-gray-500 mt-1">El cliente también puede enviar su ubicación por WhatsApp.</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  El cliente también puede enviar su ubicación por WhatsApp.
+                </p>
               </div>
             )}
           </div>
@@ -273,9 +292,11 @@ export default function NewOrderPage() {
               </button>
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              {paymentMethod === 'transfer' ? 'El cliente recibirá datos bancarios y deberá enviar comprobante.' :
-               paymentMethod === 'cash' ? 'Pago en mostrador. El pedido se marca como pagado automáticamente.' :
-               'Pago con tarjeta en mostrador. El pedido se marca como pagado automáticamente.'}
+              {paymentMethod === 'transfer'
+                ? 'El cliente recibirá datos bancarios y deberá enviar comprobante.'
+                : paymentMethod === 'cash'
+                  ? 'Pago en mostrador. El pedido se marca como pagado automáticamente.'
+                  : 'Pago con tarjeta en mostrador. El pedido se marca como pagado automáticamente.'}
             </p>
           </div>
 
@@ -301,11 +322,13 @@ export default function NewOrderPage() {
               <p className="text-sm text-gray-500 text-center py-4">Agrega productos al pedido</p>
             ) : (
               <div className="space-y-3">
-                {cart.map(item => (
+                {cart.map((item) => (
                   <div key={item.productId} className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white truncate">{item.productName}</p>
-                      <p className="text-xs text-gray-400">${item.price} × {item.quantity}</p>
+                      <p className="text-xs text-gray-400">
+                        ${item.price} × {item.quantity}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -334,7 +357,9 @@ export default function NewOrderPage() {
                 <div className="border-t border-gray-700 pt-3 mt-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold text-gray-300">Total</span>
-                    <span className="text-xl font-bold text-white">${total.toLocaleString('es-MX')}</span>
+                    <span className="text-xl font-bold text-white">
+                      ${total.toLocaleString('es-MX')}
+                    </span>
                   </div>
                   <p className="text-xs text-gray-500 text-right">MXN</p>
                 </div>

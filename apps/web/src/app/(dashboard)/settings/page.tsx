@@ -73,8 +73,8 @@ export default function SettingsPage() {
   const { tenant } = useAuth();
   const industry = tenant?.industry ?? null;
 
-  const visibleSections = sections.filter(s =>
-    !s.industries || !industry || s.industries.includes(industry)
+  const visibleSections = sections.filter(
+    (s) => !s.industries || !industry || s.industries.includes(industry),
   );
 
   return (

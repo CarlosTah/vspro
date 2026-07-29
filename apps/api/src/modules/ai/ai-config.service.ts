@@ -9,7 +9,7 @@ export class AiConfigService {
   async getConfig(schemaName: string) {
     // Ensure agent_config column exists
     await this.prisma.$executeRawUnsafe(
-      `ALTER TABLE "${schemaName}".ai_config ADD COLUMN IF NOT EXISTS agent_config JSONB DEFAULT '{}'`
+      `ALTER TABLE "${schemaName}".ai_config ADD COLUMN IF NOT EXISTS agent_config JSONB DEFAULT '{}'`,
     );
 
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`
@@ -39,18 +39,43 @@ export class AiConfigService {
     const values: any[] = [];
     let idx = 1;
 
-    if (dto.assistantName !== undefined) { fields.push(`assistant_name = $${idx++}`); values.push(dto.assistantName); }
-    if (dto.tone !== undefined) { fields.push(`tone = $${idx++}`); values.push(dto.tone); }
-    if (dto.welcomeMessage !== undefined) { fields.push(`welcome_message = $${idx++}`); values.push(dto.welcomeMessage); }
-    if (dto.awayMessage !== undefined) { fields.push(`away_message = $${idx++}`); values.push(dto.awayMessage); }
-    if (dto.language !== undefined) { fields.push(`language = $${idx++}`); values.push(dto.language); }
-    if (dto.customInstructions !== undefined) { fields.push(`custom_instructions = $${idx++}`); values.push(dto.customInstructions); }
+    if (dto.assistantName !== undefined) {
+      fields.push(`assistant_name = $${idx++}`);
+      values.push(dto.assistantName);
+    }
+    if (dto.tone !== undefined) {
+      fields.push(`tone = $${idx++}`);
+      values.push(dto.tone);
+    }
+    if (dto.welcomeMessage !== undefined) {
+      fields.push(`welcome_message = $${idx++}`);
+      values.push(dto.welcomeMessage);
+    }
+    if (dto.awayMessage !== undefined) {
+      fields.push(`away_message = $${idx++}`);
+      values.push(dto.awayMessage);
+    }
+    if (dto.language !== undefined) {
+      fields.push(`language = $${idx++}`);
+      values.push(dto.language);
+    }
+    if (dto.customInstructions !== undefined) {
+      fields.push(`custom_instructions = $${idx++}`);
+      values.push(dto.customInstructions);
+    }
     if (dto.businessHours !== undefined) {
       // Normalize: sync Spanish keys into schedule sub-object for consistency
       const bh = { ...dto.businessHours };
       const spanishToEng: Record<string, string> = {
-        lunes: 'mon', martes: 'tue', miércoles: 'wed', miercoles: 'wed',
-        jueves: 'thu', viernes: 'fri', sábado: 'sat', sabado: 'sat', domingo: 'sun',
+        lunes: 'mon',
+        martes: 'tue',
+        miércoles: 'wed',
+        miercoles: 'wed',
+        jueves: 'thu',
+        viernes: 'fri',
+        sábado: 'sat',
+        sabado: 'sat',
+        domingo: 'sun',
       };
       if (!bh.schedule) bh.schedule = {};
       for (const [es, en] of Object.entries(spanishToEng)) {
@@ -82,7 +107,8 @@ export class AiConfigService {
       await this.prisma.$executeRawUnsafe(`
         ALTER TABLE "${schemaName}".ai_config ADD COLUMN IF NOT EXISTS agent_config JSONB DEFAULT '{}'
       `);
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".ai_config
         SET agent_config = jsonb_set(
           COALESCE(agent_config, '{}'::jsonb),
@@ -90,7 +116,9 @@ export class AiConfigService {
           $1::jsonb
         ), updated_at = NOW()
         WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
-      `, JSON.stringify(dto.businessData));
+      `,
+        JSON.stringify(dto.businessData),
+      );
     }
 
     // Store objectives and redLines in agent_config
@@ -98,22 +126,28 @@ export class AiConfigService {
       await this.prisma.$executeRawUnsafe(`
         ALTER TABLE "${schemaName}".ai_config ADD COLUMN IF NOT EXISTS agent_config JSONB DEFAULT '{}'
       `);
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".ai_config
         SET agent_config = jsonb_set(COALESCE(agent_config, '{}'::jsonb), '{objectives}', $1::jsonb), updated_at = NOW()
         WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
-      `, JSON.stringify(dto.objectives));
+      `,
+        JSON.stringify(dto.objectives),
+      );
     }
 
     if (dto.redLines !== undefined) {
       await this.prisma.$executeRawUnsafe(`
         ALTER TABLE "${schemaName}".ai_config ADD COLUMN IF NOT EXISTS agent_config JSONB DEFAULT '{}'
       `);
-      await this.prisma.$executeRawUnsafe(`
+      await this.prisma.$executeRawUnsafe(
+        `
         UPDATE "${schemaName}".ai_config
         SET agent_config = jsonb_set(COALESCE(agent_config, '{}'::jsonb), '{redLines}', $1::jsonb), updated_at = NOW()
         WHERE id = (SELECT id FROM "${schemaName}".ai_config LIMIT 1)
-      `, JSON.stringify(dto.redLines));
+      `,
+        JSON.stringify(dto.redLines),
+      );
     }
 
     return this.getConfig(schemaName);

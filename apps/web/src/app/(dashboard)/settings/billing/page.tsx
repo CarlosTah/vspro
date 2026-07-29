@@ -53,11 +53,15 @@ export default function BillingPage() {
             <h3 className="text-sm font-semibold text-gray-300">Plan actual</h3>
             <p className="text-2xl font-bold text-white mt-1">{plan.name ?? 'Básico'}</p>
           </div>
-          <span className={`rounded-full px-3 py-1 text-xs font-medium ${
-            status === 'ACTIVE' ? 'bg-green-900/40 text-green-300' :
-            status === 'TRIALING' ? 'bg-blue-900/40 text-blue-300' :
-            'bg-yellow-900/40 text-yellow-300'
-          }`}>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-medium ${
+              status === 'ACTIVE'
+                ? 'bg-green-900/40 text-green-300'
+                : status === 'TRIALING'
+                  ? 'bg-blue-900/40 text-blue-300'
+                  : 'bg-yellow-900/40 text-yellow-300'
+            }`}
+          >
             {status === 'ACTIVE' ? '✓ Activo' : status === 'TRIALING' ? '⏳ Trial' : status}
           </span>
         </div>
@@ -69,8 +73,8 @@ export default function BillingPage() {
             <p className="text-xs text-blue-400 mt-1">
               {subscription?.trialEndsAt
                 ? `Tu trial vence el ${new Date(subscription.trialEndsAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}.`
-                : 'Tienes 7 días para probar todas las funciones.'}
-              {' '}Agrega tu tarjeta ahora para no perder el servicio al vencer.
+                : 'Tienes 7 días para probar todas las funciones.'}{' '}
+              Agrega tu tarjeta ahora para no perder el servicio al vencer.
             </p>
           </div>
         )}
@@ -83,8 +87,20 @@ export default function BillingPage() {
         {/* Billing info for active subscriptions */}
         {status === 'ACTIVE' && subscription?.currentPeriodEnd && (
           <div className="bg-gray-900 rounded-lg p-3 mb-4 text-xs text-gray-400 space-y-1">
-            <p>📅 Próximo cobro: <span className="text-white font-medium">{new Date(subscription.currentPeriodEnd).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}</span></p>
-            <p>💳 Monto: <span className="text-white font-medium">${plan.priceMonthly ?? '990'} MXN</span></p>
+            <p>
+              📅 Próximo cobro:{' '}
+              <span className="text-white font-medium">
+                {new Date(subscription.currentPeriodEnd).toLocaleDateString('es-MX', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </span>
+            </p>
+            <p>
+              💳 Monto:{' '}
+              <span className="text-white font-medium">${plan.priceMonthly ?? '990'} MXN</span>
+            </p>
             <p>🔄 Cobro recurrente mensual automático</p>
           </div>
         )}
@@ -93,22 +109,38 @@ export default function BillingPage() {
         {usage && (
           <div className="grid grid-cols-2 gap-3 mb-4 pt-4 border-t border-gray-700">
             <UsageMeter label="Pedidos" used={usage.ordersCount ?? 0} max={usage.maxOrders ?? 20} />
-            <UsageMeter label="Mensajes" used={usage.messagesSent ?? 0} max={usage.maxMessages ?? 1000} />
+            <UsageMeter
+              label="Mensajes"
+              used={usage.messagesSent ?? 0}
+              max={usage.maxMessages ?? 1000}
+            />
           </div>
         )}
 
         {/* Actions */}
         <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-700">
           {status === 'TRIALING' ? (
-            <button onClick={() => upgradePlan(plan.slug ?? 'basic')} disabled={loadingUpgrade} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+            <button
+              onClick={() => upgradePlan(plan.slug ?? 'basic')}
+              disabled={loadingUpgrade}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
               {loadingUpgrade ? '...' : '💳 Agregar tarjeta y activar plan'}
             </button>
           ) : (
             <>
-              <button onClick={openPortal} disabled={loadingPortal} className="vspro-btn-secondary text-sm disabled:opacity-50">
+              <button
+                onClick={openPortal}
+                disabled={loadingPortal}
+                className="vspro-btn-secondary text-sm disabled:opacity-50"
+              >
                 {loadingPortal ? '...' : '💳 Cambiar tarjeta'}
               </button>
-              <button onClick={openPortal} disabled={loadingPortal} className="vspro-btn-secondary text-sm disabled:opacity-50">
+              <button
+                onClick={openPortal}
+                disabled={loadingPortal}
+                className="vspro-btn-secondary text-sm disabled:opacity-50"
+              >
                 📄 Ver facturas y comprobantes
               </button>
             </>
@@ -121,16 +153,41 @@ export default function BillingPage() {
         <h3 className="text-sm font-semibold text-gray-300 mb-4">Cambiar de plan</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
-            { slug: 'basic', name: 'Básico', price: '$990', features: '20 pedidos, 10 productos, WhatsApp' },
-            { slug: 'pro', name: 'Profesional', price: '$1,490', features: '70 pedidos, 50 productos, 3 canales' },
-            { slug: 'enterprise', name: 'Avanzado', price: '$2,499', features: 'Ilimitado, marca blanca' },
-          ].map(p => (
-            <div key={p.slug} className={`rounded-lg border p-4 ${plan.slug === p.slug ? 'border-accent bg-accent/10' : 'border-gray-700'}`}>
+            {
+              slug: 'basic',
+              name: 'Básico',
+              price: '$990',
+              features: '20 pedidos, 10 productos, WhatsApp',
+            },
+            {
+              slug: 'pro',
+              name: 'Profesional',
+              price: '$1,490',
+              features: '70 pedidos, 50 productos, 3 canales',
+            },
+            {
+              slug: 'enterprise',
+              name: 'Avanzado',
+              price: '$2,499',
+              features: 'Ilimitado, marca blanca',
+            },
+          ].map((p) => (
+            <div
+              key={p.slug}
+              className={`rounded-lg border p-4 ${plan.slug === p.slug ? 'border-accent bg-accent/10' : 'border-gray-700'}`}
+            >
               <p className="text-white font-semibold">{p.name}</p>
-              <p className="text-accent font-bold text-lg">{p.price}<span className="text-xs text-gray-400">/mes</span></p>
+              <p className="text-accent font-bold text-lg">
+                {p.price}
+                <span className="text-xs text-gray-400">/mes</span>
+              </p>
               <p className="text-xs text-gray-400 mt-1">{p.features}</p>
               {plan.slug !== p.slug && (
-                <button onClick={() => upgradePlan(p.slug)} disabled={loadingUpgrade} className="mt-3 w-full py-1.5 rounded-lg bg-gray-700 text-white text-xs hover:bg-gray-600 disabled:opacity-50">
+                <button
+                  onClick={() => upgradePlan(p.slug)}
+                  disabled={loadingUpgrade}
+                  className="mt-3 w-full py-1.5 rounded-lg bg-gray-700 text-white text-xs hover:bg-gray-600 disabled:opacity-50"
+                >
                   Cambiar
                 </button>
               )}
@@ -152,10 +209,15 @@ function UsageMeter({ label, used, max }: { label: string; used: number; max: nu
     <div>
       <div className="flex justify-between text-xs mb-1">
         <span className="text-gray-400">{label}</span>
-        <span className={isHigh ? 'text-red-400' : 'text-gray-300'}>{used}/{max === -1 ? '∞' : max}</span>
+        <span className={isHigh ? 'text-red-400' : 'text-gray-300'}>
+          {used}/{max === -1 ? '∞' : max}
+        </span>
       </div>
       <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${isHigh ? 'bg-red-500' : 'bg-accent'}`} style={{ width: `${pct}%` }} />
+        <div
+          className={`h-full rounded-full ${isHigh ? 'bg-red-500' : 'bg-accent'}`}
+          style={{ width: `${pct}%` }}
+        />
       </div>
     </div>
   );

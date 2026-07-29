@@ -48,7 +48,9 @@ export class WebhooksService {
     const messages = changes?.value?.messages;
 
     // Log payload structure for debugging
-    this.logger.log(`Webhook global payload: object=${p?.object}, entry=${!!entry}, changes=${!!changes}, messages=${!!messages}, phoneNumberId=${phoneNumberId}`);
+    this.logger.log(
+      `Webhook global payload: object=${p?.object}, entry=${!!entry}, changes=${!!changes}, messages=${!!messages}, phoneNumberId=${phoneNumberId}`,
+    );
 
     // Ignorar payloads sin mensajes (status updates, etc.)
     if (!messages || messages.length === 0) {
@@ -127,7 +129,9 @@ export class WebhooksService {
       });
       const settings = tenant?.settings as Record<string, any>;
       tenantToken = settings?.webhookVerifyToken;
-    } catch { /* tenant may not have settings column */ }
+    } catch {
+      /* tenant may not have settings column */
+    }
 
     if (token === globalToken || (tenantToken && token === tenantToken)) {
       this.logger.log(`Webhook verificado para tenant: ${tenantSlug}`);

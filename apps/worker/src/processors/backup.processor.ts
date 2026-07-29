@@ -24,7 +24,9 @@ export class BackupProcessor {
   async handleFullBackup(job: Job<any>): Promise<void> {
     const { date, triggeredBy, manual } = job.data;
 
-    this.logger.log(`💾 [Worker] Running full backup for ${date} (triggered by: ${triggeredBy}${manual ? ' — MANUAL' : ''})`);
+    this.logger.log(
+      `💾 [Worker] Running full backup for ${date} (triggered by: ${triggeredBy}${manual ? ' — MANUAL' : ''})`,
+    );
 
     const tenants = await this.prisma.tenant.findMany({
       where: { status: { in: ['ACTIVE', 'TRIAL'] } },
@@ -46,7 +48,9 @@ export class BackupProcessor {
       }
     }
 
-    this.logger.log(`💾 [Worker] Backup complete: ${success} success, ${failed} failed (${tenants.length} total)`);
+    this.logger.log(
+      `💾 [Worker] Backup complete: ${success} success, ${failed} failed (${tenants.length} total)`,
+    );
   }
 
   @Process('cleanup-old-backups')

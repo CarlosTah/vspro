@@ -13,7 +13,11 @@ export class ReportsFinancialService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async getFinancialDashboard(schemaName: string, from: string, to: string): Promise<FinancialDashboard> {
+  async getFinancialDashboard(
+    schemaName: string,
+    from: string,
+    to: string,
+  ): Promise<FinancialDashboard> {
     const [income, payments, accounting, trends] = await Promise.all([
       this.getIncomeStats(schemaName, from, to),
       this.getPaymentStats(schemaName, from, to),
@@ -25,7 +29,8 @@ export class ReportsFinancialService {
   }
 
   private async getIncomeStats(schema: string, from: string, to: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         COALESCE(SUM(amount), 0) AS gross,
         COALESCE(SUM(amount) FILTER (WHERE type = 'sale'), 0) AS net_sales,
@@ -34,7 +39,10 @@ export class ReportsFinancialService {
         COALESCE(SUM(ABS(amount)) FILTER (WHERE type = 'refund'), 0) AS refunds
       FROM "${schema}".accounting_entries
       WHERE created_at >= $1::date AND created_at < $2::date
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     const r = rows[0] ?? {};
     const gross = parseFloat(r.gross ?? '0');
@@ -49,7 +57,8 @@ export class ReportsFinancialService {
   }
 
   private async getPaymentStats(schema: string, from: string, to: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         COUNT(*) AS total,
         COUNT(*) FILTER (WHERE status = 'verified' OR status = 'reconciled') AS verified,
@@ -57,15 +66,22 @@ export class ReportsFinancialService {
         COUNT(*) FILTER (WHERE status = 'rejected') AS rejected
       FROM "${schema}".payments
       WHERE created_at >= $1::date AND created_at < $2::date
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     // By method breakdown
-    const methods = await this.prisma.$queryRawUnsafe<any[]>(`
+    const methods = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT method, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount
       FROM "${schema}".payments
       WHERE created_at >= $1::date AND created_at < $2::date
       GROUP BY method
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     const r = rows[0] ?? {};
     const byMethod: Record<string, { count: number; amount: number }> = {};
@@ -83,7 +99,8 @@ export class ReportsFinancialService {
   }
 
   private async getAccountingStats(schema: string, from: string, to: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT
         COUNT(*) AS total,
         COALESCE(SUM(amount) FILTER (WHERE type = 'sale'), 0) AS sales,
@@ -92,7 +109,10 @@ export class ReportsFinancialService {
         COALESCE(SUM(amount) FILTER (WHERE type = 'adjustment'), 0) AS adjustments
       FROM "${schema}".accounting_entries
       WHERE created_at >= $1::date AND created_at < $2::date
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     const r = rows[0] ?? {};
     return {
@@ -105,17 +125,21 @@ export class ReportsFinancialService {
   }
 
   private async getDailyRevenueTrend(schema: string, from: string, to: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
       SELECT DATE(created_at) AS date, COALESCE(SUM(total), 0) AS amount
       FROM "${schema}".orders
       WHERE created_at >= $1::date AND created_at < $2::date
         AND status NOT IN ('cancelled')
       GROUP BY DATE(created_at)
       ORDER BY date
-    `, from, to);
+    `,
+      from,
+      to,
+    );
 
     return {
-      dailyRevenue: rows.map(r => ({
+      dailyRevenue: rows.map((r) => ({
         date: r.date?.toISOString?.()?.split('T')[0] ?? r.date,
         amount: parseFloat(r.amount ?? '0'),
       })),

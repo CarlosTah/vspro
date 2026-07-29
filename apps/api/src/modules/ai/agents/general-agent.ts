@@ -68,7 +68,14 @@ INSTRUCCIONES:
           parameters: {
             type: 'object',
             properties: {
-              items: { type: 'array', items: { type: 'object', properties: { productName: { type: 'string' }, quantity: { type: 'number' } }, required: ['productName', 'quantity'] } },
+              items: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: { productName: { type: 'string' }, quantity: { type: 'number' } },
+                  required: ['productName', 'quantity'],
+                },
+              },
               notes: { type: 'string' },
             },
             required: ['items'],
@@ -115,21 +122,34 @@ INSTRUCCIONES:
 
     switch (name) {
       case 'check_product_availability': {
-        const products = await this.prisma.$queryRawUnsafe<any[]>(`
+        const products = await this.prisma.$queryRawUnsafe<any[]>(
+          `
           SELECT p.name, p.price, i.stock_available
           FROM "${schemaName}".products p
           LEFT JOIN "${schemaName}".inventory i ON i.product_id = p.id
           WHERE p.is_active = true AND (p.name ILIKE $1 OR p.sku ILIKE $1)
           LIMIT 5
-        `, `%${args.query}%`);
+        `,
+          `%${args.query}%`,
+        );
         if (products.length === 0) return JSON.stringify({ found: false });
-        return JSON.stringify({ found: true, products: products.map(p => ({ name: p.name, price: p.price, stock: p.stock_available ?? 0 })) });
+        return JSON.stringify({
+          found: true,
+          products: products.map((p) => ({
+            name: p.name,
+            price: p.price,
+            stock: p.stock_available ?? 0,
+          })),
+        });
       }
 
       case 'get_order_status': {
-        const orders = await this.prisma.$queryRawUnsafe<any[]>(`
+        const orders = await this.prisma.$queryRawUnsafe<any[]>(
+          `
           SELECT order_number, status, total FROM "${schemaName}".orders WHERE order_number = $1
-        `, args.orderNumber);
+        `,
+          args.orderNumber,
+        );
         if (!orders[0]) return JSON.stringify({ found: false });
         return JSON.stringify({ found: true, ...orders[0] });
       }
@@ -142,9 +162,13 @@ INSTRUCCIONES:
 
       case 'schedule_follow_up': {
         const scheduledAt = new Date(Date.now() + args.delay_hours * 3600000);
-        await this.prisma.$executeRawUnsafe(`
+        await this.prisma.$executeRawUnsafe(
+          `
           UPDATE "${schemaName}".conversations SET next_follow_up_at = $1 WHERE id = $2::uuid
-        `, scheduledAt.toISOString(), context.conversationId);
+        `,
+          scheduledAt.toISOString(),
+          context.conversationId,
+        );
         return JSON.stringify({ success: true, scheduledAt: scheduledAt.toISOString() });
       }
 
