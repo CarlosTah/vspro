@@ -291,10 +291,71 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         }
 
         if (imageProcessed) {
+          // AUTO-UPLOAD: If this is an owner, immediately upload to CDN so the image is persistent
+          // (Meta URLs expire, so we save it now while it's available)
+          let cdnUrl: string | null = null;
+          if (isOwner && imageUrl.startsWith('data:')) {
+            try {
+              const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+              const match = imageUrl.match(/^data:(image\/\w+);base64,(.+)$/s);
+              if (match) {
+                const imgMime = match[1];
+                const imgBuf = Buffer.from(match[2], 'base64');
+                const imgExt = imgMime.includes('png') ? 'png' : 'jpg';
+                const imgId = require('crypto').randomUUID();
+                const imgKey = `media/${schemaName}/property/${imgId}.${imgExt}`;
+
+                const s3 = new S3Client({
+                  endpoint: this.config.get('AWS_S3_ENDPOINT') || 'https://nyc3.digitaloceanspaces.com',
+                  region: this.config.get('AWS_REGION') || 'nyc3',
+                  credentials: {
+                    accessKeyId: this.config.get('AWS_ACCESS_KEY_ID') || '',
+                    secretAccessKey: this.config.get('AWS_SECRET_ACCESS_KEY') || '',
+                  },
+                  forcePathStyle: false,
+                });
+
+                const bucket = this.config.get('AWS_S3_BUCKET') || 'vspro-uploads';
+                await s3.send(new PutObjectCommand({
+                  Bucket: bucket,
+                  Key: imgKey,
+                  Body: imgBuf,
+                  ContentType: imgMime,
+                  ACL: 'public-read',
+                }));
+
+                cdnUrl = `https://${bucket}.nyc3.digitaloceanspaces.com/${imgKey}`;
+
+                // Save to media_assets
+                await this.prisma.$executeRawUnsafe(`
+                  CREATE TABLE IF NOT EXISTS "${schemaName}".media_assets (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(), type VARCHAR(50) NOT NULL DEFAULT 'general',
+                    title VARCHAR(255), url TEXT NOT NULL, is_active BOOLEAN NOT NULL DEFAULT true,
+                    sort_order INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                  )
+                `);
+                await this.prisma.$executeRawUnsafe(
+                  `INSERT INTO "${schemaName}".media_assets (type, title, url) VALUES ('property', 'Foto de propiedad', $1)`,
+                  cdnUrl,
+                );
+
+                this.logger.log(`[${schemaName}] Owner image auto-uploaded to CDN: ${cdnUrl}`);
+              }
+            } catch (uploadErr: any) {
+              this.logger.warn(`[${schemaName}] Auto-upload failed: ${uploadErr.message}`);
+            }
+          }
+
+          const imageText = message.text
+            ? message.text
+            : isOwner
+              ? `El dueño envió una imagen${cdnUrl ? ` (ya guardada en CDN: ${cdnUrl})` : ''}`
+              : 'El cliente envió una imagen';
+
           messages.push({
             role: 'user',
             content: [
-              { type: 'text', text: message.text ?? 'El cliente envió una imagen' },
+              { type: 'text', text: imageText },
               { type: 'image_url', image_url: { url: imageUrl, detail: 'high' } },
             ],
           });
