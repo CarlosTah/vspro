@@ -65,6 +65,7 @@ services:
       target: production
       args:
         - NEXT_PUBLIC_API_URL=https://api.vspro.app
+        - BUILD_HASH=${BUILD_HASH:-dev}
     container_name: vspro_web
     restart: always
     environment:
