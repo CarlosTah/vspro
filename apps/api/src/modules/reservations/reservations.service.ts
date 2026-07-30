@@ -41,8 +41,13 @@ export class ReservationsService {
         nights INTEGER NOT NULL DEFAULT 1,
         guests INTEGER NOT NULL DEFAULT 1,
         total_price DECIMAL(10,2) NOT NULL DEFAULT 0,
+        cleaning_fee DECIMAL(10,2) DEFAULT 0,
+        deposit_amount DECIMAL(10,2) DEFAULT 0,
+        deposit_paid BOOLEAN NOT NULL DEFAULT false,
         status VARCHAR(30) NOT NULL DEFAULT 'pending',
+        source VARCHAR(50) DEFAULT 'whatsapp',
         notes TEXT,
+        check_in_instructions TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
@@ -57,11 +62,42 @@ export class ReservationsService {
         price_per_week DECIMAL(10,2),
         price_per_month DECIMAL(10,2),
         min_nights INTEGER NOT NULL DEFAULT 1,
+        cleaning_fee DECIMAL(10,2) DEFAULT 0,
         label VARCHAR(100),
         is_default BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schema}".blocked_dates (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        property_id UUID,
+        date_from DATE NOT NULL,
+        date_to DATE NOT NULL,
+        reason VARCHAR(255) DEFAULT 'Bloqueado',
+        created_by UUID,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    // Add new columns to existing tables (safe for already-provisioned tenants)
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schema}".reservations ADD COLUMN IF NOT EXISTS cleaning_fee DECIMAL(10,2) DEFAULT 0`,
+    );
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schema}".reservations ADD COLUMN IF NOT EXISTS deposit_amount DECIMAL(10,2) DEFAULT 0`,
+    );
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schema}".reservations ADD COLUMN IF NOT EXISTS deposit_paid BOOLEAN NOT NULL DEFAULT false`,
+    );
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schema}".reservations ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'whatsapp'`,
+    );
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schema}".reservations ADD COLUMN IF NOT EXISTS check_in_instructions TEXT`,
+    );
+    await this.prisma.$executeRawUnsafe(
+      `ALTER TABLE "${schema}".pricing_rules ADD COLUMN IF NOT EXISTS cleaning_fee DECIMAL(10,2) DEFAULT 0`,
+    );
   }
 
   // ─── Reservations CRUD ────────────────────────────────────────
@@ -167,17 +203,35 @@ export class ReservationsService {
     const propFilter = propertyId
       ? `AND (property_id = '${propertyId}' OR property_id IS NULL)`
       : '';
-    return this.prisma.$queryRawUnsafe<any[]>(
+
+    // Check reservation conflicts
+    const reservationConflicts = await this.prisma.$queryRawUnsafe<any[]>(
       `
       SELECT id, guest_name AS "guestName", check_in AS "checkIn", check_out AS "checkOut"
       FROM "${schema}".reservations
-      WHERE status IN ('confirmed', 'pending')
+      WHERE status IN ('confirmed', 'pending', 'checked_in')
         AND check_in < $2::date AND check_out > $1::date
         ${propFilter}
     `,
       checkIn,
       checkOut,
     );
+
+    // Check blocked dates
+    const blockedConflicts = await this.prisma
+      .$queryRawUnsafe<any[]>(
+        `
+      SELECT id, 'BLOQUEADO' AS "guestName", date_from AS "checkIn", date_to AS "checkOut"
+      FROM "${schema}".blocked_dates
+      WHERE date_from < $2::date AND date_to > $1::date
+        ${propFilter ? propFilter.replace('property_id', 'property_id') : ''}
+    `,
+        checkIn,
+        checkOut,
+      )
+      .catch(() => []);
+
+    return [...reservationConflicts, ...blockedConflicts];
   }
 
   // ─── Pricing ──────────────────────────────────────────────────
@@ -291,7 +345,7 @@ export class ReservationsService {
       SELECT id, guest_name AS "guestName", check_in AS "checkIn", check_out AS "checkOut",
              status, total_price AS "totalPrice"
       FROM "${schema}".reservations
-      WHERE status IN ('confirmed', 'pending')
+      WHERE status IN ('confirmed', 'pending', 'checked_in')
         AND check_in < $2::date AND check_out > $1::date
       ORDER BY check_in
     `,
@@ -299,6 +353,60 @@ export class ReservationsService {
       endDate,
     );
 
-    return { year, month, reservations };
+    // Include blocked dates in calendar
+    const blocked = await this.prisma
+      .$queryRawUnsafe<any[]>(
+        `
+      SELECT id, 'BLOQUEADO' AS "guestName", date_from AS "checkIn", date_to AS "checkOut",
+             'blocked' AS status, 0 AS "totalPrice", reason AS notes
+      FROM "${schema}".blocked_dates
+      WHERE date_from < $2::date AND date_to > $1::date
+      ORDER BY date_from
+    `,
+        startDate,
+        endDate,
+      )
+      .catch(() => []);
+
+    return { year, month, reservations: [...reservations, ...blocked] };
+  }
+
+  // ─── Blocked Dates ────────────────────────────────────────────
+
+  async listBlockedDates(schema: string) {
+    await this.ensureTables(schema);
+    return this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT id, property_id AS "propertyId", date_from AS "dateFrom", date_to AS "dateTo",
+             reason, created_at AS "createdAt"
+      FROM "${schema}".blocked_dates
+      ORDER BY date_from DESC
+    `);
+  }
+
+  async blockDates(
+    dto: { dateFrom: string; dateTo: string; reason?: string; propertyId?: string },
+    schema: string,
+  ) {
+    await this.ensureTables(schema);
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `
+      INSERT INTO "${schema}".blocked_dates (property_id, date_from, date_to, reason)
+      VALUES ($1, $2::date, $3::date, $4)
+      RETURNING id, date_from AS "dateFrom", date_to AS "dateTo", reason
+    `,
+      dto.propertyId ?? null,
+      dto.dateFrom,
+      dto.dateTo,
+      dto.reason ?? 'Bloqueado',
+    );
+    return rows[0];
+  }
+
+  async unblockDates(id: string, schema: string) {
+    await this.prisma.$executeRawUnsafe(
+      `DELETE FROM "${schema}".blocked_dates WHERE id = $1::uuid`,
+      id,
+    );
+    return { success: true };
   }
 }

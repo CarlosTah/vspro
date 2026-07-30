@@ -12,9 +12,10 @@ import { useSidebar } from '@/hooks/use-sidebar';
 const INDUSTRY_LABELS: Record<string, Record<string, string>> = {
   inmobiliaria: {
     Productos: 'Propiedades',
-    Pedidos: 'Solicitudes',
+    Pedidos: 'Reservas',
     Clientes: 'Huéspedes',
-    Pagos: 'Ingresos',
+    Pagos: 'Finanzas',
+    Reportes: 'Reportes',
   },
   clinica: {
     Productos: 'Servicios',
@@ -28,33 +29,63 @@ const INDUSTRY_LABELS: Record<string, Record<string, string>> = {
 };
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: '📊', industries: null },
-  { name: 'Pedidos', href: '/orders', icon: '📋', industries: null },
+  { name: 'Dashboard', href: '/', icon: '📊', industries: null, hideFor: null },
+  { name: 'Pedidos', href: '/orders', icon: '📋', industries: null, hideFor: ['inmobiliaria'] },
+  {
+    name: 'Reservaciones',
+    href: '/reservations',
+    icon: '📅',
+    industries: ['inmobiliaria'],
+    hideFor: null,
+  },
+  {
+    name: 'Calendario',
+    href: '/calendar',
+    icon: '🗓️',
+    industries: ['inmobiliaria'],
+    hideFor: null,
+  },
   {
     name: 'Producción',
     href: '/production',
     icon: '🏭',
     industries: ['restaurante', 'ropa', 'taller', 'ecommerce'],
+    hideFor: ['inmobiliaria', 'barberia', 'clinica'],
   },
-  { name: 'Cocina', href: '/kitchen', icon: '🍳', industries: ['restaurante'] },
-  { name: 'Productos', href: '/products', icon: '📦', industries: null },
-  { name: 'Propiedades', href: '/properties', icon: '🏠', industries: ['inmobiliaria'] },
-  { name: 'Clientes', href: '/customers', icon: '👥', industries: null },
-  { name: 'Conversaciones', href: '/conversations', icon: '💬', industries: null },
-  { name: 'Escalaciones', href: '/escalations', icon: '⚠️', industries: null },
-  { name: 'Tickets', href: '/tickets', icon: '🎫', industries: null },
-  { name: 'Pagos', href: '/payments', icon: '💰', industries: null },
+  { name: 'Cocina', href: '/kitchen', icon: '🍳', industries: ['restaurante'], hideFor: null },
+  { name: 'Productos', href: '/products', icon: '📦', industries: null, hideFor: ['inmobiliaria'] },
+  {
+    name: 'Propiedades',
+    href: '/properties',
+    icon: '🏠',
+    industries: ['inmobiliaria'],
+    hideFor: null,
+  },
+  { name: 'Precios', href: '/pricing', icon: '💲', industries: ['inmobiliaria'], hideFor: null },
+  { name: 'Clientes', href: '/customers', icon: '👥', industries: null, hideFor: ['inmobiliaria'] },
+  { name: 'Huéspedes', href: '/guests', icon: '🧳', industries: ['inmobiliaria'], hideFor: null },
+  { name: 'Conversaciones', href: '/conversations', icon: '💬', industries: null, hideFor: null },
+  { name: 'Escalaciones', href: '/escalations', icon: '⚠️', industries: null, hideFor: null },
+  { name: 'Tickets', href: '/tickets', icon: '🎫', industries: null, hideFor: null },
+  { name: 'Pagos', href: '/payments', icon: '💰', industries: null, hideFor: ['inmobiliaria'] },
+  { name: 'Finanzas', href: '/finances', icon: '💰', industries: ['inmobiliaria'], hideFor: null },
   {
     name: 'Entregas',
     href: '/deliveries',
     icon: '🛵',
-    industries: ['restaurante', 'ropa', 'ecommerce', 'barberia', 'taller'],
+    industries: ['restaurante', 'ropa', 'ecommerce'],
+    hideFor: ['inmobiliaria', 'barberia', 'clinica'],
   },
-  { name: 'Reportes', href: '/reports', icon: '📈', industries: null },
-  { name: 'Analytics', href: '/analytics', icon: '📉', industries: null },
-  { name: 'Promociones', href: '/promotions', icon: '🎉', industries: null },
-  { name: 'Lealtad', href: '/loyalty', icon: '🏆', industries: null },
-  { name: 'Reservaciones', href: '/reservations', icon: '📅', industries: ['inmobiliaria'] },
+  { name: 'Reportes', href: '/reports', icon: '📈', industries: null, hideFor: null },
+  { name: 'Analytics', href: '/analytics', icon: '📉', industries: null, hideFor: null },
+  {
+    name: 'Promociones',
+    href: '/promotions',
+    icon: '🎉',
+    industries: null,
+    hideFor: ['inmobiliaria'],
+  },
+  { name: 'Lealtad', href: '/loyalty', icon: '🏆', industries: null, hideFor: ['inmobiliaria'] },
 ];
 
 const bottomNav = [{ name: 'Configuración', href: '/settings', icon: '⚙️' }];
@@ -68,7 +99,14 @@ export function Sidebar() {
 
   const visibleNav = navigation
     .filter((item) => canAccessRoute(role, item.href))
-    .filter((item) => !item.industries || !industry || item.industries.includes(industry));
+    .filter((item) => {
+      // Show if no industry filter set
+      if (!industry) return !item.industries;
+      // Hide if this item is explicitly hidden for this industry
+      if (item.hideFor && item.hideFor.includes(industry)) return false;
+      // Show if industries is null (generic) or includes current industry
+      return !item.industries || item.industries.includes(industry);
+    });
   const visibleBottom = bottomNav.filter((item) => canAccessRoute(role, item.href));
 
   // Get industry-specific label or default

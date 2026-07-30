@@ -721,3 +721,96 @@ CREATE TABLE IF NOT EXISTS "{{schema}}".knowledge_base (
 CREATE INDEX IF NOT EXISTS idx_knowledge_base_active
   ON "{{schema}}".knowledge_base(is_active, sort_order)
   WHERE is_active = true;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- MÓDULO: Reservaciones / Hospedaje (inmobiliaria)
+-- ═══════════════════════════════════════════════════════════════
+
+-- Propiedades en renta
+CREATE TABLE IF NOT EXISTS "{{schema}}".properties (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name             VARCHAR(255) NOT NULL,
+  description      TEXT,
+  address          VARCHAR(500),
+  lat              DECIMAL(10,7),
+  lng              DECIMAL(10,7),
+  capacity         INTEGER NOT NULL DEFAULT 2,
+  bedrooms         INTEGER NOT NULL DEFAULT 1,
+  bathrooms        INTEGER NOT NULL DEFAULT 1,
+  amenities        JSONB NOT NULL DEFAULT '[]'::jsonb,
+  rules            JSONB NOT NULL DEFAULT '[]'::jsonb,
+  images           JSONB NOT NULL DEFAULT '[]'::jsonb,
+  price_per_night  DECIMAL(10,2) NOT NULL DEFAULT 0,
+  price_per_week   DECIMAL(10,2),
+  price_per_month  DECIMAL(10,2),
+  min_nights       INTEGER NOT NULL DEFAULT 1,
+  check_in_time    VARCHAR(10) DEFAULT '15:00',
+  check_out_time   VARCHAR(10) DEFAULT '11:00',
+  cleaning_fee     DECIMAL(10,2) DEFAULT 0,
+  is_active        BOOLEAN NOT NULL DEFAULT true,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Reservaciones
+CREATE TABLE IF NOT EXISTS "{{schema}}".reservations (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  property_id    UUID REFERENCES "{{schema}}".properties(id),
+  guest_name     VARCHAR(255) NOT NULL,
+  guest_phone    VARCHAR(50),
+  guest_email    VARCHAR(255),
+  check_in       DATE NOT NULL,
+  check_out      DATE NOT NULL,
+  nights         INTEGER NOT NULL DEFAULT 1,
+  guests         INTEGER NOT NULL DEFAULT 1,
+  total_price    DECIMAL(10,2) NOT NULL DEFAULT 0,
+  cleaning_fee   DECIMAL(10,2) DEFAULT 0,
+  deposit_amount DECIMAL(10,2) DEFAULT 0,
+  deposit_paid   BOOLEAN NOT NULL DEFAULT false,
+  status         VARCHAR(30) NOT NULL DEFAULT 'pending',
+  -- statuses: pending, confirmed, checked_in, checked_out, cancelled, no_show
+  source         VARCHAR(50) DEFAULT 'whatsapp',
+  -- source: whatsapp, dashboard, airbnb, booking, direct
+  notes          TEXT,
+  check_in_instructions TEXT,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reservations_dates
+  ON "{{schema}}".reservations(check_in, check_out)
+  WHERE status NOT IN ('cancelled', 'no_show');
+
+CREATE INDEX IF NOT EXISTS idx_reservations_status
+  ON "{{schema}}".reservations(status);
+
+-- Reglas de precios / temporadas
+CREATE TABLE IF NOT EXISTS "{{schema}}".pricing_rules (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  property_id     UUID REFERENCES "{{schema}}".properties(id),
+  date_from       DATE,
+  date_to         DATE,
+  price_per_night DECIMAL(10,2) NOT NULL,
+  price_per_week  DECIMAL(10,2),
+  price_per_month DECIMAL(10,2),
+  min_nights      INTEGER NOT NULL DEFAULT 1,
+  cleaning_fee    DECIMAL(10,2) DEFAULT 0,
+  label           VARCHAR(100),
+  is_default      BOOLEAN NOT NULL DEFAULT false,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Fechas bloqueadas (mantenimiento, uso personal)
+CREATE TABLE IF NOT EXISTS "{{schema}}".blocked_dates (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  property_id  UUID REFERENCES "{{schema}}".properties(id),
+  date_from    DATE NOT NULL,
+  date_to      DATE NOT NULL,
+  reason       VARCHAR(255) DEFAULT 'Bloqueado',
+  created_by   UUID,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_blocked_dates_range
+  ON "{{schema}}".blocked_dates(date_from, date_to);

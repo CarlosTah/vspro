@@ -93,4 +93,27 @@ export class ReservationsController {
   deletePricing(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
     return this.service.deletePricingRule(id, schema);
   }
+
+  // ─── Blocked Dates ─────────────────────────────────────────────
+
+  @Get('blocked-dates')
+  @Roles('admin', 'manager')
+  listBlockedDates(@TenantSchema() schema: string) {
+    return this.service.listBlockedDates(schema);
+  }
+
+  @Post('blocked-dates')
+  @Roles('admin')
+  blockDates(
+    @Body() body: { dateFrom: string; dateTo: string; reason?: string; propertyId?: string },
+    @TenantSchema() schema: string,
+  ) {
+    return this.service.blockDates(body, schema);
+  }
+
+  @Delete('blocked-dates/:id')
+  @Roles('admin')
+  unblockDates(@Param('id', ParseUUIDPipe) id: string, @TenantSchema() schema: string) {
+    return this.service.unblockDates(id, schema);
+  }
 }

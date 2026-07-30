@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useApi } from '@/hooks/use-api';
+import { useAuth } from '@/lib/auth-context';
 import { CardSkeleton } from '@/components/ui/skeleton';
 
 const statusColors: Record<string, string> = {
@@ -29,6 +30,256 @@ const statusLabels: Record<string, string> = {
 type Period = 'today' | 'week' | 'month';
 
 export default function DashboardPage() {
+  const { tenant } = useAuth();
+  const industry = tenant?.industry ?? null;
+
+  if (industry === 'inmobiliaria') {
+    return <InmobiliariaDashboard />;
+  }
+
+  return <DefaultDashboard />;
+}
+
+// ─── Inmobiliaria Dashboard ──────────────────────────────────────
+
+function InmobiliariaDashboard() {
+  const { data: reservations, loading } = useApi<any[]>('/reservations');
+
+  if (loading) {
+    return (
+      <div className="space-y-6 p-1">
+        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+        </div>
+      </div>
+    );
+  }
+
+  const now = new Date();
+  const all = reservations ?? [];
+  const active = all.filter((r) => r.status !== 'cancelled');
+
+  // This month
+  const thisMonth = active.filter((r) => {
+    const ci = new Date(r.checkIn);
+    return ci.getFullYear() === now.getFullYear() && ci.getMonth() === now.getMonth();
+  });
+  const monthRevenue = thisMonth.reduce((sum, r) => sum + (parseFloat(r.totalPrice) || 0), 0);
+  const monthNights = thisMonth.reduce((sum, r) => sum + (r.nights ?? 0), 0);
+
+  // Occupancy this month
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const bookedDays = new Set<number>();
+  active.forEach((r) => {
+    const ci = new Date(r.checkIn);
+    const co = new Date(r.checkOut);
+    for (let d = new Date(ci); d < co; d.setDate(d.getDate() + 1)) {
+      if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
+        bookedDays.add(d.getDate());
+      }
+    }
+  });
+  const occupancy = Math.round((bookedDays.size / daysInMonth) * 100);
+
+  // Today's check-ins and check-outs
+  const todayStr = now.toISOString().split('T')[0];
+  const todayCheckIns = active.filter((r) => (r.checkIn ?? '').split('T')[0] === todayStr);
+  const todayCheckOuts = active.filter((r) => (r.checkOut ?? '').split('T')[0] === todayStr);
+
+  // Upcoming (next 7 days)
+  const next7 = new Date(now.getTime() + 7 * 86400000);
+  const upcoming = active
+    .filter((r) => {
+      const ci = new Date(r.checkIn);
+      return ci >= now && ci <= next7 && r.status === 'confirmed';
+    })
+    .sort((a, b) => new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime());
+
+  // Pending confirmations
+  const pendingConfirm = all.filter((r) => r.status === 'pending');
+
+  // Total revenue all time
+  const totalRevenue = active.reduce((sum, r) => sum + (parseFloat(r.totalPrice) || 0), 0);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+        <p className="text-sm text-gray-400">Resumen de tu hospedaje</p>
+      </div>
+
+      {/* Main KPIs */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="vspro-stat-card border-blue-500/30">
+          <span className="text-2xl">📊</span>
+          <p className="mt-3 text-2xl font-bold text-blue-400">{occupancy}%</p>
+          <p className="text-sm text-gray-400">Ocupación este mes</p>
+          <div className="mt-2 w-full bg-gray-700 rounded-full h-1.5">
+            <div
+              className="bg-blue-500 h-1.5 rounded-full transition-all"
+              style={{ width: `${occupancy}%` }}
+            />
+          </div>
+        </div>
+        <div className="vspro-stat-card border-green-500/30">
+          <span className="text-2xl">💰</span>
+          <p className="mt-3 text-2xl font-bold text-green-400">
+            ${monthRevenue.toLocaleString('es-MX')}
+          </p>
+          <p className="text-sm text-gray-400">Ingresos este mes</p>
+          <p className="text-xs text-gray-500 mt-1">{monthNights} noches vendidas</p>
+        </div>
+        <div className="vspro-stat-card">
+          <span className="text-2xl">🟢</span>
+          <p className="mt-3 text-2xl font-bold text-white">{todayCheckIns.length}</p>
+          <p className="text-sm text-gray-400">Check-ins hoy</p>
+          {todayCheckIns.length > 0 && (
+            <p className="text-xs text-green-400 mt-1">
+              {todayCheckIns.map((r) => r.guestName).join(', ')}
+            </p>
+          )}
+        </div>
+        <div className="vspro-stat-card">
+          <span className="text-2xl">🔴</span>
+          <p className="mt-3 text-2xl font-bold text-white">{todayCheckOuts.length}</p>
+          <p className="text-sm text-gray-400">Check-outs hoy</p>
+          {todayCheckOuts.length > 0 && (
+            <p className="text-xs text-red-300 mt-1">
+              {todayCheckOuts.map((r) => r.guestName).join(', ')}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Pending + Upcoming */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Pending confirmations */}
+        <div className="rounded-xl border border-card-border bg-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-gray-300">⏳ Pendientes de confirmar</h3>
+            <span className="rounded-full bg-yellow-900/40 px-2 py-0.5 text-xs text-yellow-300">
+              {pendingConfirm.length}
+            </span>
+          </div>
+          {pendingConfirm.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-4">Sin reservas pendientes</p>
+          ) : (
+            <div className="space-y-2">
+              {pendingConfirm.slice(0, 5).map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between py-2 border-b border-gray-700/50 last:border-0"
+                >
+                  <div>
+                    <p className="text-sm text-white">{r.guestName}</p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(r.checkIn).toLocaleDateString('es-MX', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}{' '}
+                      →{' '}
+                      {new Date(r.checkOut).toLocaleDateString('es-MX', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}
+                    </p>
+                  </div>
+                  <span className="text-sm text-green-400">
+                    ${parseFloat(r.totalPrice).toLocaleString('es-MX')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {pendingConfirm.length > 0 && (
+            <a
+              href="/reservations"
+              className="block text-center text-xs text-accent mt-3 hover:underline"
+            >
+              Ver todas →
+            </a>
+          )}
+        </div>
+
+        {/* Upcoming check-ins */}
+        <div className="rounded-xl border border-card-border bg-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-gray-300">📅 Próximos 7 días</h3>
+            <a href="/calendar" className="text-xs text-accent hover:underline">
+              Calendario →
+            </a>
+          </div>
+          {upcoming.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-4">Sin check-ins próximos</p>
+          ) : (
+            <div className="space-y-2">
+              {upcoming.slice(0, 6).map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between py-2 border-b border-gray-700/50 last:border-0"
+                >
+                  <div>
+                    <p className="text-sm text-white">{r.guestName}</p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(r.checkIn).toLocaleDateString('es-MX', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                      })}{' '}
+                      · {r.nights} noches · {r.guests ?? 1} huéspedes
+                    </p>
+                  </div>
+                  <span className="text-sm text-green-400">
+                    ${parseFloat(r.totalPrice).toLocaleString('es-MX')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Quick summary */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-lg border border-gray-700 bg-card/50 p-3">
+          <p className="text-lg font-bold text-white">{active.length}</p>
+          <p className="text-xs text-gray-400">Reservas totales</p>
+        </div>
+        <div className="rounded-lg border border-gray-700 bg-card/50 p-3">
+          <p className="text-lg font-bold text-purple-300">
+            ${totalRevenue.toLocaleString('es-MX')}
+          </p>
+          <p className="text-xs text-gray-400">Revenue total</p>
+        </div>
+        <div className="rounded-lg border border-gray-700 bg-card/50 p-3">
+          <p className="text-lg font-bold text-blue-300">
+            {
+              active.filter(
+                (r) => r.stays > 1 || all.filter((x) => x.guestName === r.guestName).length > 1,
+              ).length
+            }
+          </p>
+          <p className="text-xs text-gray-400">Huéspedes repetidores</p>
+        </div>
+        <div className="rounded-lg border border-gray-700 bg-card/50 p-3">
+          <p className="text-lg font-bold text-green-300">
+            {active.reduce((sum, r) => sum + (r.nights ?? 0), 0)}
+          </p>
+          <p className="text-xs text-gray-400">Noches vendidas total</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Default Dashboard (restaurants, shops, etc.) ────────────────
+
+function DefaultDashboard() {
   const [period, setPeriod] = useState<Period>('today');
   const { data, loading } = useApi<any>('/dashboard/stats');
   const { data: reportData } = useApi<any>(`/reports/summary`);
