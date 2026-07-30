@@ -3222,18 +3222,60 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
           const axios = (await import('axios')).default;
 
-          // Download image from WhatsApp URL
-          const mediaResponse = await axios
-            .get(args.mediaUrl, {
-              responseType: 'arraybuffer',
-              headers: { Authorization: `Bearer ${this.config.get('WHATSAPP_TOKEN') || ''}` },
-            })
-            .catch(() => null);
-          if (!mediaResponse)
-            return JSON.stringify({ success: false, message: 'No se pudo descargar la imagen' });
+          // Get WhatsApp access token: try tenant channel → env var → VSPRO fallback
+          let waToken = this.config.get('WHATSAPP_TOKEN') || '';
+          if (!waToken) {
+            try {
+              const channelRows = await this.prisma.$queryRawUnsafe<any[]>(
+                `SELECT access_token FROM "${schemaName}".channels WHERE type = 'whatsapp' AND is_active = true LIMIT 1`,
+              );
+              waToken = channelRows[0]?.access_token || '';
+            } catch {}
+          }
+          if (!waToken) {
+            waToken = (await this.getVsproToken()) || '';
+          }
 
-          const buffer = Buffer.from(mediaResponse.data);
-          const mimeType = String(mediaResponse.headers['content-type'] || 'image/jpeg');
+          if (!waToken) {
+            return JSON.stringify({
+              success: false,
+              message: 'No se pudo obtener el token de WhatsApp para descargar la imagen. Configura el canal de WhatsApp.',
+            });
+          }
+
+          // Meta Graph API requires two steps: first get download URL, then download
+          let imageBuffer: Buffer | null = null;
+          let mimeType = 'image/jpeg';
+
+          try {
+            // Step 1: Get media download URL from Meta
+            const mediaInfo = await axios.get(args.mediaUrl, {
+              headers: { Authorization: `Bearer ${waToken}` },
+              timeout: 10000,
+            });
+            const downloadUrl = mediaInfo.data?.url;
+
+            if (downloadUrl) {
+              // Step 2: Download actual image
+              const imgResponse = await axios.get(downloadUrl, {
+                headers: { Authorization: `Bearer ${waToken}` },
+                responseType: 'arraybuffer',
+                timeout: 15000,
+              });
+              imageBuffer = Buffer.from(imgResponse.data);
+              mimeType = imgResponse.headers['content-type'] || 'image/jpeg';
+            }
+          } catch (dlErr: any) {
+            this.logger.warn(`[upload_media] Failed to download from Meta: ${dlErr.message}`);
+          }
+
+          if (!imageBuffer) {
+            return JSON.stringify({
+              success: false,
+              message: 'No se pudo descargar la imagen de WhatsApp. Intenta enviarla de nuevo.',
+            });
+          }
+
           const ext = mimeType.includes('png') ? 'png' : 'jpg';
           const id = require('crypto').randomUUID();
           const key = `media/${schemaName}/${args.type}/${id}.${ext}`;
@@ -3253,7 +3295,7 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
             new PutObjectCommand({
               Bucket: bucket,
               Key: key,
-              Body: buffer,
+              Body: imageBuffer,
               ContentType: mimeType as string,
               ACL: 'public-read',
             }),
