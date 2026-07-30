@@ -937,6 +937,70 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
       {
         type: 'function',
         function: {
+          name: 'add_property',
+          description:
+            'Registra una nueva propiedad/departamento/habitación para renta. Usa cuando el dueño de un negocio inmobiliario quiere dar de alta un espacio. Pregunta nombre, capacidad, recámaras, baños, amenidades, precio por noche (y opcionalmente semana/mes), y reglas.',
+          parameters: {
+            type: 'object',
+            properties: {
+              name: {
+                type: 'string',
+                description: 'Nombre de la propiedad (ej: "Depto Vista al Mar", "Studio Centro")',
+              },
+              description: {
+                type: 'string',
+                description: 'Descripción breve de la propiedad',
+              },
+              address: {
+                type: 'string',
+                description: 'Dirección de la propiedad',
+              },
+              capacity: {
+                type: 'number',
+                description: 'Número máximo de huéspedes',
+              },
+              bedrooms: {
+                type: 'number',
+                description: 'Número de recámaras/habitaciones',
+              },
+              bathrooms: {
+                type: 'number',
+                description: 'Número de baños',
+              },
+              amenities: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Lista de amenidades (WiFi, Cocina, Alberca, Estacionamiento, etc.)',
+              },
+              rules: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Reglas de la casa (No fumar, No fiestas, etc.)',
+              },
+              pricePerNight: {
+                type: 'number',
+                description: 'Precio por noche en MXN',
+              },
+              pricePerWeek: {
+                type: 'number',
+                description: 'Precio por semana (7 noches) — opcional, descuento por estancia larga',
+              },
+              pricePerMonth: {
+                type: 'number',
+                description: 'Precio por mes (30 noches) — opcional',
+              },
+              minNights: {
+                type: 'number',
+                description: 'Mínimo de noches por reserva (default: 1)',
+              },
+            },
+            required: ['name', 'pricePerNight'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
           name: 'send_media_to_customer',
           description:
             'Envía una imagen o material gráfico al cliente (menú, promociones, catálogo, fotos de productos). Usa cuando el cliente pregunte por el menú, las promociones, fotos del producto, o cualquier material visual.',
@@ -2570,6 +2634,70 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         }
       }
 
+      case 'add_property': {
+        try {
+          // Ensure properties table exists
+          await this.prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS "${schemaName}".properties (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              name VARCHAR(255) NOT NULL,
+              description TEXT,
+              address VARCHAR(500),
+              lat DECIMAL(10,7),
+              lng DECIMAL(10,7),
+              capacity INTEGER NOT NULL DEFAULT 2,
+              bedrooms INTEGER NOT NULL DEFAULT 1,
+              bathrooms INTEGER NOT NULL DEFAULT 1,
+              amenities JSONB NOT NULL DEFAULT '[]'::jsonb,
+              rules JSONB NOT NULL DEFAULT '[]'::jsonb,
+              images JSONB NOT NULL DEFAULT '[]'::jsonb,
+              price_per_night DECIMAL(10,2) NOT NULL DEFAULT 0,
+              price_per_week DECIMAL(10,2),
+              price_per_month DECIMAL(10,2),
+              min_nights INTEGER NOT NULL DEFAULT 1,
+              is_active BOOLEAN NOT NULL DEFAULT true,
+              created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+              updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+          `);
+
+          const rows = await this.prisma.$queryRawUnsafe<any[]>(
+            `
+            INSERT INTO "${schemaName}".properties
+              (name, description, address, capacity, bedrooms, bathrooms, amenities, rules, price_per_night, price_per_week, price_per_month, min_nights)
+            VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, $11, $12)
+            RETURNING id, name, capacity, price_per_night AS "pricePerNight"
+          `,
+            args.name,
+            args.description ?? '',
+            args.address ?? '',
+            args.capacity ?? 2,
+            args.bedrooms ?? 1,
+            args.bathrooms ?? 1,
+            JSON.stringify(args.amenities ?? []),
+            JSON.stringify(args.rules ?? []),
+            args.pricePerNight,
+            args.pricePerWeek ?? null,
+            args.pricePerMonth ?? null,
+            args.minNights ?? 1,
+          );
+
+          const p = rows[0];
+          let msg = `✅ Propiedad "${args.name}" registrada exitosamente.\n`;
+          msg += `• Capacidad: ${args.capacity ?? 2} huéspedes, ${args.bedrooms ?? 1} recámara(s), ${args.bathrooms ?? 1} baño(s)\n`;
+          msg += `• Precio: $${args.pricePerNight}/noche`;
+          if (args.pricePerWeek) msg += ` | $${args.pricePerWeek}/semana`;
+          if (args.pricePerMonth) msg += ` | $${args.pricePerMonth}/mes`;
+          if (args.amenities?.length) msg += `\n• Amenidades: ${args.amenities.join(', ')}`;
+          if (args.rules?.length) msg += `\n• Reglas: ${args.rules.join(', ')}`;
+          msg += `\n\nEl agente ahora puede ofrecer esta propiedad y tomar reservas por WhatsApp.`;
+
+          return JSON.stringify({ success: true, property: p, message: msg });
+        } catch (err: any) {
+          return JSON.stringify({ success: false, message: `Error al registrar propiedad: ${err.message}` });
+        }
+      }
+
       case 'send_media_to_customer': {
         try {
           // Get media assets of the requested type
@@ -3994,6 +4122,7 @@ SI MANDAN UNA IMAGEN:
     ];
 
     const reservationCapabilities = [
+      '- Registrar nueva propiedad/departamento (usa add_property)',
       '- Verificar disponibilidad de fechas (usa check_availability)',
       '- Crear reservaciones (usa create_reservation)',
       '- Ver info de propiedades (usa get_property_info)',
@@ -4131,8 +4260,8 @@ REGLAS DE COMUNICACIÓN:
     if (!businessHours) return { isOpen: true }; // Sin horario configurado = siempre abierto
 
     // Parse format: could be {timezone, schedule: {mon: {open, close}}} or {mon: {open, close}}
-    let timezone = businessHours.timezone ?? 'America/Mexico_City';
-    let schedule = businessHours.schedule ?? businessHours;
+    const timezone = businessHours.timezone ?? 'America/Mexico_City';
+    const schedule = businessHours.schedule ?? businessHours;
 
     // MERGE: Dashboard saves in Spanish format (lunes, martes, domingo, etc.) with 'enabled' flag.
     // If Spanish keys exist with enabled:true, they override the schedule keys.
