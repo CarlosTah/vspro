@@ -3263,7 +3263,7 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
                 timeout: 15000,
               });
               imageBuffer = Buffer.from(imgResponse.data);
-              mimeType = imgResponse.headers['content-type'] || 'image/jpeg';
+              mimeType = String(imgResponse.headers['content-type'] || 'image/jpeg');
             }
           } catch (dlErr: any) {
             this.logger.warn(`[upload_media] Failed to download from Meta: ${dlErr.message}`);
