@@ -6,6 +6,7 @@ import { AiMemoryService } from './ai-memory.service';
 import { AiToolsExtenderService } from './ai-tools-extender.service';
 import { CustomerMemoryService } from './customer-memory.service';
 import { CustomerMemoryController } from './customer-memory.controller';
+import { EmbeddingsService } from './embeddings.service';
 import { ProductsModule } from '../products/products.module';
 import { OrdersModule } from '../orders/orders.module';
 import { CustomersModule } from '../customers/customers.module';
@@ -43,6 +44,7 @@ import { StateMachineOrchestratorService } from './state-machine/state-machine-o
     IntentClassifierService,
     TextGeneratorService,
     StateMachineOrchestratorService,
+    EmbeddingsService,
   ],
   exports: [
     AiEngineService,
@@ -51,6 +53,7 @@ import { StateMachineOrchestratorService } from './state-machine/state-machine-o
     AiToolsExtenderService,
     CustomerMemoryService,
     StateMachineOrchestratorService,
+    EmbeddingsService,
   ],
 })
 export class AiModule {}

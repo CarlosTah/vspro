@@ -16,6 +16,7 @@ import { PromotionsService } from '../promotions/promotions.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { IncomingMessage } from '@vspro/shared';
 import { StateMachineOrchestratorService } from './state-machine/state-machine-orchestrator.service';
+import { EmbeddingsService } from './embeddings.service';
 
 export interface AiEngineResponse {
   text: string;
@@ -49,6 +50,7 @@ export class AiEngineService {
     private readonly loyaltyService: LoyaltyService,
     private readonly config: ConfigService,
     private readonly stateMachine: StateMachineOrchestratorService,
+    private readonly embeddings: EmbeddingsService,
   ) {
     this.openai = new OpenAI({
       apiKey: this.config.get('OPENAI_API_KEY'),
@@ -144,13 +146,18 @@ export class AiEngineService {
         ? this.buildOwnerSystemPrompt(tenant, products)
         : this.buildSystemPrompt(tenant, aiConfig, products);
 
-      // 4.1. Inyectar knowledge base del tenant
-      const kbContext = await this.knowledgeBase.buildKnowledgeContext(schemaName);
+      // 4.1. Knowledge base and promotions are now accessed via search_knowledge_base tool (RAG)
+      // Only inject them for owner prompts (non-customer-facing) where tools aren't used for lookup
+      const kbContext = useOwnerPrompt
+        ? await this.knowledgeBase.buildKnowledgeContext(schemaName)
+        : '';
 
-      // 4.2. Inyectar promociones activas
-      const promosContext = await this.promotionsService.buildPromotionsContext(schemaName);
+      // 4.2. Promotions: only inject for owner, customers get them via search_catalog
+      const promosContext = useOwnerPrompt
+        ? await this.promotionsService.buildPromotionsContext(schemaName)
+        : '';
 
-      // 4.3. Inyectar programa de lealtad
+      // 4.3. Inyectar programa de lealtad (brief, stays in context for customer experience)
       const customerId = (conversation.context as any)?.customerId;
       const loyaltyContext = await this.loyaltyService.buildLoyaltyContext(
         customerId ?? null,
@@ -306,7 +313,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
                 const imgKey = `media/${schemaName}/property/${imgId}.${imgExt}`;
 
                 const s3 = new S3Client({
-                  endpoint: this.config.get('AWS_S3_ENDPOINT') || 'https://nyc3.digitaloceanspaces.com',
+                  endpoint:
+                    this.config.get('AWS_S3_ENDPOINT') || 'https://nyc3.digitaloceanspaces.com',
                   region: this.config.get('AWS_REGION') || 'nyc3',
                   credentials: {
                     accessKeyId: this.config.get('AWS_ACCESS_KEY_ID') || '',
@@ -316,13 +324,15 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
                 });
 
                 const bucket = this.config.get('AWS_S3_BUCKET') || 'vspro-uploads';
-                await s3.send(new PutObjectCommand({
-                  Bucket: bucket,
-                  Key: imgKey,
-                  Body: imgBuf,
-                  ContentType: imgMime,
-                  ACL: 'public-read',
-                }));
+                await s3.send(
+                  new PutObjectCommand({
+                    Bucket: bucket,
+                    Key: imgKey,
+                    Body: imgBuf,
+                    ContentType: imgMime,
+                    ACL: 'public-read',
+                  }),
+                );
 
                 cdnUrl = `https://${bucket}.nyc3.digitaloceanspaces.com/${imgKey}`;
 
@@ -425,6 +435,44 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
 
   private getTools(): OpenAI.Chat.ChatCompletionTool[] {
     return [
+      {
+        type: 'function',
+        function: {
+          name: 'search_catalog',
+          description:
+            'Busca productos/servicios en el catálogo del negocio por significado semántico. Usa SIEMPRE esta herramienta para consultar productos, precios, disponibilidad o menú. NO respondas sobre productos de memoria — SOLO responde con lo que esta tool devuelve.',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description:
+                  'Lo que el cliente busca (ej: "refresco", "corte de cabello", "depa con alberca", "algo para acompañar tacos")',
+              },
+            },
+            required: ['query'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'search_knowledge_base',
+          description:
+            'Busca en la base de conocimiento del negocio: políticas, horarios, FAQs, reglas, información general. Usa cuando el cliente pregunta algo que no es sobre productos (envíos, pagos, ubicación, reglas, etc.).',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description:
+                  'La pregunta o tema a buscar (ej: "métodos de pago", "política devoluciones", "estacionamiento")',
+              },
+            },
+            required: ['query'],
+          },
+        },
+      },
       {
         type: 'function',
         function: {
@@ -1044,7 +1092,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
               },
               pricePerWeek: {
                 type: 'number',
-                description: 'Precio por semana (7 noches) — opcional, descuento por estancia larga',
+                description:
+                  'Precio por semana (7 noches) — opcional, descuento por estancia larga',
               },
               pricePerMonth: {
                 type: 'number',
@@ -1548,6 +1597,47 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
     schemaName: string,
   ): Promise<string> {
     switch (name) {
+      case 'search_catalog': {
+        const results = await this.embeddings.searchProducts(args.query, schemaName, 6);
+        if (results.length === 0) {
+          return JSON.stringify({
+            found: false,
+            message: `No se encontraron productos que coincidan con "${args.query}". El negocio NO tiene ese producto.`,
+          });
+        }
+        return JSON.stringify({
+          found: true,
+          count: results.length,
+          products: results.map((p: any) => ({
+            name: p.name,
+            price: parseFloat(p.price),
+            category: p.category,
+            description: p.description,
+            available: (p.stockAvailable ?? 50) > 0,
+            stock: p.stockAvailable ?? 50,
+            similarity: p.similarity ? Math.round(p.similarity * 100) + '%' : undefined,
+          })),
+        });
+      }
+
+      case 'search_knowledge_base': {
+        const results = await this.embeddings.searchKnowledgeBase(args.query, schemaName, 3);
+        if (results.length === 0) {
+          return JSON.stringify({
+            found: false,
+            message: `No se encontró información sobre "${args.query}" en la base de conocimiento.`,
+          });
+        }
+        return JSON.stringify({
+          found: true,
+          entries: results.map((e: any) => ({
+            title: e.title,
+            content: e.content,
+            category: e.category,
+          })),
+        });
+      }
+
       case 'check_product_availability': {
         const products = await this.productsService.search(args.query, schemaName);
         if (products.length === 0) {
@@ -2755,7 +2845,10 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
 
           return JSON.stringify({ success: true, property: p, message: msg });
         } catch (err: any) {
-          return JSON.stringify({ success: false, message: `Error al registrar propiedad: ${err.message}` });
+          return JSON.stringify({
+            success: false,
+            message: `Error al registrar propiedad: ${err.message}`,
+          });
         }
       }
 
@@ -3300,7 +3393,8 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
           if (!waToken) {
             return JSON.stringify({
               success: false,
-              message: 'No se pudo obtener el token de WhatsApp para descargar la imagen. Configura el canal de WhatsApp.',
+              message:
+                'No se pudo obtener el token de WhatsApp para descargar la imagen. Configura el canal de WhatsApp.',
             });
           }
 
@@ -3969,7 +4063,7 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
         AND type = 'text'
         AND content IS NOT NULL
       ORDER BY created_at DESC
-      LIMIT 10
+      LIMIT 6
     `,
       conversationId,
     );
@@ -4004,11 +4098,6 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
   }
 
   private buildSystemPrompt(tenant: any, aiConfig: any, products: any[]): string {
-    const productList = products
-      .slice(0, 20) // máximo 20 productos en el prompt
-      .map((p: any) => `- ${p.name}: $${p.price}${p.stockAvailable > 0 ? '' : ' (sin stock)'}`)
-      .join('\n');
-
     // If tenant has custom instructions with identity, use those as the primary personality
     const hasCustomIdentity =
       aiConfig.customInstructions &&
@@ -4020,112 +4109,83 @@ IMPORTANTE: El status de arriba es el REAL de la base de datos. NO digas algo di
       ? `Eres el asistente virtual de ${tenant.businessName}. Tu identidad y personalidad están definidas en las INSTRUCCIONES DEL NEGOCIO más abajo. SIEMPRE sigue esas instrucciones de personalidad.`
       : `Eres ${aiConfig.assistantName}, el asistente virtual de ${tenant.businessName}.\nTu tono es ${aiConfig.tone ?? 'amigable'}.`;
 
+    // Minimal product index: just names for quick "do we have X?" without prices
+    const productIndex = products
+      .slice(0, 15)
+      .map((p: any) => p.name)
+      .join(', ');
+
     return `${identityBlock}
 Responde SIEMPRE en español.
 
-REGLA ABSOLUTA — ANTI-ALUCINACIONES:
-- SOLO puedes ofrecer productos que aparecen en la sección CATÁLOGO DISPONIBLE de este prompt.
-- Si un producto NO está en el catálogo, di "no lo tenemos disponible" — NUNCA lo inventes.
-- NUNCA menciones platillos, combos o precios que NO estén listados abajo.
-- Si no estás seguro si algo existe, usa check_product_availability ANTES de mencionarlo.
-- Los ÚNICOS productos que existen son los del catálogo. NADA MÁS.
+═══ PRINCIPIO ZERO-TRUST — ANTI-ALUCINACIONES ═══
+NO CONOCES el catálogo, los precios ni la disponibilidad DE MEMORIA.
+Para CUALQUIER pregunta sobre productos, precios, menú o disponibilidad, ESTÁS OBLIGADO a ejecutar search_catalog.
+NUNCA respondas sobre productos basándote en tu conocimiento general — SOLO usa lo que devuelve search_catalog.
+Si search_catalog no encuentra un producto, responde: "No lo tenemos disponible."
+NUNCA inventes precios, platillos, combos o productos que la tool no haya devuelto.
 
-INSTRUCCIONES:
+ÍNDICE RÁPIDO (solo nombres — para precios/stock SIEMPRE usa search_catalog):
+${productIndex || 'Sin productos configurados.'}
+
+═══ HERRAMIENTAS OBLIGATORIAS ═══
+- search_catalog → SIEMPRE que menciones un producto/precio/disponibilidad
+- search_knowledge_base → para preguntas sobre políticas, horarios, métodos de pago, ubicación, reglas
+- create_order → cuando el cliente confirma qué quiere pedir
+- get_order_status → cuando preguntan por su pedido
+- escalate_complaint → cuando no puedes resolver o el cliente está frustrado
+
+═══ INSTRUCCIONES GENERALES ═══
 - Ayuda a los clientes a realizar pedidos de forma clara y amigable
-- Cuando el cliente quiera pedir algo, usa la herramienta create_order
-- Cuando pregunten por disponibilidad, usa check_product_availability
-- Cuando pregunten por su pedido, usa get_order_status
-- Si no puedes ayudar, ofrece contactar a un humano
-- Sé conciso — los mensajes de WhatsApp deben ser cortos
-- Si el cliente está frustrado o tiene una queja que no puedes resolver, usa escalate_complaint
+- Sé conciso — los mensajes de WhatsApp deben ser cortos (máx 4 líneas)
+- Si no puedes ayudar, ofrece contactar a un humano (y EJECUTA escalate_complaint)
 - Si el cliente quiere cancelar un pedido, usa cancel_order (pide el motivo primero)
 
-REGLAS CRÍTICAS — NUNCA las violes:
-1. NUNCA digas "voy a contactar a un humano" sin EJECUTAR la tool escalate_complaint. Si dices que escalarás, DEBES ejecutar la herramienta.
-2. NUNCA inventes información (precios, productos, horarios) que no esté en el catálogo o knowledge base.
+═══ REGLAS CRÍTICAS ═══
+1. NUNCA digas "voy a contactar a un humano" sin EJECUTAR escalate_complaint.
+2. NUNCA inventes información. Si no la tienes, usa la herramienta correspondiente.
 3. NUNCA pierdas el contexto del pedido actual. Si ya tienes el nombre del cliente, NO lo pidas de nuevo.
-4. Si una tool falla, informa al cliente del error técnico y EJECUTA escalate_complaint para que el dueño intervenga.
-5. Si el cliente envía una IMAGEN durante el flujo de entrega/dirección, es una REFERENCIA VISUAL de su casa/ubicación. Guárdala como referencia, NO comentes la foto de forma casual.
-6. Si el cliente envía una imagen y hay un pedido con status payment_pending, es un COMPROBANTE DE PAGO. No es una foto casual.
-7. NUNCA digas "tu pedido está listo" POR TU CUENTA. TÚ NO SABES cuándo cocina termina. El sistema envía esa notificación automáticamente. EXCEPCIÓN: si el PEDIDO ACTIVO ya tiene status "ready" o "delivered" (porque la notificación del sistema ya se envió), puedes reconocer que está listo.
-8. Después de confirmar el pedido NUEVO y método de pago, tu mensaje final es: "Tu pedido fue enviado a cocina. Te notificamos cuando esté listo." PERO si el pedido ya está en status "ready" y el cliente pide cambiar a domicilio, NO digas "enviado a cocina" — simplemente configura la dirección de envío y confirma.
-9. Si el cliente CAMBIA de recoger a domicilio DESPUÉS de que el pedido está listo, usa set_delivery_address normalmente y dile: "Listo, te lo enviamos. El repartidor te contactará pronto."
+4. Si una tool falla, informa al cliente y EJECUTA escalate_complaint.
+5. NUNCA digas "tu pedido está listo" POR TU CUENTA. El sistema notifica automáticamente. EXCEPCIÓN: si el pedido ya tiene status "ready".
+6. Si el cliente envía imagen durante pago pendiente → es COMPROBANTE. Durante entrega → es REFERENCIA VISUAL.
 
-FLUJO DE PEDIDO — SIEMPRE SIGUE ESTE ORDEN:
-1. Confirma los productos y cantidades con el cliente
-2. Pregunta el NOMBRE del cliente si no lo tienes (si ya está en la memoria, NO lo pidas)
-3. Usa create_order para registrar el pedido
-4. Pregunta: "¿Pasas a recoger o te lo enviamos a domicilio?"
-5. Si es ENVÍO:
-   - INFORMA EL COSTO DE ENVÍO: "$XX de envío adicional" (consulta el monto configurado del negocio o usa $30 si no está configurado)
-   - Pide la dirección escrita (calle, colonia, referencias)
-   - Pide que envíe su UBICACIÓN por WhatsApp (el pin/📍) para el repartidor
-   - Usa set_delivery_address con la dirección y coordenadas (usa el orderId del pedido que acabas de crear)
-   - Si el cliente envía una IMAGEN después de dar la dirección, es una referencia visual de su casa — menciona que la guardaste como referencia
-   - El costo de envío se suma automáticamente al total
-6. Si es RECOGER: confirma que pase cuando esté listo
-7. Pregunta forma de pago: "¿Pagas por transferencia o en efectivo contra entrega?"
-8. Si dice TRANSFERENCIA:
-   - Usa request_payment para poner el pedido en pago pendiente
-   - Da los datos bancarios (si los tienes configurados) y pide comprobante
-   - Cuando el cliente mande imagen de transferencia, se verifica automáticamente
-9. Si dice EFECTIVO / CONTRA ENTREGA / EN LA ENTREGA:
-   - Usa set_payment_method con method "cod" (cash on delivery)
-   - El pedido pasa DIRECTO a cocina sin esperar comprobante
-   - Informa: "Perfecto, pagas $XX en efectivo al repartidor cuando llegue"
-   - El repartidor cobrará al entregar
-10. MENSAJE FINAL (solo para pedidos NUEVOS): "¡Listo! Tu pedido fue enviado a cocina. Te notificamos cuando esté listo para entrega. 🙌"
-11. Guarda el nombre y dirección en la memoria del cliente (update_customer_memory)
+═══ FLUJO DE PEDIDO ═══
+1. El cliente dice qué quiere → usa search_catalog para verificar y obtener precios exactos
+2. Confirma productos + cantidades + total con el cliente
+3. Pregunta NOMBRE si no lo tienes (si ya está en memoria, NO lo pidas)
+4. Usa create_order
+5. Pregunta: "¿Pasas a recoger o te lo enviamos a domicilio?"
+6. Si ENVÍO: informa costo ($30 o configurado), pide dirección + ubicación WhatsApp, usa set_delivery_address
+7. Pregunta forma de pago: transferencia o efectivo contra entrega
+8. Si TRANSFERENCIA: usa request_payment, da datos bancarios, pide comprobante
+9. Si EFECTIVO: usa set_payment_method con "cod", pedido pasa directo a cocina
+10. MENSAJE FINAL: "¡Listo! Tu pedido fue enviado a cocina. Te notificamos cuando esté listo. 🙌"
+11. Guarda nombre/dirección en memoria (update_customer_memory)
 
-MANEJO DE ERRORES:
-- Si set_delivery_address falla: intenta de nuevo con el orderId del pedido activo. Si sigue fallando, usa escalate_complaint.
-- Si create_order falla: informa al cliente y usa escalate_complaint.
-- NUNCA digas "contactaré a un humano" sin ejecutar escalate_complaint inmediatamente.
-- Si no puedes resolver algo en 2 intentos, escala con escalate_complaint.
+═══ MEMORIA DEL CLIENTE ═══
+- USA update_customer_memory para guardar nombre, dirección, preferencias
+- Si la memoria ya tiene datos, NO los pidas de nuevo
+- Guarda información DURANTE la conversación, no al final
 
-MEMORIA — IMPORTANTE:
-- USA update_customer_memory ACTIVAMENTE para guardar datos del cliente:
-  - memory_type "profile", category "addresses": cuando el cliente dé su nombre, dirección, preferencias
-  - memory_type "episode": cuando detectes intereses, quejas, contexto relevante
-- Si la MEMORIA DEL CLIENTE ya tiene su nombre/dirección, NO lo pidas de nuevo. Usa los datos que ya tienes.
-- Guarda la memoria DURANTE la conversación, no esperes al final.
-- SIEMPRE que el cliente dé información nueva (nombre, dirección, preferencia), guárdala inmediatamente.
+═══ MATERIAL GRÁFICO ═══
+- Si pide MENÚ → send_media_to_customer con "menu"
+- Si pide PROMOCIONES → send_media_to_customer con "promo"
+- Si pide FOTO de producto → send_media_to_customer con "product"
 
-COSTOS Y ENVÍO:
-- Costo de envío a domicilio: $30 (se suma al total cuando se establece la dirección)
-- SIEMPRE informa el costo de envío ANTES de pedir la dirección: "El envío tiene un costo de $30 adicional"
-- Al preguntar forma de pago, ofrece: transferencia o efectivo contra entrega
-- Si es contra entrega, usa set_payment_method con method "cod"
+═══ UPSELLING ═══
+- Después del pedido, sugiere UN complemento usando search_catalog para verificar que existe
+- NO insistas si dice que no
 
-CATÁLOGO DISPONIBLE (SOLO estos productos existen — NO inventes otros):
-NOTA: Si un cliente pide un producto que NO está en esta lista pero tú sabes que el negocio lo ofrece (por ejemplo, viste una imagen del menú), DEBES decirle: "Ese producto no lo tengo registrado en el sistema aún. Déjame verificar con el negocio." y usa escalate_complaint para que el dueño lo dé de alta. NUNCA aceptes un pedido de un producto que no está en el catálogo.
-${productList || 'No hay productos disponibles en este momento.'}
+═══ CLIENTE FRECUENTE ═══
+- Si dice "lo mismo de siempre" → usa repeat_last_order
+- Si reconoces al cliente por memoria, salúdalo por nombre
 
-MATERIAL GRÁFICO:
-- Si el cliente pide el MENÚ, usa send_media_to_customer con mediaType "menu"
-- Si pregunta por PROMOCIONES, usa send_media_to_customer con mediaType "promo"
-- Si quiere ver la FOTO de un producto específico, usa send_media_to_customer con mediaType "product" y productName
-- Si pide el CATÁLOGO completo, usa send_media_to_customer con mediaType "catalog"
-- SIEMPRE envía el material si está disponible. Si no hay material configurado, infórmale al cliente.
-
-UPSELLING — INCREMENTA EL TICKET:
-- Después de que el cliente confirme su pedido, SIEMPRE sugiere UN complemento lógico.
-- Ejemplos: Si pide tacos → sugiere guacamole o bebida. Si pide pizza → sugiere refresco o postre.
-- Sé natural y breve: "¿Te agrego un guacamole por $40 más?" o "¿Una horchata para acompañar?"
-- NO insistas si dice que no. Una sola sugerencia por pedido.
-- Elige el complemento basándote en el catálogo disponible y lo que pidió.
-
-CLIENTE FRECUENTE — PEDIDO HABITUAL:
-- Si el cliente dice "lo mismo de siempre", "mi pedido habitual", "repite mi pedido" → usa repeat_last_order
-- Si reconoces al cliente (está en la memoria), salúdalo por nombre y ofrece: "¿Te mando tu pedido habitual?"
-- Esto acelera la compra y mejora la experiencia.
-
-HORARIO DE ATENCIÓN:
+═══ HORARIO ═══
 ${this.formatScheduleForPrompt(aiConfig.businessHours)}
 
-${aiConfig.customInstructions ? `\nINSTRUCCIONES DEL NEGOCIO (PRIORIDAD ALTA — sigue estas instrucciones de identidad y personalidad):\n${aiConfig.customInstructions}` : ''}
-${aiConfig.objectives?.length ? `\nOBJETIVOS DEL AGENTE:\n${aiConfig.objectives.map((o: string) => `- ${o}`).join('\n')}` : ''}
-${aiConfig.redLines?.length ? `\nLÍNEAS ROJAS — NUNCA hagas esto:\n${aiConfig.redLines.map((r: string) => `❌ ${r}`).join('\n')}` : ''}`.trim();
+${aiConfig.customInstructions ? `\n═══ INSTRUCCIONES DEL NEGOCIO (PRIORIDAD ALTA) ═══\n${aiConfig.customInstructions}` : ''}
+${aiConfig.objectives?.length ? `\n═══ OBJETIVOS ═══\n${aiConfig.objectives.map((o: string) => `- ${o}`).join('\n')}` : ''}
+${aiConfig.redLines?.length ? `\n═══ LÍNEAS ROJAS ═══\n${aiConfig.redLines.map((r: string) => `❌ ${r}`).join('\n')}` : ''}`.trim();
   }
 
   /**
