@@ -61,11 +61,25 @@ class ApiClient {
     });
 
     if (res.status === 401) {
-      this.clearAuth();
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+      // Don't redirect if we're already on login page or making a login/auth request
+      const isAuthRequest = path.startsWith('/auth/');
+      const isOnLoginPage = typeof window !== 'undefined' && window.location.pathname === '/login';
+
+      if (!isAuthRequest && !isOnLoginPage) {
+        this.clearAuth();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        throw new Error('Sesión expirada');
       }
-      throw new Error('Sesión expirada');
+
+      // For auth requests, parse the error message from the response
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      const message = Array.isArray(data.message)
+        ? data.message.join('. ')
+        : (data.message ?? 'Credenciales inválidas');
+      throw new Error(message);
     }
 
     // Handle empty responses (e.g., DELETE returns no body)
@@ -73,7 +87,10 @@ class ApiClient {
     const data = text ? JSON.parse(text) : {};
 
     if (!res.ok) {
-      throw new Error(data.message ?? `Error ${res.status}`);
+      const message = Array.isArray(data.message)
+        ? data.message.join('. ')
+        : (data.message ?? `Error ${res.status}`);
+      throw new Error(message);
     }
 
     return data as T;
